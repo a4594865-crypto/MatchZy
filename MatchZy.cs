@@ -230,7 +230,7 @@ namespace MatchZy
                 return HookResult.Continue;
             }, HookMode.Pre);
 
-             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
+            RegisterEventHandler<EventPlayerTeam>((@event, info) =>
             {
                 if (!isMatchSetup && !isVeto) return HookResult.Continue;
 
@@ -245,11 +245,7 @@ namespace MatchZy
 
                 CsTeam playerTeam = GetPlayerTeam(player);
 
-                // Only force switch if the player is explicitly in the whitelist
-                if (playerTeam != CsTeam.None)
-                {
-                    SwitchPlayerTeam(player, playerTeam);
-                }
+                SwitchPlayerTeam(player, playerTeam);
 
                 return HookResult.Continue;
             });
@@ -259,8 +255,7 @@ namespace MatchZy
                 if ((isMatchSetup || isVeto) && player != null && player.IsValid) {
                     if (int.TryParse(info.ArgByIndex(1), out int joiningTeam)) {
                         int playerTeam = (int)GetPlayerTeam(player);
-                        // Allow join if player is not in whitelist (playerTeam is None), otherwise enforce assignment
-                        if (playerTeam != (int)CsTeam.None && joiningTeam != playerTeam) {
+                        if (joiningTeam != playerTeam) {
                             return HookResult.Stop;
                         }
                     }
