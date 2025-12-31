@@ -177,7 +177,7 @@ namespace MatchZy
             return false;
         }
 
-         public bool RemovePlayerFromTeam(string steamId)
+        public bool RemovePlayerFromTeam(string steamId)
         {
             List<JToken?> teams = [matchzyTeam1.teamPlayers, matchzyTeam2.teamPlayers, matchConfig.Spectators];
 
@@ -196,16 +196,6 @@ namespace MatchZy
                 }
             }
             return false;
-        }
-
-        public int GetPlayerTeam(CCSPlayerController player)
-        {
-            string steamId = player.SteamID.ToString();
-            if (matchzyTeam1.teamPlayers != null && matchzyTeam1.teamPlayers[steamId] != null) return 1;
-            if (matchzyTeam2.teamPlayers != null && matchzyTeam2.teamPlayers[steamId] != null) return 2;
-            if (matchConfig.Spectators != null && matchConfig.Spectators[steamId] != null) return 0;
-            
-            return (int)player.TeamNum;
         }
     }
 }
