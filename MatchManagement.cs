@@ -534,7 +534,7 @@ namespace MatchZy
             (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
         }
 
-       private CsTeam GetPlayerTeam(CCSPlayerController player)
+        private CsTeam GetPlayerTeam(CCSPlayerController player)
         {
             CsTeam playerTeam = CsTeam.None;
             var steamId = player.SteamID;
@@ -566,13 +566,6 @@ namespace MatchZy
                 else if (matchConfig.Spectators != null && matchConfig.Spectators[steamId.ToString()] != null)
                 {
                     playerTeam = CsTeam.Spectator;
-                }
-
-                // Bypass: If player is not in the whitelist, return their current team (allow them to play).
-                // This ensures they are not kicked and side swaps handled by the engine are respected.
-                if (playerTeam == CsTeam.None)
-                {
-                    playerTeam = (CsTeam)player.TeamNum;
                 }
             }
             catch (Exception ex)
