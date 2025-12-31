@@ -10,20 +10,20 @@ namespace MatchZy
 
     public class Team 
     {
-        [JsonPropertyName("id")]
+       [JsonPropertyName("id")]
         public string id = "";
 
         [JsonPropertyName("teamname")]
-        public required string teamName;
+        public string teamName = "Team";
 
         [JsonPropertyName("teamflag")]
         public string teamFlag = "";
 
-        [JsonPropertyName("teamtag")]
+       [JsonPropertyName("teamtag")]
         public string teamTag = "";
 
         [JsonPropertyName("teamplayers")]
-        public JToken? teamPlayers;
+        public JToken? teamPlayers = new JObject();
 
         [JsonIgnore, Newtonsoft.Json.JsonIgnore]
         public HashSet<CCSPlayerController> coach = [];
