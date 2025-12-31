@@ -196,10 +196,11 @@ namespace MatchZy
                         {
                             return $"{field} should be a JSON structure!";
                         }
-                        if ((field != "spectators") && (jsonData[field]!["players"] == null || jsonData[field]!["players"]!.Type != JTokenType.Object)) 
-                        {
-                            return $"{field} should have 'players' JSON!";
-                        }
+                        // [修改] 註解掉以下檢查，允許 players 欄位為空或不存在，這樣所有人都可以加入隊伍
+                        // if ((field != "spectators") && (jsonData[field]!["players"] == null || jsonData[field]!["players"]!.Type != JTokenType.Object)) 
+                        // {
+                        //    return $"{field} should have 'players' JSON!";
+                        // }
                         break;
 
                     case "veto_mode":
@@ -277,8 +278,10 @@ namespace MatchZy
 
             matchzyTeam1.teamName = RemoveSpecialCharacters(team1["name"]!.ToString());
             matchzyTeam2.teamName = RemoveSpecialCharacters(team2["name"]!.ToString());
-            matchzyTeam1.teamPlayers = team1["players"];
-            matchzyTeam2.teamPlayers = team2["players"];
+            
+            // [修改] 如果 JSON 中沒有 players，則初始化為空的 JObject，防止後續邏輯因 null 而出錯
+            matchzyTeam1.teamPlayers = team1["players"] ?? new JObject();
+            matchzyTeam2.teamPlayers = team2["players"] ?? new JObject();
 
             matchConfig = new()
             {
