@@ -230,7 +230,7 @@ namespace MatchZy
                 return HookResult.Continue;
             }, HookMode.Pre);
 
-RegisterEventHandler<EventPlayerTeam>((@event, info) =>
+            RegisterEventHandler<EventPlayerTeam>((@event, info) =>
             {
                 if (!isMatchSetup && !isVeto) return HookResult.Continue;
 
@@ -245,12 +245,7 @@ RegisterEventHandler<EventPlayerTeam>((@event, info) =>
 
                 CsTeam playerTeam = GetPlayerTeam(player);
 
-                // [Patch] Only enforce team if the player is explicitly assigned to a team (T/CT) in the config.
-                // Allows unlisted players (None/Spec) to play on the team they joined.
-                if (playerTeam != CsTeam.None && playerTeam != CsTeam.Spectator)
-                {
-                    SwitchPlayerTeam(player, playerTeam);
-                }
+                SwitchPlayerTeam(player, playerTeam);
 
                 return HookResult.Continue;
             });
@@ -260,9 +255,7 @@ RegisterEventHandler<EventPlayerTeam>((@event, info) =>
                 if ((isMatchSetup || isVeto) && player != null && player.IsValid) {
                     if (int.TryParse(info.ArgByIndex(1), out int joiningTeam)) {
                         int playerTeam = (int)GetPlayerTeam(player);
-                        // [Patch] Only block if player is explicitly assigned to a team (T/CT) and tries to join the wrong one.
-                        // Unlisted players (playerTeam <= 1) can join any team.
-                        if (playerTeam > 1 && joiningTeam != playerTeam) {
+                        if (joiningTeam != playerTeam) {
                             return HookResult.Stop;
                         }
                     }
