@@ -216,7 +216,7 @@ namespace MatchZy
             RegisterListener<Listeners.OnClientDisconnectPost>(playerSlot => { 
                // May not be required, but just to be on safe side so that player data is properly updated in dictionaries
                // Update: Commenting the below function as it was being called multiple times on map change.
-                // UpdatePlayersMap();
+                UpdatePlayersMap();
             });
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
             RegisterEventHandler<EventPlayerTeam>((@event, info) => {
@@ -280,6 +280,7 @@ namespace MatchZy
                 @event.Reason = finalEvent;
                 isSideSelectionPhase = true;
                 isKnifeRound = false;
+                UpdatePlayersMap(); // 確保換邊前名單是最新的
                 StartAfterKnifeWarmup();
 
                 return HookResult.Changed;
