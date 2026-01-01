@@ -205,7 +205,7 @@ namespace MatchZy
                 { ".loadpos", OnLoadPosCommand}
             };
 
-            RegisterEventHandler<EventPlayerConnectFull>(EventPlayerConnectFullHandler);
+             // RegisterEventHandler<EventPlayerConnectFull>(EventPlayerConnectFullHandler); // [Modified] 停用此事件以徹底移除 KICKING PLAYER 邏輯
             RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
