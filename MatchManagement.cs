@@ -537,7 +537,7 @@ namespace MatchZy
             (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
         }
 
-        private CsTeam GetPlayerTeam(CCSPlayerController player)
+         private CsTeam GetPlayerTeam(CCSPlayerController player)
         {
             CsTeam playerTeam = CsTeam.None;
             var steamId = player.SteamID;
@@ -569,6 +569,14 @@ namespace MatchZy
                 else if (matchConfig.Spectators != null && matchConfig.Spectators[steamId.ToString()] != null)
                 {
                     playerTeam = CsTeam.Spectator;
+                }
+
+                // [解禁修正] 如果玩家不在白名單中，不再返回 None (導致踢出)，而是默認允許進入觀察者或保留當前隊伍
+                if (playerTeam == CsTeam.None)
+                {
+                    if (player.TeamNum == (byte)CsTeam.CounterTerrorist) return CsTeam.CounterTerrorist;
+                    if (player.TeamNum == (byte)CsTeam.Terrorist) return CsTeam.Terrorist;
+                    return CsTeam.Spectator;
                 }
             }
             catch (Exception ex)
