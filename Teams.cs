@@ -141,7 +141,9 @@ namespace MatchZy
             bool success = RemovePlayerFromTeam(steamId.ToString());
             if (success)
             {
-                command.ReplyToCommand($"Successfully removed player {steamId}");
+                 command.ReplyToCommand($"Successfully removed player {steamId}");
+                // [MatchZy Fix] 移除踢人邏輯，確保玩家從名單移除後不會被踢出伺服器
+                /*
                 CCSPlayerController? removedPlayer = Utilities.GetPlayerFromSteamId(steamId);
                 if (IsPlayerValid(removedPlayer))
                 {
@@ -149,6 +151,7 @@ namespace MatchZy
                     PrintToAllChat($"Kicking player {removedPlayer!.PlayerName} - Not a player in this game.");
                     KickPlayer(removedPlayer);
                 }
+                */
             }
             else
             {
