@@ -230,6 +230,7 @@ namespace MatchZy
                 return HookResult.Continue;
             }, HookMode.Pre);
 
+             /*
             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
             {
                 if (!isMatchSetup && !isVeto) return HookResult.Continue;
@@ -249,7 +250,8 @@ namespace MatchZy
 
                 return HookResult.Continue;
             });
-
+            */
+             /*
             AddCommandListener("jointeam", (player, info) =>
             {
                 if ((isMatchSetup || isVeto) && player != null && player.IsValid) {
@@ -262,7 +264,7 @@ namespace MatchZy
                 }
                 return HookResult.Continue;
             });
-
+            */
             AddCommandListener("noclip", OnConsoleNoClip); // Override noclip
 
             RegisterEventHandler<EventRoundEnd>((@event, info) => 
