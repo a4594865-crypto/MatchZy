@@ -216,27 +216,24 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // 2. 指令層級攔截換隊 (防止死亡、僅個人提示)
+            // --- 核心修正：加入緩衝判斷，防止換圖後無法換回正確隊伍 ---
             AddCommandListener("jointeam", (player, info) =>
             {
+                // 如果比賽已開始
                 if (player != null && (matchStarted || isKnifeRequired)) 
                 {
-                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}刀局或比賽期間禁止自行更換隊伍！{ChatColors.Default}");
+                    // 檢查目前是否在「凍結時間」(Freeze Period)
+                    // 如果在凍結時間內，通常是換圖後的剛開始，允許玩家調整隊伍
+                    if (GameState == MatchZy.GameState.FreezeTime || !matchStarted) 
+                    {
+                        return HookResult.Continue; 
+                    }
+
+                    // 如果已經正式開打（離開凍結時間），才真正擋住
+                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}比賽進行中{ChatColors.Default}禁止自行更換隊伍！");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
-            });
-
-            // 3. 攔截內建投票 (ESC 換圖、踢人)
-            RegisterEventHandler<EventVoteStarted>((@event, info) =>
-            {
-                if (isMatchSetup)
-                {
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}正式比賽已由 JSON 鎖定，禁止發起任何投票 (含換圖、踢人)！{ChatColors.Default}");
-                    Server.ExecuteCommand("sv_allow_votes 0");
-                    AddTimer(1.0f, () => Server.ExecuteCommand("sv_allow_votes 1"));
-                }
-                return HookResult.Continue;
             });
 
             AddCommandListener("noclip", OnConsoleNoClip);
@@ -257,7 +254,7 @@ namespace MatchZy
                 {
                     if (isMatchSetup)
                     {
-                        Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}玩家 {ChatColors.Default}{player.PlayerName} {ChatColors.LightRed}嘗試更換地圖。{ChatColors.Red}正式比賽地圖由 JSON 鎖定，禁止更換！{ChatColors.Default}");
+                        Server.PrintToChatAll($"{chatPrefix} 玩家 {ChatColors.Default}{ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.Red}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
                         return HookResult.Continue;
                     }
                     HandleMapChangeCommand(player, messageCommandArg);
