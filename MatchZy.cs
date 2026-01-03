@@ -216,27 +216,29 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // --- 核心修正：指令層級攔截換隊 (針對 JSON、紅字提示、允許凍結時間修正) ---
+            // --- 核心修正：指令層級攔截換隊 (解決 isFreezeTime 報錯版) ---
             AddCommandListener("jointeam", (player, info) =>
             {
-                // 1. 判斷是否為 JSON 比賽且已開賽
+                // 1. 判斷是否為 JSON 比賽且已開賽 (matchStarted = true 代表過了熱身與刀局)
                 if (player != null && isMatchSetup && (matchStarted || isKnifeRequired)) 
                 {
-                    // 2. 修正：使用 MatchZy 內建的 isFreezeTime 變數
-                    // 如果在每回合剛開始的凍結時間，允許玩家調整隊伍 (解決換圖分錯隊問題)
-                    if (isFreezeTime) 
+                    // 2. 如果現在是「熱身中」，放行玩家換隊 (方便修正 11 變 22 隊的問題)
+                    // 如果熱身結束後還是分錯隊，請在刀局期間按 M 修正
+                    if (isWarmup) 
                     {
                         return HookResult.Continue; 
                     }
 
-                    // 3. 正式開打後，顯示紅字警告並攔截
+                    // 3. 正式開打或刀局中，顯示紅字警告並攔截指令
                     player.PrintToChat($"{chatPrefix} {ChatColors.Red}刀局或比賽期間禁止自行更換隊伍！{ChatColors.Default}");
+                    
+                    // 攔截指令，讓玩家不死亡也換不過去
                     return HookResult.Stop; 
                 }
+                
                 // 非 JSON 比賽或未開賽前，皆放行
                 return HookResult.Continue; 
             });
-
             AddCommandListener("noclip", OnConsoleNoClip);
 
             // 4. 聊天指令監聽 (相容性修正版)
