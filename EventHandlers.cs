@@ -1,56 +1,46 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
-using CounterStrikeSharp.API.Core.Attributes.Registration; 
 
 namespace MatchZy;
 
 public partial class MatchZy
 {
-    // --- 核心修正：攔截換隊事件，.r 開始後(刀局與比賽)皆生效 ---
-    [GameEventHandler]
-    public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo info)
-    {
-        // 判定條件：只要比賽已準備就緒 (matchStarted) 或處於刀局中 (isKnifeRequired)
-        if (matchStarted || isKnifeRequired)
-        {
-            CCSPlayerController? player = @event.Userid;
-            
-            // 關鍵保險：!@event.Silent 確保只有「玩家手動按 M」被攔截
-            // 刀局贏了之後插件自動幫玩家換邊是 Silent 模式，所以不會被擋住
-            if (IsPlayerValid(player) && !@event.Silent)
-            {
-                // 回覆玩家訊息並停止動作
-                ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！"); 
-                return HookResult.Stop; 
-            }
-        }
-        return HookResult.Continue;
-    }
-
     public HookResult EventPlayerConnectFullHandler(EventPlayerConnectFull @event, GameEventInfo info)
     {
         try
         {
             CCSPlayerController? player = @event.Userid;
+
             if (!IsPlayerValid(player)) return HookResult.Continue;
             Log($"[FULL CONNECT] Player ID: {player!.UserId}, Name: {player.PlayerName} has connected!");
 
+            // --- 坑位識別系統：移除 SteamID 白名單與踢人邏輯 ---
             if (player.UserId.HasValue)
             {
                 int userId = player.UserId.Value;
                 playerData[userId] = player;
                 connectedPlayers++;
                 
-                if (readyAvailable && !matchStarted) playerReadyStatus[userId] = false;
-                else playerReadyStatus[userId] = true;
+                // 使用 UserId 作為唯一的識別 Key，不再依賴 SteamID
+                if (readyAvailable && !matchStarted)
+                {
+                    playerReadyStatus[userId] = false;
+                }
+                else
+                {
+                    playerReadyStatus[userId] = true;
+                }
             }
 
-            if (readyAvailable && !matchStarted && GetRealPlayersCount() == 1)
+            if (readyAvailable && !matchStarted)
             {
-                Log($"[FULL CONNECT] First player has connected, starting warmup!");
-                ExecUnpracCommands();
-                AutoStart();
+                if (GetRealPlayersCount() == 1)
+                {
+                    Log($"[FULL CONNECT] First player has connected, starting warmup!");
+                    ExecUnpracCommands();
+                    AutoStart();
+                }
             }
             return HookResult.Continue;
         }
@@ -66,9 +56,12 @@ public partial class MatchZy
         try
         {
             CCSPlayerController? player = @event.Userid;
-            if (!IsPlayerValid(player) || !player!.UserId.HasValue) return HookResult.Continue;
+
+            if (!IsPlayerValid(player)) return HookResult.Continue;
+            if (!player!.UserId.HasValue) return HookResult.Continue;
             int userId = player.UserId.Value;
 
+            // 斷開連線時立刻釋放 UserId 佔用的 Slot 資源
             if (playerReadyStatus.ContainsKey(userId))
             {
                 playerReadyStatus.Remove(userId);
@@ -96,6 +89,7 @@ public partial class MatchZy
     {
         try
         {
+            // --- 解決隊伍已滿的核心：確保地圖結束時執行大掃除 ---
             HandleMatchEnd(); 
             return HookResult.Continue;
         }
@@ -158,10 +152,14 @@ public partial class MatchZy
 
     public HookResult EventPlayerGivenC4(EventPlayerGivenC4 @event, GameEventInfo info) {
         try {
-            if (!matchStarted || @event.Userid == null) return HookResult.Continue;
+            if (!matchStarted) return HookResult.Continue;
+            if (@event.Userid == null) return HookResult.Continue;
             var recv = @event.Userid;
+
             var coaches = reverseTeamSides["TERRORIST"].coach;
-            if (coaches.Contains(recv)) TransferCoachBomb(recv);
+            if (coaches.Contains(recv)) {
+                TransferCoachBomb(recv);
+            }
         } catch (Exception e) {
             Log($"[EventPlayerGivenC4 FATAL] An error occured: {e.Message}");
         }
@@ -177,20 +175,51 @@ public partial class MatchZy
 
             Server.NextFrame(() => {
                 CBaseCSGrenadeProjectile projectile = new CBaseCSGrenadeProjectile(entity.Handle);
-                if (!projectile.IsValid || !projectile.Thrower.IsValid || projectile.Thrower.Value == null || projectile.Thrower.Value.Controller.Value == null || projectile.Globalname == "custom") return;
+
+                if (!projectile.IsValid ||
+                    !projectile.Thrower.IsValid ||
+                    projectile.Thrower.Value == null ||
+                    projectile.Thrower.Value.Controller.Value == null ||
+                    projectile.Globalname == "custom"
+                ) return;
+
                 CCSPlayerController player = new(projectile.Thrower.Value.Controller.Value.Handle);
                 if(!player.IsValid || player.PlayerPawn.Value == null || !player.PlayerPawn.IsValid) return;
                 int client = player.UserId!.Value;
+                
                 Vector position = new(projectile.AbsOrigin!.X, projectile.AbsOrigin.Y, projectile.AbsOrigin.Z);
                 QAngle angle = new(projectile.AbsRotation!.X, projectile.AbsRotation.Y, projectile.AbsRotation.Z);
                 Vector velocity = new(projectile.AbsVelocity.X, projectile.AbsVelocity.Y, projectile.AbsVelocity.Z);
                 string nadeType = Constants.ProjectileTypeMap[entity.Entity.DesignerName];
-                if (!lastGrenadesData.ContainsKey(client)) lastGrenadesData[client] = new();
-                if (!nadeSpecificLastGrenadeData.ContainsKey(client)) nadeSpecificLastGrenadeData[client] = new(){};
-                GrenadeThrownData lastGrenadeThrown = new(position, angle, velocity, player.PlayerPawn.Value.CBodyComponent!.SceneNode!.AbsOrigin, player.PlayerPawn.Value.EyeAngles, nadeType, DateTime.Now, projectile.ItemIndex);
+
+                if (!lastGrenadesData.ContainsKey(client)) {
+                    lastGrenadesData[client] = new();
+                }
+
+                if (!nadeSpecificLastGrenadeData.ContainsKey(client))
+                {
+                    nadeSpecificLastGrenadeData[client] = new(){};
+                }
+
+                GrenadeThrownData lastGrenadeThrown = new(
+                    position, 
+                    angle, 
+                    velocity, 
+                    player.PlayerPawn.Value.CBodyComponent!.SceneNode!.AbsOrigin, 
+                    player.PlayerPawn.Value.EyeAngles,
+                    nadeType,
+                    DateTime.Now,
+                    projectile.ItemIndex
+                );
+
                 nadeSpecificLastGrenadeData[client][nadeType] = lastGrenadeThrown;
                 lastGrenadesData[client].Add(lastGrenadeThrown);
-                if (maxLastGrenadesSavedLimit != 0 && lastGrenadesData[client].Count > maxLastGrenadesSavedLimit) lastGrenadesData[client].RemoveAt(0);
+
+                if (maxLastGrenadesSavedLimit != 0 && lastGrenadesData[client].Count > maxLastGrenadesSavedLimit)
+                {
+                    lastGrenadesData[client].RemoveAt(0);
+                }
+
                 lastGrenadeThrownTime[(int)projectile.Index] = DateTime.Now;
                 if (smokeColorEnabled.Value && nadeType == "smoke")
                 {
@@ -201,7 +230,10 @@ public partial class MatchZy
                 }
             });
         }
-        catch (Exception e) { Log($"[OnEntitySpawnedHandler FATAL] An error occurred: {e.Message}"); }
+        catch (Exception e)
+        {
+            Log($"[OnEntitySpawnedHandler FATAL] An error occurred: {e.Message}");
+        }
     }
 
     public HookResult EventPlayerDeathPreHandler(EventPlayerDeath @event, GameEventInfo info)
@@ -209,13 +241,21 @@ public partial class MatchZy
         try
         {
             if (!matchStarted) return HookResult.Continue;
+
             if (@event.Attacker == @event.Userid)
             {
-                if (matchzyTeam1.coach.Contains(@event.Attacker!) || matchzyTeam2.coach.Contains(@event.Attacker!)) info.DontBroadcast = true;
+                if (matchzyTeam1.coach.Contains(@event.Attacker!) || matchzyTeam2.coach.Contains(@event.Attacker!))
+                {
+                    info.DontBroadcast = true;
+                }
             }
             return HookResult.Continue;
         }
-        catch (Exception e) { Log($"[EventPlayerDeathPreHandler FATAL] An error occurred: {e.Message}"); return HookResult.Continue; }
+        catch (Exception e)
+        {
+            Log($"[EventPlayerDeathPreHandler FATAL] An error occurred: {e.Message}");
+            return HookResult.Continue;
+        }
     }
 
     public HookResult EventSmokegrenadeDetonateHandler(EventSmokegrenadeDetonate @event, GameEventInfo info)
