@@ -208,21 +208,26 @@ namespace MatchZy
       // 1. 基礎事件註冊 (強力白名單補丁：只要 .whitelist 開啟，路人進服 2 秒就踢)
             RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
                 var player = @event.Userid;
-                // 檢查是否啟用白名單且玩家不是機器人
-                if (isWhitelistRequired && player != null && player.IsValid && !player.IsBot) {
-                    // 管理員豁免
-                    if (IsPlayerAdmin(player, "css_whitelist", "@css/chat")) return HookResult.Continue;
 
-                    // 若玩家不在名單內且非睡眠模式則踢除
+                // 只要 .whitelist 是開啟狀態 (isWhitelistRequired = true)
+                if (isWhitelistRequired && player != null && player.IsValid && !player.IsBot) {
+                    
+                    // 管理員豁免檢查
+                    if (IsPlayerAdmin(player, "css_whitelist", "@css/chat")) {
+                        return HookResult.Continue;
+                    }
+
+                    // 檢查玩家是否不在合法的選手名單中
                     if (!playerData.ContainsKey((int)player.UserId!) && !isSleep) {
                         AddTimer(2.0f, () => {
                             if (player.IsValid) {
                                 Server.ExecuteCommand($"kickid {player.UserId} \"伺服器白名單已開啟，您不在名單中。\"");
+                                Log($"[WHITELIST] 已強制踢出路人: {player.PlayerName}");
                             }
                         });
                     }
                 }
-                // 這裡必須指向原本的 Handler 名稱，否則會報錯
+                // 同時執行原本 MatchZy 的連線處理邏輯
                 return EventPlayerConnectFullHandler(@event, info);
             });
 
@@ -255,7 +260,7 @@ namespace MatchZy
             });
             AddCommandListener("noclip", OnConsoleNoClip);
 
-            
+           
             RegisterEventHandler<EventRoundEnd>((@event, info) =>
             {
                 // 原有的 RoundEnd 邏輯...
