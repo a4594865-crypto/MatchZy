@@ -205,8 +205,32 @@ namespace MatchZy
                 { ".loadpos", OnLoadPosCommand}
             };
 
-            // 1. 基礎事件註冊
-            RegisterEventHandler<EventPlayerConnectFull>(EventPlayerConnectFullHandler);
+      // 1. 基礎事件註冊 (強力白名單補丁：只要 .whitelist 開啟，路人進服 2 秒就踢)
+            RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
+                var player = @event.Userid;
+
+                // 只要 .whitelist 是開啟狀態 (isWhitelistRequired = true)
+                if (isWhitelistRequired && player != null && player.IsValid && !player.IsBot) {
+                    
+                    // 管理員豁免檢查
+                    if (IsPlayerAdmin(player, "css_whitelist", "@css/chat")) {
+                        return HookResult.Continue;
+                    }
+
+                    // 檢查玩家是否不在合法的選手名單中
+                    if (!playerData.ContainsKey((int)player.UserId!) && !isSleep) {
+                        AddTimer(2.0f, () => {
+                            if (player.IsValid) {
+                                Server.ExecuteCommand($"kickid {player.UserId} \"伺服器白名單已開啟，您不在名單中。\"");
+                                Log($"[WHITELIST] 已強制踢出路人: {player.PlayerName}");
+                            }
+                        });
+                    }
+                }
+                // 同時執行原本 MatchZy 的連線處理邏輯
+                return EventPlayerConnectFullHandler(@event, info);
+            });
+
             RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
@@ -216,27 +240,22 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // --- 核心修正：指令層級攔截換隊 (解決 isFreezeTime 報錯版) ---
+            // --- 2. 換隊攔截 (針對 JSON 比賽，熱身可修正隊伍) ---
             AddCommandListener("jointeam", (player, info) =>
             {
-                // 1. 判斷是否為 JSON 比賽且已開賽 (matchStarted = true 代表過了熱身與刀局)
+                // 只在 JSON 正式比賽且已開賽時鎖定
                 if (player != null && isMatchSetup && (matchStarted || isKnifeRequired)) 
                 {
-                    // 2. 如果現在是「熱身中」，放行玩家換隊 (方便修正 11 變 22 隊的問題)
-                    // 如果熱身結束後還是分錯隊，請在刀局期間按 M 修正
+                    // 熱身期間 (isWarmup) 允許換隊，解決 11 變 22 隊問題
                     if (isWarmup) 
                     {
                         return HookResult.Continue; 
                     }
 
-                    // 3. 正式開打或刀局中，顯示紅字警告並攔截指令
+                    // 顯示紅字警告
                     player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}刀局{ChatColors.Default} 或 {ChatColors.LightRed}比賽{ChatColors.Default} 期間禁止自行更換隊伍！");
-                    
-                    // 攔截指令，讓玩家不死亡也換不過去
                     return HookResult.Stop; 
                 }
-                
-                // 非 JSON 比賽或未開賽前，皆放行
                 return HookResult.Continue; 
             });
             AddCommandListener("noclip", OnConsoleNoClip);
