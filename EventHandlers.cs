@@ -1,11 +1,52 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Core.Attributes.Registration; // 確保事件註冊功能運作
 
 namespace MatchZy;
 
 public partial class MatchZy
 {
+    // --- 新增：回合結束事件，顯示您設定的中文戰報 ---
+    [GameEventHandler]
+    public HookResult EventRoundEndHandler(EventRoundEnd @event, GameEventInfo info)
+    {
+        try
+        {
+            // 只有在比賽進行中 (Live) 才執行廣播
+            if (isMatchLive) 
+            {
+                // 呼叫您在 MatchManagement 中定義的廣播函式
+                BroadcastRoundScore(); 
+            }
+            return HookResult.Continue;
+        }
+        catch (Exception e)
+        {
+            Log($"[EventRoundEnd FATAL] An error occurred: {e.Message}");
+            return HookResult.Continue;
+        }
+    }
+
+    // --- 新增：禁止換隊事件，.r 開始後(刀局與比賽)皆生效 ---
+    [GameEventHandler]
+    public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo info)
+    {
+        // 判定條件：只要比賽已準備就緒 (matchStarted) 或處於刀局中 (isKnifeRequired)
+        if (matchStarted || isKnifeRequired)
+        {
+            CCSPlayerController? player = @event.Userid;
+            
+            // 排除插件自動分配 (!@event.Silent)，只攔截玩家手動按 M 或輸入指令
+            if (IsPlayerValid(player) && !@event.Silent)
+            {
+                ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！"); 
+                return HookResult.Stop; // 關鍵：攔截並停止換隊動作
+            }
+        }
+        return HookResult.Continue;
+    }
+
     public HookResult EventPlayerConnectFullHandler(EventPlayerConnectFull @event, GameEventInfo info)
     {
         try
@@ -15,14 +56,12 @@ public partial class MatchZy
             if (!IsPlayerValid(player)) return HookResult.Continue;
             Log($"[FULL CONNECT] Player ID: {player!.UserId}, Name: {player.PlayerName} has connected!");
 
-            // --- 坑位識別系統：移除 SteamID 白名單與踢人邏輯 ---
             if (player.UserId.HasValue)
             {
                 int userId = player.UserId.Value;
                 playerData[userId] = player;
                 connectedPlayers++;
                 
-                // 使用 UserId 作為唯一的識別 Key，不再依賴 SteamID
                 if (readyAvailable && !matchStarted)
                 {
                     playerReadyStatus[userId] = false;
@@ -61,7 +100,6 @@ public partial class MatchZy
             if (!player!.UserId.HasValue) return HookResult.Continue;
             int userId = player.UserId.Value;
 
-            // 斷開連線時立刻釋放 UserId 佔用的 Slot 資源
             if (playerReadyStatus.ContainsKey(userId))
             {
                 playerReadyStatus.Remove(userId);
@@ -89,7 +127,6 @@ public partial class MatchZy
     {
         try
         {
-            // --- 解決隊伍已滿的核心：確保地圖結束時執行大掃除 ---
             HandleMatchEnd(); 
             return HookResult.Continue;
         }
@@ -321,4 +358,4 @@ public partial class MatchZy
         }
         return HookResult.Continue;
     }
-}
+} 
