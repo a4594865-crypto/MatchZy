@@ -304,41 +304,22 @@ namespace MatchZy
             // });
 
 RegisterListener<Listeners.OnMapStart>(mapName => {
-
-AddTimer(1.0f, () => {
-
-// 1. 清理緩存但保留大比分
-
-ResetTeamDataCaches();
-
-
-
-// 2. 只有在「非正式比賽」(!isMatchSetup) 時才強制對齊
-
-// 如果是 JSON 比賽 (isMatchSetup)，我們就讓 MatchZy 系統自己決定第 2 場的邊
-
-if (!isMatchSetup) {
-
-teamSides[matchzyTeam1] = "CT";
-
-teamSides[matchzyTeam2] = "TERRORIST";
-
-reverseTeamSides["CT"] = matchzyTeam1;
-
-reverseTeamSides["TERRORIST"] = matchzyTeam2;
-
-AutoStart();
-
-} else {
-
-// 正式比賽只需刷新隊名，不要手動指定 CT/T
-
-SetTeamNames();
-
-}
-
-});
-
+    AddTimer(1.0f, () => {
+        // 核心修正：正式比賽時，絕對不要執行 ResetTeamDataCaches()，否則會干擾換邊邏輯
+        if (!isMatchSetup) {
+            ResetTeamDataCaches(); 
+            // 一般路人局：維持原本邏輯
+            teamSides[matchzyTeam1] = "CT";
+            teamSides[matchzyTeam2] = "TERRORIST";
+            reverseTeamSides["CT"] = matchzyTeam1;
+            reverseTeamSides["TERRORIST"] = matchzyTeam2;
+            AutoStart();
+        } else {
+            // 正式比賽 (JSON)：徹底放手！只刷隊名，其餘什麼都不准動
+            // 這樣 MatchZy 原生系統才能正確處理 Map 2 的換邊，絕對不會變 22 隊
+            SetTeamNames(); 
+        }
+    });
 });
             // RegisterListener<Listeners.OnMapEnd>(() => {
             //     Log($"[Listeners.OnMapEnd] Resetting match!");
