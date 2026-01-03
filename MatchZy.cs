@@ -303,18 +303,43 @@ namespace MatchZy
             //     return HookResult.Continue;
             // });
 
-RegisterListener<Listeners.OnMapStart>(mapName => { 
-                AddTimer(1.0f, () => {
-                    // 只清理緩存，不手動干涉隊伍分配
-                    ResetTeamDataCaches(); 
+RegisterListener<Listeners.OnMapStart>(mapName => {
 
-                    if (!isMatchSetup) {
-                        AutoStart();
-                    } else {
-                        SetTeamNames(); // 確保 JSON 裡的隊名有刷新就好
-                    }
-                });
-            });
+AddTimer(1.0f, () => {
+
+// 1. 清理緩存但保留大比分
+
+ResetTeamDataCaches();
+
+
+
+// 2. 只有在「非正式比賽」(!isMatchSetup) 時才強制對齊
+
+// 如果是 JSON 比賽 (isMatchSetup)，我們就讓 MatchZy 系統自己決定第 2 場的邊
+
+if (!isMatchSetup) {
+
+teamSides[matchzyTeam1] = "CT";
+
+teamSides[matchzyTeam2] = "TERRORIST";
+
+reverseTeamSides["CT"] = matchzyTeam1;
+
+reverseTeamSides["TERRORIST"] = matchzyTeam2;
+
+AutoStart();
+
+} else {
+
+// 正式比賽只需刷新隊名，不要手動指定 CT/T
+
+SetTeamNames();
+
+}
+
+});
+
+});
             // RegisterListener<Listeners.OnMapEnd>(() => {
             //     Log($"[Listeners.OnMapEnd] Resetting match!");
             //     ResetMatch();
