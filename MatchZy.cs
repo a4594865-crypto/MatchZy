@@ -213,23 +213,16 @@ namespace MatchZy
             RegisterEventHandler<EventRoundFreezeEnd>(EventRoundFreezeEndHandler);
             RegisterEventHandler<EventPlayerGivenC4>(EventPlayerGivenC4);
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
-            RegisterListener<Listeners.OnClientDisconnectPost>(playerSlot => { 
-               // May not be required, but just to be on safe side so that player data is properly updated in dictionaries
-               // Update: Commenting the below function as it was being called multiple times on map change.
-                // UpdatePlayersMap();
-            });
+            
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            RegisterEventHandler<EventPlayerTeam>((@event, info) =>
+            // 換隊邏輯已完整移至 MatchManagement.cs 處理，此處僅保留基本指令監聽
             AddCommandListener("jointeam", (player, info) =>
             {
-              // 核心修改：在不偵測 SteamID 的環境下，放行所有選隊請求
-              // 這能防止第二張圖因為「找不到身分」而顯示 Teams are full
-              return HookResult.Continue; 
+                return HookResult.Continue; 
             });
 
-            AddCommandListener("noclip", OnConsoleNoClip); // Override noclip
-
+            AddCommandListener("noclip", OnConsoleNoClip);
             RegisterEventHandler<EventRoundEnd>((@event, info) => 
             {
                 if (!isKnifeRound) return HookResult.Continue;
