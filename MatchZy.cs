@@ -255,42 +255,7 @@ namespace MatchZy
             });
             AddCommandListener("noclip", OnConsoleNoClip);
 
-            // 4. 聊天指令監聽 (相容性修正版)
-            RegisterEventHandler<EventPlayerChat>((@event, info) =>
-            {
-                // 使用 GetPlayerFromIndex 解決 L248 的 int 轉換問題
-                CCSPlayerController? player = Utilities.GetPlayerFromIndex(@event.Userid);
-                if (player == null || !player.IsValid) return HookResult.Continue;
-
-                string message = @event.Text.Trim().ToLower();
-                string[] args = message.Split(' ');
-                string messageCommandArg = args.Length > 1 ? args[1] : "";
-
-                // 5. JSON 期間禁止換圖
-                if (message.StartsWith(".map"))
-                {
-                    if (isMatchSetup)
-                    {
-                        Server.PrintToChatAll($"{chatPrefix} 玩家 {ChatColors.Default}{ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.Red}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
-                        return HookResult.Continue;
-                    }
-                    HandleMapChangeCommand(player, messageCommandArg);
-                }
-                
-                // 6. JSON 期間禁止切換模式
-                if (message.StartsWith(".prac") || message.StartsWith(".match"))
-                {
-                    if (isMatchSetup)
-                    {
-                        Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}玩家 {ChatColors.Default}{player.PlayerName} {ChatColors.LightRed}嘗試切換模式。{ChatColors.Red}正式比賽期間禁止切換遊戲模式！{ChatColors.Default}");
-                        return HookResult.Continue;
-                    }
-                }
-
-                // 已刪除原本報錯的 .ready / .r 判斷邏輯，因為插件已有內建指令監聽處理
-                
-                return HookResult.Continue;
-            });
+            
             RegisterEventHandler<EventRoundEnd>((@event, info) =>
             {
                 // 原有的 RoundEnd 邏輯...
@@ -373,36 +338,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
             AddCommandListener("noclip", OnConsoleNoClip);
 
-            // 3. 聊天指令監聽 (包含 .map 鎖定)
-            RegisterEventHandler<EventPlayerChat>((@event, info) =>
-            {
-                CCSPlayerController? player = Utilities.GetPlayerFromIndex(@event.Userid);
-                if (player == null || !player.IsValid) return HookResult.Continue;
-
-                string message = @event.Text.Trim().ToLower();
-                string[] args = message.Split(' ');
-                string messageCommandArg = args.Length > 1 ? args[1] : "";
-
-                if (message.StartsWith(".map"))
-                {
-                    if (isMatchSetup)
-                    {
-                        Server.PrintToChatAll($"{chatPrefix} 玩家 {ChatColors.Default}{ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.Red}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
-                        return HookResult.Continue;
-                    }
-                    HandleMapChangeCommand(player, messageCommandArg);
-                }
-                
-                if (message.StartsWith(".prac") || message.StartsWith(".match"))
-                {
-                    if (isMatchSetup)
-                    {
-                        Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}玩家 {ChatColors.Default}{player.PlayerName} {ChatColors.LightRed}嘗試切換模式。{ChatColors.Red}正式比賽期間禁止切換遊戲模式！{ChatColors.Default}");
-                        return HookResult.Continue;
-                    }
-                }
-                return HookResult.Continue;
-            });
+            
             RegisterEventHandler<EventPlayerHurt>((@event, info) =>
 			{
 				CCSPlayerController? attacker = @event.Attacker;
