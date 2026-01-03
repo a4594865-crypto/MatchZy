@@ -244,10 +244,10 @@ namespace MatchZy
 {
     if (player != null && !player.IsBot) 
     {
-        // 修正：只要是熱身模式 (isWarmup)，不論是否為 JSON 比賽都允許換隊
+        // 修正：只要是熱身模式就允許換隊，解決您說的「熱身不能換」問題
         if (isWarmup) return HookResult.Continue; 
         
-        // 正式開賽後（非熱身），才執行全面攔截
+        // 正式開賽後才鎖死
         player.PrintToChat($"{chatPrefix} {ChatColors.Red}正式比賽已開始，禁止自行更換隊伍！");
         return HookResult.Stop; 
     }
@@ -306,18 +306,17 @@ namespace MatchZy
 
 RegisterListener<Listeners.OnMapStart>(mapName => {
     AddTimer(1.0f, () => {
-        // 核心修正：正式比賽時，絕對不要執行 ResetTeamDataCaches()，否則會干擾換邊邏輯
+        // 只有在「完全沒有載入 JSON」的路人局，才執行強制對齊
         if (!isMatchSetup) {
             ResetTeamDataCaches(); 
-            // 一般路人局：維持原本邏輯
             teamSides[matchzyTeam1] = "CT";
             teamSides[matchzyTeam2] = "TERRORIST";
             reverseTeamSides["CT"] = matchzyTeam1;
             reverseTeamSides["TERRORIST"] = matchzyTeam2;
             AutoStart();
         } else {
-            // 正式比賽 (JSON)：徹底放手！只刷隊名，其餘什麼都不准動
-            // 這樣 MatchZy 原生系統才能正確處理 Map 2 的換邊，絕對不會變 22 隊
+            // 正式比賽 (JSON)：只負責刷新計分板名稱，絕對不要 Reset 數據！
+            // 這樣 Map 2 的隊名就不會亂跳，也不會變 22 隊
             SetTeamNames(); 
         }
     });
