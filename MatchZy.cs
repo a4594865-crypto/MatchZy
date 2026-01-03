@@ -240,20 +240,15 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // --- 2. 換隊攔截 (針對 JSON 比賽，熱身可修正隊伍) ---
-            AddCommandListener("jointeam", (player, info) =>
+           AddCommandListener("jointeam", (player, info) =>
             {
-                // 只在 JSON 正式比賽且已開賽時鎖定
-                if (player != null && isMatchSetup && (matchStarted || isKnifeRequired)) 
+                if (player != null && !player.IsBot) 
                 {
-                    // 熱身期間 (isWarmup) 允許換隊，解決 11 變 22 隊問題
-                    if (isWarmup) 
-                    {
-                        return HookResult.Continue; 
-                    }
+                    // 只在「非比賽」且「熱身」時開放，讓路人剛進服能選邊
+                    if (isWarmup && !isMatchSetup) return HookResult.Continue; 
 
-                    // 顯示紅字警告
-                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}刀局{ChatColors.Default} 或 {ChatColors.LightRed}比賽{ChatColors.Default} 期間禁止自行更換隊伍！");
+                    // 比賽中或一般競技開賽後，全面禁止
+                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}禁止自行更換隊伍！");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
@@ -312,19 +307,11 @@ namespace MatchZy
 RegisterListener<Listeners.OnMapStart>(mapName => { 
     AddTimer(1.0f, () => {
         ResetTeamDataCaches(); 
-
-        // 只有在剛開服或沒進入比賽模式時，我們才做「初始化」對齊
-        // 這樣第二場圖路人投票換過去後，就不會被這行代碼「強行拉回 CT」導致變 22 隊
-        if (!isMatchSetup && !matchStarted) {
-            teamSides[matchzyTeam1] = "CT";
-            teamSides[matchzyTeam2] = "TERRORIST";
-            reverseTeamSides["CT"] = matchzyTeam1;
-            reverseTeamSides["TERRORIST"] = matchzyTeam2;
-        }
-
         if (!isMatchSetup) {
+            // 一般路人局：自動啟動，但不強行指定 CT/T，避免換圖變 22 隊
             AutoStart();
         } else {
+            // 正式比賽：只刷隊名，換邊交給系統自動處理
             SetTeamNames(); 
         }
     });
