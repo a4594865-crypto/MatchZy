@@ -219,37 +219,8 @@ namespace MatchZy
                 // UpdatePlayersMap();
             });
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
-            RegisterEventHandler<EventPlayerTeam>((@event, info) => {
-                CCSPlayerController? player = @event.Userid;
-                if (!IsPlayerValid(player)) return HookResult.Continue;
-
-                if (matchzyTeam1.coach.Contains(player!) || matchzyTeam2.coach.Contains(player!)) {
-                    @event.Silent = true;
-                    return HookResult.Changed;
-                }
-                return HookResult.Continue;
-            }, HookMode.Pre);
 
             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
-            {
-                if (!isMatchSetup && !isVeto) return HookResult.Continue;
-
-                CCSPlayerController? player = @event.Userid;
-
-                if (!IsPlayerValid(player)) return HookResult.Continue;
-
-                if (player!.IsHLTV || player.IsBot)
-                {
-                    return HookResult.Continue;
-                }
-
-                CsTeam playerTeam = GetPlayerTeam(player);
-
-                SwitchPlayerTeam(player, playerTeam);
-
-                return HookResult.Continue;
-            });
-
             AddCommandListener("jointeam", (player, info) =>
             {
               // 核心修改：在不偵測 SteamID 的環境下，放行所有選隊請求
