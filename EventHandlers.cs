@@ -9,24 +9,23 @@ public partial class MatchZy
 {
     // --- 這段是我們新加入的，專門負責顯示「隊名--比分」 ---
     [GameEventHandler]
-    public HookResult EventRoundEndHandler(EventRoundEnd @event, GameEventInfo info)
+public HookResult EventRoundEndHandler(EventRoundEnd @event, GameEventInfo info)
+{
+    try
     {
-        try
+        if (isMatchLive) 
         {
-            // 只有在比賽進行中 (Live) 才執行廣播
-            if (isMatchLive) 
-            {
-                // 呼叫我們在 MatchManagement (5).cs 寫好的廣播函式
-                BroadcastRoundScore(); 
-            }
-            return HookResult.Continue;
+            // 只保留我們自定義的戰報，不要在下面寫額外的 Server.PrintToChatAll
+            BroadcastRoundScore();
         }
-        catch (Exception e)
-        {
-            Log($"[EventRoundEnd FATAL] An error occurred: {e.Message}");
-            return HookResult.Continue;
-        }
+        return HookResult.Continue;
     }
+    catch (Exception e)
+    {
+        Log($"[EventRoundEnd FATAL] An error occurred: {e.Message}");
+        return HookResult.Continue;
+    }
+}
 
     public HookResult EventPlayerConnectFullHandler(EventPlayerConnectFull @event, GameEventInfo info)
     {
