@@ -197,18 +197,21 @@ namespace MatchZy
             }
             return false;
         }
-        // --- 新增：重置名單快取，解決 BO3 換圖數據殘留 ---
-    public void ResetTeamDataCaches(bool resetSeriesScore = false) {
-    // 每次換圖都必須清空的數據 (解決隊伍滿人、身分錯誤)
-    matchzyTeam1.teamPlayers = new JObject(); 
-    matchzyTeam2.teamPlayers = new JObject();
-    matchConfig.Spectators = new JObject();
-    
-    // 只有在真正需要「完全重設」比賽時才歸零大比分
-    if (resetSeriesScore) {
-        matchzyTeam1.seriesScore = 0;
-        matchzyTeam2.seriesScore = 0;
-        }
-    }
-}
 
+        // --- 新增：重置名單快取，解決 BO3 換圖數據殘留 ---
+        public void ResetTeamDataCaches(bool resetSeriesScore = false) 
+        {
+            // 每次換圖都必須清空的數據 (解決隊伍滿人、身分錯誤)
+            matchzyTeam1.teamPlayers = new JObject(); 
+            matchzyTeam2.teamPlayers = new JObject();
+            matchConfig.Spectators = new JObject();
+            
+            // 只有在真正需要「完全重設」比賽時才歸零大比分
+            if (resetSeriesScore) 
+            {
+                matchzyTeam1.seriesScore = 0;
+                matchzyTeam2.seriesScore = 0;
+            }
+        }
+    } // 這裡閉合 partial class MatchZy
+} // 這裡閉合 namespace MatchZy
