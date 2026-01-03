@@ -384,31 +384,25 @@ namespace MatchZy
             return true;
         }
 
-        public void SetMapSides() {
-            int mapNumber = matchConfig.CurrentMapNumber;
-            if (matchConfig.MapSides[mapNumber] == "team1_ct" || matchConfig.MapSides[mapNumber] == "team2_t")
-            {
-                teamSides[matchzyTeam1] = "CT";
-                teamSides[matchzyTeam2] = "TERRORIST";
-                reverseTeamSides["CT"] = matchzyTeam1;
-                reverseTeamSides["TERRORIST"] = matchzyTeam2;
-                isKnifeRequired = false;
-            }
-            else if (matchConfig.MapSides[mapNumber] == "team2_ct" || matchConfig.MapSides[mapNumber] == "team1_t")
-            {
-                teamSides[matchzyTeam2] = "CT";
-                teamSides[matchzyTeam1] = "TERRORIST";
-                reverseTeamSides["CT"] = matchzyTeam2;
-                reverseTeamSides["TERRORIST"] = matchzyTeam1;
-                isKnifeRequired = false;
-            }
-            else if (matchConfig.MapSides[mapNumber] == "knife")
-            {
-                isKnifeRequired = true;
-            }
-
-            SetTeamNames();
+public void SetMapSides() {
+    int mapNumber = matchConfig.CurrentMapNumber;
+    
+    // 強制重置：不論上一場如何，新地圖開始時 Team1 預設回 CT
+    teamSides[matchzyTeam1] = "CT";
+    teamSides[matchzyTeam2] = "TERRORIST";
+    reverseTeamSides["CT"] = matchzyTeam1;
+    reverseTeamSides["TERRORIST"] = matchzyTeam2;
+    
+    // 如果 JSON 有定義特定陣營則再覆蓋
+    if (matchConfig.MapSides.Count > mapNumber) {
+        if (matchConfig.MapSides[mapNumber] == "team2_ct" || matchConfig.MapSides[mapNumber] == "team1_t") {
+            (teamSides[matchzyTeam1], teamSides[matchzyTeam2]) = (teamSides[matchzyTeam2], teamSides[matchzyTeam1]);
+            (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
         }
+    }
+    isKnifeRequired = (matchConfig.MapSides.Count > mapNumber && matchConfig.MapSides[mapNumber] == "knife");
+    SetTeamNames();
+}
 
         public void SetTeamNames()
         {
@@ -534,24 +528,16 @@ namespace MatchZy
             (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
         }
 
-        private CsTeam GetPlayerTeam(CCSPlayerController player)
-        {
-            CsTeam playerTeam = CsTeam.None;
-            var steamId = player.SteamID;
-            try
-            {
-                if (matchzyTeam1.teamPlayers != null && matchzyTeam1.teamPlayers[steamId.ToString()] != null)
-                {
-                    if (teamSides[matchzyTeam1] == "CT")
-                    {
-                        playerTeam = CsTeam.CounterTerrorist;
-                    }
-                    else if (teamSides[matchzyTeam1] == "TERRORIST")
-                    {
-                        playerTeam = CsTeam.Terrorist;
-                    }
-
-                }
+  private CsTeam GetPlayerTeam(CCSPlayerController player)
+{
+    // 在不偵測 SteamID 的環境下，我們直接根據玩家目前的遊戲陣營來判斷，不再去對比 JSON 名單
+    return player.TeamNum switch {
+        3 => CsTeam.CounterTerrorist,
+        2 => CsTeam.Terrorist,
+        1 => CsTeam.Spectator,
+        _ => CsTeam.None
+    };
+}
                 else if (matchzyTeam2.teamPlayers != null && matchzyTeam2.teamPlayers[steamId.ToString()] != null)
                 {
                     if (teamSides[matchzyTeam2] == "CT")
@@ -628,4 +614,20 @@ namespace MatchZy
         }
 
     }
+private CsTeam GetPlayerTeam(CCSPlayerController player)
+{
+    // 直接根據玩家目前的遊戲陣營來判斷，不再去比對 JSON 名單
+    if (player == null || !player.IsValid) return CsTeam.None;
+
+    // 取得玩家當前的團隊編號 (2 是 T, 3 是 CT)
+    if (player.TeamNum == 3) {
+        return CsTeam.CounterTerrorist;
+    } else if (player.TeamNum == 2) {
+        return CsTeam.Terrorist;
+    } else if (player.TeamNum == 1) {
+        return CsTeam.Spectator;
+    }
+    
+    return CsTeam.None;
+}
 }
