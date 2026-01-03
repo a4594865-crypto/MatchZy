@@ -15,47 +15,28 @@ public partial class MatchZy
             if (!IsPlayerValid(player)) return HookResult.Continue;
             Log($"[FULL CONNECT] Player ID: {player!.UserId}, Name: {player.PlayerName} has connected!");
 
-            // Handling whitelisted players
-            if (!player.IsBot || !player.IsHLTV)
-            {
-                var steamId = player.SteamID;
-
-                bool kicked = HandlePlayerWhitelist(player, steamId.ToString());
-                if (kicked) return HookResult.Continue;
-
-                if (isMatchSetup || matchModeOnly)
-                {
-                    CsTeam team = GetPlayerTeam(player);
-                    if (team == CsTeam.None)
-                    {
-                        Log($"[EventPlayerConnectFull] KICKING PLAYER STEAMID: {steamId}, Name: {player.PlayerName} (NOT ALLOWED!)");
-                        PrintToAllChat($"Kicking player {player.PlayerName} - Not a player in this game.");
-                        KickPlayer(player);
-                        return HookResult.Continue;
-                    }
-                }
-            }
+            // --- 坑位識別系統：移除 SteamID 白名單與踢人邏輯 ---
+            // 原本的 SteamID 檢查與白名單過濾全部移除，讓任何連線者都能進入
 
             if (player.UserId.HasValue)
             {
-                playerData[player.UserId.Value] = player;
+                int userId = player.UserId.Value;
+                playerData[userId] = player;
                 connectedPlayers++;
+                
+                // 使用 UserId 作為唯一的識別 Key，不再依賴 SteamID
                 if (readyAvailable && !matchStarted)
                 {
-                    playerReadyStatus[player.UserId.Value] = false;
+                    playerReadyStatus[userId] = false;
                 }
                 else
                 {
-                    playerReadyStatus[player.UserId.Value] = true;
+                    playerReadyStatus[userId] = true;
                 }
             }
-            // May not be required, but just to be on safe side so that player data is properly updated in dictionaries
-            // Update: Commenting the below function as it was being called multiple times on map change.
-            // UpdatePlayersMap();
 
             if (readyAvailable && !matchStarted)
             {
-                // Start Warmup when first player connect and match is not started.
                 if (GetRealPlayersCount() == 1)
                 {
                     Log($"[FULL CONNECT] First player has connected, starting warmup!");
@@ -73,6 +54,7 @@ public partial class MatchZy
         }
 
     }
+
     public HookResult EventPlayerDisconnectHandler(EventPlayerDisconnect @event, GameEventInfo info)
     {
         try
@@ -83,6 +65,7 @@ public partial class MatchZy
             if (!player!.UserId.HasValue) return HookResult.Continue;
             int userId = player.UserId.Value;
 
+            // 斷開連線時立刻釋放 UserId 佔用的 Slot 資源
             if (playerReadyStatus.ContainsKey(userId))
             {
                 playerReadyStatus.Remove(userId);
@@ -90,18 +73,10 @@ public partial class MatchZy
             }
             playerData.Remove(userId);
 
-            if (matchzyTeam1.coach.Contains(player))
-            {
-                matchzyTeam1.coach.Remove(player);
-                SetPlayerVisible(player);
-                player.Clan = "";
-            }
-            else if (matchzyTeam2.coach.Contains(player))
-            {
-                matchzyTeam2.coach.Remove(player);
-                SetPlayerVisible(player);
-                player.Clan = "";
-            }
+            // 清理教練與手榴彈數據
+            if (matchzyTeam1.coach.Contains(player)) matchzyTeam1.coach.Remove(player);
+            else if (matchzyTeam2.coach.Contains(player)) matchzyTeam2.coach.Remove(player);
+            
             noFlashList.Remove(userId);
             lastGrenadesData.Remove(userId);
             nadeSpecificLastGrenadeData.Remove(userId);
@@ -115,6 +90,21 @@ public partial class MatchZy
         }
     }
 
+    public HookResult EventCsWinPanelMatchHandler(EventCsWinPanelMatch @event, GameEventInfo info)
+    {
+        try
+        {
+            // --- 解決隊伍已滿的核心：確保地圖結束時執行大掃除 ---
+            // HandleMatchEnd 會重置所有玩家狀態，讓下一張地圖席位全空
+            HandleMatchEnd(); 
+            return HookResult.Continue;
+        }
+        catch (Exception e)
+        {
+            Log($"[EventCsWinPanelMatch FATAL] An error occurred: {e.Message}");
+            return HookResult.Continue;
+        }
+    }
     public HookResult EventCsWinPanelRoundHandler(EventCsWinPanelRound @event, GameEventInfo info)
     {
         // EventCsWinPanelRound has stopped firing after Arms Race update, hence we handle knife round winner in EventRoundEnd.
