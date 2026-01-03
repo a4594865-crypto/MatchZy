@@ -205,7 +205,7 @@ namespace MatchZy
                 { ".loadpos", OnLoadPosCommand}
             };
 
-             // RegisterEventHandler<EventPlayerConnectFull>(EventPlayerConnectFullHandler); // [Modified] 停用此事件以徹底移除 KICKING PLAYER 邏輯
+            RegisterEventHandler<EventPlayerConnectFull>(EventPlayerConnectFullHandler);
             RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
@@ -216,7 +216,7 @@ namespace MatchZy
             RegisterListener<Listeners.OnClientDisconnectPost>(playerSlot => { 
                // May not be required, but just to be on safe side so that player data is properly updated in dictionaries
                // Update: Commenting the below function as it was being called multiple times on map change.
-                UpdatePlayersMap();
+                // UpdatePlayersMap();
             });
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
             RegisterEventHandler<EventPlayerTeam>((@event, info) => {
@@ -230,7 +230,6 @@ namespace MatchZy
                 return HookResult.Continue;
             }, HookMode.Pre);
 
-             /*
             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
             {
                 if (!isMatchSetup && !isVeto) return HookResult.Continue;
@@ -250,8 +249,7 @@ namespace MatchZy
 
                 return HookResult.Continue;
             });
-            */
-             /*
+
             AddCommandListener("jointeam", (player, info) =>
             {
                 if ((isMatchSetup || isVeto) && player != null && player.IsValid) {
@@ -264,7 +262,7 @@ namespace MatchZy
                 }
                 return HookResult.Continue;
             });
-            */
+
             AddCommandListener("noclip", OnConsoleNoClip); // Override noclip
 
             RegisterEventHandler<EventRoundEnd>((@event, info) => 
@@ -282,7 +280,6 @@ namespace MatchZy
                 @event.Reason = finalEvent;
                 isSideSelectionPhase = true;
                 isKnifeRound = false;
-                UpdatePlayersMap(); // 確保換邊前名單是最新的
                 StartAfterKnifeWarmup();
 
                 return HookResult.Changed;

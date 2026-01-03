@@ -10,20 +10,20 @@ namespace MatchZy
 
     public class Team 
     {
-       [JsonPropertyName("id")]
+        [JsonPropertyName("id")]
         public string id = "";
 
         [JsonPropertyName("teamname")]
-        public string teamName = "Team";
+        public required string teamName;
 
         [JsonPropertyName("teamflag")]
         public string teamFlag = "";
 
-       [JsonPropertyName("teamtag")]
+        [JsonPropertyName("teamtag")]
         public string teamTag = "";
 
         [JsonPropertyName("teamplayers")]
-        public JToken? teamPlayers = new JObject();
+        public JToken? teamPlayers;
 
         [JsonIgnore, Newtonsoft.Json.JsonIgnore]
         public HashSet<CCSPlayerController> coach = [];
@@ -141,9 +141,7 @@ namespace MatchZy
             bool success = RemovePlayerFromTeam(steamId.ToString());
             if (success)
             {
-                 command.ReplyToCommand($"Successfully removed player {steamId}");
-                // [MatchZy Fix] 移除踢人邏輯，確保玩家從名單移除後不會被踢出伺服器
-                /*
+                command.ReplyToCommand($"Successfully removed player {steamId}");
                 CCSPlayerController? removedPlayer = Utilities.GetPlayerFromSteamId(steamId);
                 if (IsPlayerValid(removedPlayer))
                 {
@@ -151,7 +149,6 @@ namespace MatchZy
                     PrintToAllChat($"Kicking player {removedPlayer!.PlayerName} - Not a player in this game.");
                     KickPlayer(removedPlayer);
                 }
-                */
             }
             else
             {

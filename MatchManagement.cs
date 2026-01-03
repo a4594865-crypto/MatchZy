@@ -196,11 +196,10 @@ namespace MatchZy
                         {
                             return $"{field} should be a JSON structure!";
                         }
-                        // [修改] 註解掉以下檢查，允許 players 欄位為空或不存在，這樣所有人都可以加入隊伍
-                        // if ((field != "spectators") && (jsonData[field]!["players"] == null || jsonData[field]!["players"]!.Type != JTokenType.Object)) 
-                        // {
-                        //    return $"{field} should have 'players' JSON!";
-                        // }
+                        if ((field != "spectators") && (jsonData[field]!["players"] == null || jsonData[field]!["players"]!.Type != JTokenType.Object)) 
+                        {
+                            return $"{field} should have 'players' JSON!";
+                        }
                         break;
 
                     case "veto_mode":
@@ -278,10 +277,8 @@ namespace MatchZy
 
             matchzyTeam1.teamName = RemoveSpecialCharacters(team1["name"]!.ToString());
             matchzyTeam2.teamName = RemoveSpecialCharacters(team2["name"]!.ToString());
-            
-            // [修改] 如果 JSON 中沒有 players，則初始化為空的 JObject，防止後續邏輯因 null 而出錯
-            matchzyTeam1.teamPlayers = team1["players"] ?? new JObject();
-            matchzyTeam2.teamPlayers = team2["players"] ?? new JObject();
+            matchzyTeam1.teamPlayers = team1["players"];
+            matchzyTeam2.teamPlayers = team2["players"];
 
             matchConfig = new()
             {
@@ -537,7 +534,7 @@ namespace MatchZy
             (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
         }
 
-         private CsTeam GetPlayerTeam(CCSPlayerController player)
+        private CsTeam GetPlayerTeam(CCSPlayerController player)
         {
             CsTeam playerTeam = CsTeam.None;
             var steamId = player.SteamID;
@@ -569,14 +566,6 @@ namespace MatchZy
                 else if (matchConfig.Spectators != null && matchConfig.Spectators[steamId.ToString()] != null)
                 {
                     playerTeam = CsTeam.Spectator;
-                }
-
-                // [解禁修正] 如果玩家不在白名單中，不再返回 None (導致踢出)，而是默認允許進入觀察者或保留當前隊伍
-                if (playerTeam == CsTeam.None)
-                {
-                    if (player.TeamNum == (byte)CsTeam.CounterTerrorist) return CsTeam.CounterTerrorist;
-                    if (player.TeamNum == (byte)CsTeam.Terrorist) return CsTeam.Terrorist;
-                    return CsTeam.Spectator;
                 }
             }
             catch (Exception ex)
