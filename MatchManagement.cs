@@ -597,20 +597,23 @@ public void SetMapSides() {
             return "Unknown";
         }
 
-        // 修正後的比分廣播函式
+        // 修正：使用 TeamManager 抓取比分，解決 Utilities.GetTeam 不存在的問題
         public void BroadcastRoundScore() {
-            // 改用 Utilities.GetTeam 或直接存取 TeamManager 來獲取分數
-            var ctTeam = Utilities.GetTeam(CsTeam.CounterTerrorist);
-            var tTeam = Utilities.GetTeam(CsTeam.Terrorist);
+            // 直接透過 TeamManager 搜尋 CT 與 T 陣營實體
+            var teams = Utilities.FindAllEntitiesByDesignerName<CCSTeam>("cs_team_manager");
+            
+            int ctScore = 0;
+            int tScore = 0;
 
-            if (ctTeam == null || tTeam == null) return;
+            foreach (var team in teams) {
+                if (team.TeamNum == 3) ctScore = team.Score;
+                if (team.TeamNum == 2) tScore = team.Score;
+            }
 
-            int ctScore = ctTeam.Score; 
-            int tScore = tTeam.Score;  
             string ctTeamName = GetTeamNameFromSide(3); 
             string tTeamName = GetTeamNameFromSide(2);
 
-            // 修改文字格式：隊名--比分 : 比分 隊名
+            // 這裡顯示你想要的「隊名--比分」格式
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{ctTeamName}{ChatColors.Default}--{ctScore} : {tScore} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
         }
     } // 結束 MatchZy 類別
