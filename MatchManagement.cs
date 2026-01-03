@@ -387,20 +387,21 @@ namespace MatchZy
 public void SetMapSides() {
     int mapNumber = matchConfig.CurrentMapNumber;
     
-    // 強制：不論地圖如何切換，Team1 永遠關聯到 matchzyTeam1
-    // 避免換圖後原本的 Team1 玩家變成 Team2
+    // 強制：不論地圖如何切換，Team1 永遠關聯到 matchzyTeam1，Team2 關聯到 matchzyTeam2
+    // 這樣可以防止您在第二張圖時 ID 從 Team1 變成 Team2
     teamSides[matchzyTeam1] = "CT";
     teamSides[matchzyTeam2] = "TERRORIST";
     reverseTeamSides["CT"] = matchzyTeam1;
     reverseTeamSides["TERRORIST"] = matchzyTeam2;
     
     if (matchConfig.MapSides.Count > mapNumber) {
-        // 只有當 JSON 檔案明確要求 "team2_ct" 時才進行邏輯交換，否則保持不變
+        // 只有當 JSON 檔案明確要求 "team2_ct" 或 "team1_t" 時才進行邏輯交換
         if (matchConfig.MapSides[mapNumber] == "team2_ct" || matchConfig.MapSides[mapNumber] == "team1_t") {
             (teamSides[matchzyTeam1], teamSides[matchzyTeam2]) = (teamSides[matchzyTeam2], teamSides[matchzyTeam1]);
             (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
         }
     }
+    // 執行 SetTeamNames 以確保遊戲內隊伍名稱與陣營同步
     SetTeamNames();
 }
 
@@ -601,9 +602,7 @@ public void SetMapSides() {
 
         // 修正：使用 TeamManager 抓取比分，解決 Utilities.GetTeam 不存在的問題
 public void BroadcastRoundScore() {
-    // 抓取伺服器目前的 CT 與 T 分數
     var teams = Utilities.FindAllEntitiesByDesignerName<CCSTeam>("cs_team_manager");
-    
     int ctScore = 0;
     int tScore = 0;
 
@@ -615,8 +614,11 @@ public void BroadcastRoundScore() {
     string ctTeamName = GetTeamNameFromSide(3); 
     string tTeamName = GetTeamNameFromSide(2);
 
-    // 修改這裡的文字內容：加入「戰報：」
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Gold}戰報：{ChatColors.Default}{ChatColors.Green}{ctTeamName}{ChatColors.Default} {ChatColors.White}{ctScore}{ChatColors.Default} : {ChatColors.White}{tScore}{ChatColors.Default} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
-     }
+    // 取得系列賽的大比分
+    string seriesScoreMsg = $"[{matchzyTeam1.seriesScore}:{matchzyTeam2.seriesScore}]";
+
+    // 最終顯示格式：戰報：CT隊名 分數 [總比分] 分數 T隊名
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Gold}戰報：{ChatColors.Default}{ChatColors.Green}{ctTeamName}{ChatColors.Default} {ctScore} {ChatColors.Yellow}{seriesScoreMsg}{ChatColors.Default} {tScore} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
+}
     } // 結束 MatchZy 類別
 } // 結束 namespace MatchZy
