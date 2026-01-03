@@ -230,7 +230,7 @@ namespace MatchZy
                     }
 
                     // 如果已經正式開打（離開凍結時間），才真正擋住
-                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}比賽進行中{ChatColors.Default}禁止自行更換隊伍！");
+                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}刀局{ChatColors.Default} 或 {ChatColors.Red}比賽{ChatColors.Default} 期間禁止自行更換隊伍!");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
