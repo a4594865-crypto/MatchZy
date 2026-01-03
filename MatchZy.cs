@@ -308,10 +308,11 @@ namespace MatchZy
 
 RegisterListener<Listeners.OnMapStart>(mapName => { 
     AddTimer(1.0f, () => {
-        // 1. 執行我們在 Teams.cs 新增的大掃除方法
+        // 1. 執行大掃除，確保舊地圖的 SteamID 殘留被清空
         ResetTeamDataCaches(); 
 
-        // 2. 強制對齊陣營，確保 Team 1 永遠是 CT (解決 11 變 22 跳動)
+        // 2. 關鍵修正：強制將隊伍編號「歸位」
+        // 不論上一場結束時誰是 CT，新地圖一開始強制讓 matchzyTeam1 回到 CT 位置
         teamSides[matchzyTeam1] = "CT";
         teamSides[matchzyTeam2] = "TERRORIST";
         reverseTeamSides["CT"] = matchzyTeam1;
@@ -322,6 +323,10 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             AutoStart();
             return;
         }
+        
+        // 確保隊伍名稱顯示正確
+        SetTeamNames(); 
+        
         if (isWarmup) StartWarmup();
         if (isPractice) StartPracticeMode();
     });
