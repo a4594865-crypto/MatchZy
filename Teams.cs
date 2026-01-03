@@ -197,20 +197,16 @@ namespace MatchZy
             }
             return false;
         }
-
         // --- 新增：重置名單快取，解決 BO3 換圖數據殘留 ---
-        // 修正：預設不重置大比分，解決你提到的 1-1 變 1-0 問題
-        public void ResetTeamDataCaches(bool resetSeriesScore = false) 
-        {
-            matchzyTeam1.teamPlayers = new JObject(); 
-            matchzyTeam2.teamPlayers = new JObject();
-            matchConfig.Spectators = new JObject();
-            
-            if (resetSeriesScore) 
-            {
-                matchzyTeam1.seriesScore = 0;
-                matchzyTeam2.seriesScore = 0;
-            }
-        }
-    } // 這裡結束 partial class MatchZy
-} // 這裡結束 namespace MatchZy
+    public void ResetTeamDataCaches() {
+        // 強制清空 JSON 玩家名單，解決沒有 SteamID 時的佔位問題
+        matchzyTeam1.teamPlayers = new JObject(); 
+        matchzyTeam2.teamPlayers = new JObject();
+        matchConfig.Spectators = new JObject();
+        
+        // 重置系列賽比分
+        matchzyTeam1.seriesScore = 0;
+        matchzyTeam2.seriesScore = 0;
+    }
+    }
+}

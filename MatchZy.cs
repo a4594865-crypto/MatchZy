@@ -308,20 +308,27 @@ namespace MatchZy
 
 RegisterListener<Listeners.OnMapStart>(mapName => { 
     AddTimer(1.0f, () => {
-        // 核心修正：括號內不要傳入任何東西（預設為 false），這樣就不會洗掉 1-0 的比分
+        // 1. 執行大掃除，確保舊地圖的 SteamID 殘留被清空
         ResetTeamDataCaches(); 
 
-        // 強制對齊 Team 1 為 CT (解決 11 變 22)
+        // 2. 關鍵修正：強制將隊伍編號「歸位」
+        // 不論上一場結束時誰是 CT，新地圖一開始強制讓 matchzyTeam1 回到 CT 位置
         teamSides[matchzyTeam1] = "CT";
         teamSides[matchzyTeam2] = "TERRORIST";
         reverseTeamSides["CT"] = matchzyTeam1;
         reverseTeamSides["TERRORIST"] = matchzyTeam2;
 
-        if (!isMatchSetup) {
+        if (!isMatchSetup)
+        {
             AutoStart();
             return;
         }
-        SetTeamNames(); // 確保隊名刷新
+        
+        // 確保隊伍名稱顯示正確
+        SetTeamNames(); 
+        
+        if (isWarmup) StartWarmup();
+        if (isPractice) StartPracticeMode();
     });
 });
 

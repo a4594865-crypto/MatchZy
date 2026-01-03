@@ -387,19 +387,20 @@ namespace MatchZy
 public void SetMapSides() {
     int mapNumber = matchConfig.CurrentMapNumber;
     
-    // 預設分配：固定 Team1 關聯到 matchzyTeam1
+    // 強制重置：不論上一場如何，新地圖開始時 Team1 預設回 CT
     teamSides[matchzyTeam1] = "CT";
     teamSides[matchzyTeam2] = "TERRORIST";
     reverseTeamSides["CT"] = matchzyTeam1;
     reverseTeamSides["TERRORIST"] = matchzyTeam2;
     
+    // 如果 JSON 有定義特定陣營則再覆蓋
     if (matchConfig.MapSides.Count > mapNumber) {
         if (matchConfig.MapSides[mapNumber] == "team2_ct" || matchConfig.MapSides[mapNumber] == "team1_t") {
             (teamSides[matchzyTeam1], teamSides[matchzyTeam2]) = (teamSides[matchzyTeam2], teamSides[matchzyTeam1]);
             (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
         }
     }
-    // 強制同步遊戲內的隊伍名稱
+    isKnifeRequired = (matchConfig.MapSides.Count > mapNumber && matchConfig.MapSides[mapNumber] == "knife");
     SetTeamNames();
 }
 
@@ -539,44 +540,41 @@ public void SetMapSides() {
         }
 
         public void EndSeries(string? winnerName, int restartDelay, int t1score, int t2score)
-{
-    long matchId = liveMatchId;
-    (int team1Score, int team2Score) = (matchzyTeam1.seriesScore, matchzyTeam2.seriesScore);
-    
-    if (winnerName == null)
-    {
-        // 這裡改成了中文戰平文字
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} 與 {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} 最終握手言和，雙方戰平！");
-    }
-    else
-    {
-        // 這裡改成了中文勝利文字
-        Server.PrintToChatAll($"{chatPrefix} 恭喜 {ChatColors.Green}{winnerName}{ChatColors.Default} 贏得了本場地圖的勝利！");
-    }
+        {
+            long matchId = liveMatchId;
+            (int team1Score, int team2Score) = (matchzyTeam1.seriesScore, matchzyTeam2.seriesScore);
+            if (winnerName == null)
+            {
+                PrintToAllChat($"{ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} and {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} have tied the match");
+            }
+            else
+            {
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{winnerName}{ChatColors.Default} has won the match");
+            }
 
-    string winnerTeam = (winnerName == null) ? "none" : matchzyTeam1.seriesScore > matchzyTeam2.seriesScore ? "team1" : "team2";
+            string winnerTeam = (winnerName == null) ? "none" : matchzyTeam1.seriesScore > matchzyTeam2.seriesScore ? "team1" : "team2";
 
-    var seriesResultEvent = new MatchZySeriesResultEvent()
-    {
-        MatchId = matchId,
-        Winner = new Winner(t1score > t2score && reverseTeamSides["CT"] == matchzyTeam1 ? "3" : "2", winnerTeam),
-        Team1SeriesScore = team1Score,
-        Team2SeriesScore = team2Score,
-        TimeUntilRestore = 10,
-    };
+            var seriesResultEvent = new MatchZySeriesResultEvent()
+            {
+                MatchId = matchId,
+                Winner = new Winner(t1score > t2score && reverseTeamSides["CT"] == matchzyTeam1 ? "3" : "2", winnerTeam),
+                Team1SeriesScore = team1Score,
+                Team2SeriesScore = team2Score,
+                TimeUntilRestore = 10,
+            };
 
-    Task.Run(async () => {
-        await database.SetMatchEndData(matchId, winnerName ?? "Draw", team1Score, team2Score);
-        await Task.Delay(2000);
-        await SendEventAsync(seriesResultEvent);
-    });
+            Task.Run(async () => {
+                await database.SetMatchEndData(matchId, winnerName ?? "Draw", team1Score, team2Score);
+                await Task.Delay(2000);
+                await SendEventAsync(seriesResultEvent);
+            });
 
-    if (resetCvarsOnSeriesEnd) ResetChangedConvars();
-    isMatchLive = false;
-    AddTimer(restartDelay, () => {
-        ResetMatch(false);
-    });
-}
+            if (resetCvarsOnSeriesEnd) ResetChangedConvars();
+            isMatchLive = false;
+            AddTimer(restartDelay, () => {
+                ResetMatch(false);
+            });
+        }
 
         public void HandlePlayoutConfig()
         {
@@ -592,31 +590,11 @@ public void SetMapSides() {
             }
         }
 
+        // 新增：根據陣營獲取隊名
         public string GetTeamNameFromSide(int teamNum) {
             if (teamNum == 3) return reverseTeamSides["CT"].teamName;
             if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
             return "Unknown";
         }
-
-        // 修正：使用 TeamManager 抓取比分，解決 Utilities.GetTeam 不存在的問題
-public void BroadcastRoundScore() {
-    var teams = Utilities.FindAllEntitiesByDesignerName<CCSTeam>("cs_team_manager");
-    int ctScore = 0;
-    int tScore = 0;
-
-    foreach (var team in teams) {
-        if (team.TeamNum == 3) ctScore = team.Score;
-        if (team.TeamNum == 2) tScore = team.Score;
-    }
-
-    string ctTeamName = GetTeamNameFromSide(3); 
-    string tTeamName = GetTeamNameFromSide(2);
-
-    // --- 新增這行：抓取系列賽的大比分 ---
-    string seriesScoreMsg = $"[{matchzyTeam1.seriesScore}:{matchzyTeam2.seriesScore}]";
-
-    // 修改廣播格式，加入黃色的系列賽比分
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Gold}戰報：{ChatColors.Default}{ChatColors.Green}{ctTeamName}{ChatColors.Default} {ChatColors.White}{ctScore}{ChatColors.Default} {ChatColors.Yellow}{seriesScoreMsg}{ChatColors.Default} {ChatColors.White}{tScore}{ChatColors.Default} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
-}
     } // 結束 MatchZy 類別
 } // 結束 namespace MatchZy
