@@ -240,14 +240,15 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-           AddCommandListener("jointeam", (player, info) =>
+          AddCommandListener("jointeam", (player, info) =>
 {
     if (player != null && !player.IsBot) 
     {
-        // 熱身且非正式比賽時放行，其餘一律攔截
-        if (isWarmup && !isMatchSetup) return HookResult.Continue; 
+        // 修正：只要是熱身模式 (isWarmup)，不論是否為 JSON 比賽都允許換隊
+        if (isWarmup) return HookResult.Continue; 
         
-        player.PrintToChat($"{chatPrefix} {ChatColors.Red}禁止自行更換隊伍！");
+        // 正式開賽後（非熱身），才執行全面攔截
+        player.PrintToChat($"{chatPrefix} {ChatColors.Red}正式比賽已開始，禁止自行更換隊伍！");
         return HookResult.Stop; 
     }
     return HookResult.Continue; 
