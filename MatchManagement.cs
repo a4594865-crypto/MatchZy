@@ -590,11 +590,36 @@ public void SetMapSides() {
             }
         }
 
-        // 新增：根據陣營獲取隊名
+        // --- 以下是我們新增與修正的代碼，請確保在這裡 ---
+
+        // 1. 根據陣營獲取隊名 (解決比分廣播隊名不對的問題)
         public string GetTeamNameFromSide(int teamNum) {
             if (teamNum == 3) return reverseTeamSides["CT"].teamName;
             if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
             return "Unknown";
         }
-    } // 結束 MatchZy 類別
-} // 結束 namespace MatchZy
+
+        // 2. 槽位識別版專用：獲取玩家目前的隊伍
+        private CsTeam GetPlayerTeam(CCSPlayerController player)
+        {
+            if (player == null || !player.IsValid) return CsTeam.None;
+            return player.TeamNum switch {
+                3 => CsTeam.CounterTerrorist,
+                2 => CsTeam.Terrorist,
+                1 => CsTeam.Spectator,
+                _ => CsTeam.None
+            };
+        }
+
+        // 3. 自定義每回合結束的比分文字廣播
+        public void BroadcastRoundScore() {
+            int ctScore = GetTeam(3).Score; 
+            int tScore = GetTeam(2).Score;  
+            string ctTeamName = GetTeamNameFromSide(3); 
+            string tTeamName = GetTeamNameFromSide(2);
+
+            // 你可以在這裡修改想要顯示的「文字」格式
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{ctTeamName}{ChatColors.Default}--{ctScore} : {tScore} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
+        }
+    } // 這是第 545 行左右：結束 MatchZy 類別
+} // 這是最後一行：結束 namespace MatchZy
