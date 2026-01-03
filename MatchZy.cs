@@ -241,10 +241,10 @@ namespace MatchZy
 
             AddCommandListener("noclip", OnConsoleNoClip);
 
-            // 4. 聊天指令監聽 (針對您的源碼版本進行類型相容性修正)
+            // 4. 聊天指令監聽 (相容性修正版)
             RegisterEventHandler<EventPlayerChat>((@event, info) =>
             {
-                // 修正 L248：透過 Index 獲取玩家物件，解決 int 無法轉換為 Controller 的問題
+                // 使用 GetPlayerFromIndex 解決 L248 的 int 轉換問題
                 CCSPlayerController? player = Utilities.GetPlayerFromIndex(@event.Userid);
                 if (player == null || !player.IsValid) return HookResult.Continue;
 
@@ -273,12 +273,7 @@ namespace MatchZy
                     }
                 }
 
-                // 修正 L279：如果 HandleReady 不存在，直接調用原始指令處理器
-                if (message == ".ready" || message == ".r")
-                {
-                    // 在大部分 MatchZy 版本中，這是處理準備邏輯的通用入口
-                    OnReadyCommand(player, null!); 
-                }
+                // 已刪除原本報錯的 .ready / .r 判斷邏輯，因為插件已有內建指令監聽處理
                 
                 return HookResult.Continue;
             });
