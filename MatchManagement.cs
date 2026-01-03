@@ -599,27 +599,29 @@ public void SetMapSides() {
             });
         }
 
-
-// ... 這是原本就在那裡的代碼，請保留它 ...
         public void HandlePlayoutConfig()
         {
             if (isPlayOutEnabled) {
                 Server.ExecuteCommand("mp_overtime_enable 0");
                 Server.ExecuteCommand("mp_match_can_clinch false");
             } else {
-                // ... 中間內容省略 ...
+                var absoluteCfgPath = Path.Join(Server.GameDirectory + "/csgo/cfg", GetGameMode() == 1 ? liveCfgPath : liveWingmanCfgPath);
+                string? matchCanClinch = GetConvarValueFromCFGFile(absoluteCfgPath, "mp_match_can_clinch");
+                string? overtimeEnabled = GetConvarValueFromCFGFile(absoluteCfgPath, "mp_overtime_enable");
+                Server.ExecuteCommand($"mp_match_can_clinch {matchCanClinch ?? "1"}");
                 Server.ExecuteCommand($"mp_overtime_enable {overtimeEnabled ?? "1"}");
             }
-        } // 這是 HandlePlayoutConfig 的結束括號
+        } // 確保這裡只有一個括號結束函式
 
-        // --- 請在這裡下方加入我們的新函式 ---
+        // --- 以下是我們新增的正確代碼 ---
         public string GetTeamNameFromSide(int teamNum) {
             if (teamNum == 3) return reverseTeamSides["CT"].teamName;
             if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
             return "Unknown";
         }
 
-        private CsTeam GetPlayerTeam(CCSPlayerController player) {
+        private CsTeam GetPlayerTeam(CCSPlayerController player)
+        {
             if (player == null || !player.IsValid) return CsTeam.None;
             return player.TeamNum switch {
                 3 => CsTeam.CounterTerrorist,
@@ -628,7 +630,5 @@ public void SetMapSides() {
                 _ => CsTeam.None
             };
         }
-        // ----------------------------------
-
-    } // 這是 MatchZy 類別的結束括號
-} // 這是 Namespace 的結束括號
+    } // 結束 MatchZy 類別 (原本可能多了一個 } 在這上面導致報錯)
+} // 結束 namespace MatchZy
