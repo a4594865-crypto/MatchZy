@@ -215,21 +215,18 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // --- 核心修正：從指令層級攔截，防止死亡並顯示訊息 ---
+           // --- 核心修正：從指令層級攔截，並改成「個人紅字提示」 ---
             AddCommandListener("jointeam", (player, info) =>
             {
-                // 如果比賽已正式開始 (.r 完畢) 或正在刀局中，直接擋掉指令
                 if (player != null && (matchStarted || isKnifeRequired)) 
                 {
-                    // 顯示不能換隊的訊息給玩家
-                    ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！");
-                    // 回傳 Stop 讓伺服器完全不執行換隊，所以玩家「不會死亡」
+                    // 使用 {ChatColors.Red} 讓文字變紅，並用 {ChatColors.Default} 恢復預設色
+                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}刀局{ChatColors.Default} 或 {ChatColors.Red}比賽{ChatColors.Default}期間禁止自行更換隊伍！");
+                    
                     return HookResult.Stop; 
                 }
-                // 比賽還沒開始前 (.r 期間)，維持原本邏輯放行
                 return HookResult.Continue; 
             });
-
             AddCommandListener("noclip", OnConsoleNoClip); // Override noclip
 
             RegisterEventHandler<EventRoundEnd>((@event, info) =>
