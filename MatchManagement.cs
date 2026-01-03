@@ -387,21 +387,19 @@ namespace MatchZy
 public void SetMapSides() {
     int mapNumber = matchConfig.CurrentMapNumber;
     
-    // 強制：不論地圖如何切換，Team1 永遠關聯到 matchzyTeam1，Team2 關聯到 matchzyTeam2
-    // 這樣可以防止您在第二張圖時 ID 從 Team1 變成 Team2
+    // 預設分配：固定 Team1 關聯到 matchzyTeam1
     teamSides[matchzyTeam1] = "CT";
     teamSides[matchzyTeam2] = "TERRORIST";
     reverseTeamSides["CT"] = matchzyTeam1;
     reverseTeamSides["TERRORIST"] = matchzyTeam2;
     
     if (matchConfig.MapSides.Count > mapNumber) {
-        // 只有當 JSON 檔案明確要求 "team2_ct" 或 "team1_t" 時才進行邏輯交換
         if (matchConfig.MapSides[mapNumber] == "team2_ct" || matchConfig.MapSides[mapNumber] == "team1_t") {
             (teamSides[matchzyTeam1], teamSides[matchzyTeam2]) = (teamSides[matchzyTeam2], teamSides[matchzyTeam1]);
             (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
         }
     }
-    // 執行 SetTeamNames 以確保遊戲內隊伍名稱與陣營同步
+    // 強制同步遊戲內的隊伍名稱
     SetTeamNames();
 }
 
@@ -614,11 +612,11 @@ public void BroadcastRoundScore() {
     string ctTeamName = GetTeamNameFromSide(3); 
     string tTeamName = GetTeamNameFromSide(2);
 
-    // 取得系列賽的大比分
+    // --- 新增這行：抓取系列賽的大比分 ---
     string seriesScoreMsg = $"[{matchzyTeam1.seriesScore}:{matchzyTeam2.seriesScore}]";
 
-    // 最終顯示格式：戰報：CT隊名 分數 [總比分] 分數 T隊名
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Gold}戰報：{ChatColors.Default}{ChatColors.Green}{ctTeamName}{ChatColors.Default} {ctScore} {ChatColors.Yellow}{seriesScoreMsg}{ChatColors.Default} {tScore} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
-}
+    // 修改廣播格式，加入黃色的系列賽比分
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Gold}戰報：{ChatColors.Default}{ChatColors.Green}{ctTeamName}{ChatColors.Default} {ChatColors.White}{ctScore}{ChatColors.Default} {ChatColors.Yellow}{seriesScoreMsg}{ChatColors.Default} {ChatColors.White}{tScore}{ChatColors.Default} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
+}}
     } // 結束 MatchZy 類別
 } // 結束 namespace MatchZy
