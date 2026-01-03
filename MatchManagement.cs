@@ -529,36 +529,14 @@ public void SetMapSides() {
         }
 
   private CsTeam GetPlayerTeam(CCSPlayerController player)
-{
-    // 在不偵測 SteamID 的環境下，我們直接根據玩家目前的遊戲陣營來判斷，不再去對比 JSON 名單
-    return player.TeamNum switch {
-        3 => CsTeam.CounterTerrorist,
-        2 => CsTeam.Terrorist,
-        1 => CsTeam.Spectator,
-        _ => CsTeam.None
-    };
-}
-                else if (matchzyTeam2.teamPlayers != null && matchzyTeam2.teamPlayers[steamId.ToString()] != null)
-                {
-                    if (teamSides[matchzyTeam2] == "CT")
-                    {
-                        playerTeam = CsTeam.CounterTerrorist;
-                    }
-                    else if (teamSides[matchzyTeam2] == "TERRORIST")
-                    {
-                        playerTeam = CsTeam.Terrorist;
-                    }
-                }
-                else if (matchConfig.Spectators != null && matchConfig.Spectators[steamId.ToString()] != null)
-                {
-                    playerTeam = CsTeam.Spectator;
-                }
-            }
-            catch (Exception ex)
-            {
-                Log($"[GetPlayerTeam - FATAL] Exception occurred: {ex.Message}");
-            }
-            return playerTeam;
+        {
+            if (player == null || !player.IsValid) return CsTeam.None;
+            return player.TeamNum switch {
+                3 => CsTeam.CounterTerrorist,
+                2 => CsTeam.Terrorist,
+                1 => CsTeam.Spectator,
+                _ => CsTeam.None
+            };
         }
 
         public void EndSeries(string? winnerName, int restartDelay, int t1score, int t2score)
@@ -587,7 +565,6 @@ public void SetMapSides() {
 
             Task.Run(async () => {
                 await database.SetMatchEndData(matchId, winnerName ?? "Draw", team1Score, team2Score);
-                // Making sure that map end event is fired first
                 await Task.Delay(2000);
                 await SendEventAsync(seriesResultEvent);
             });
@@ -611,24 +588,13 @@ public void SetMapSides() {
                 Server.ExecuteCommand($"mp_match_can_clinch {matchCanClinch ?? "1"}");
                 Server.ExecuteCommand($"mp_overtime_enable {overtimeEnabled ?? "1"}");
             }
-        } // 確保這裡只有一個括號結束函式
+        }
 
-        // --- 以下是我們新增的正確代碼 ---
+        // 新增：根據陣營獲取隊名
         public string GetTeamNameFromSide(int teamNum) {
             if (teamNum == 3) return reverseTeamSides["CT"].teamName;
             if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
             return "Unknown";
         }
-
-        private CsTeam GetPlayerTeam(CCSPlayerController player)
-        {
-            if (player == null || !player.IsValid) return CsTeam.None;
-            return player.TeamNum switch {
-                3 => CsTeam.CounterTerrorist,
-                2 => CsTeam.Terrorist,
-                1 => CsTeam.Spectator,
-                _ => CsTeam.None
-            };
-        }
-    } // 結束 MatchZy 類別 (原本可能多了一個 } 在這上面導致報錯)
+    } // 結束 MatchZy 類別
 } // 結束 namespace MatchZy
