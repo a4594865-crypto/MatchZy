@@ -387,20 +387,20 @@ namespace MatchZy
 public void SetMapSides() {
     int mapNumber = matchConfig.CurrentMapNumber;
     
-    // 強制重置：不論上一場如何，新地圖開始時 Team1 預設回 CT
+    // 強制：不論地圖如何切換，Team1 永遠關聯到 matchzyTeam1
+    // 避免換圖後原本的 Team1 玩家變成 Team2
     teamSides[matchzyTeam1] = "CT";
     teamSides[matchzyTeam2] = "TERRORIST";
     reverseTeamSides["CT"] = matchzyTeam1;
     reverseTeamSides["TERRORIST"] = matchzyTeam2;
     
-    // 如果 JSON 有定義特定陣營則再覆蓋
     if (matchConfig.MapSides.Count > mapNumber) {
+        // 只有當 JSON 檔案明確要求 "team2_ct" 時才進行邏輯交換，否則保持不變
         if (matchConfig.MapSides[mapNumber] == "team2_ct" || matchConfig.MapSides[mapNumber] == "team1_t") {
             (teamSides[matchzyTeam1], teamSides[matchzyTeam2]) = (teamSides[matchzyTeam2], teamSides[matchzyTeam1]);
             (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
         }
     }
-    isKnifeRequired = (matchConfig.MapSides.Count > mapNumber && matchConfig.MapSides[mapNumber] == "knife");
     SetTeamNames();
 }
 
