@@ -356,7 +356,90 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 if (player!.InGameMoneyServices != null) player.InGameMoneyServices.Account = 16000;
                 return HookResult.Continue;
             });
+// 1. 基礎事件註冊 (將單行改寫，加入強制踢除路人的邏輯)
+            RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
+                var player = @event.Userid;
 
+                // 判斷：只要手動輸入 .whitelist 啟動了白名單 (isWhitelistRequired = true)
+                if (isWhitelistRequired && player != null && player.IsValid && !player.IsBot) {
+                    
+                    // 管理員豁免檢查，避免您自己開啟白名單時被踢
+                    if (IsPlayerAdmin(player, "css_whitelist", "@css/chat")) {
+                        return HookResult.Continue;
+                    }
+
+                    // 檢查玩家是否不在合法的選手名單中
+                    if (!playerData.ContainsKey((int)player.UserId!) && !isSleep) {
+                        // 延遲 2 秒執行踢除，確保玩家能收到原因提示
+                        AddTimer(2.0f, () => {
+                            if (player.IsValid) {
+                                Server.ExecuteCommand($"kickid {player.UserId} \"伺服器白名單已開啟，您不在名單中。\"");
+                                Log($"[WHITELIST] 已強制踢出路人: {player.PlayerName}");
+                            }
+                        });
+                    }
+                }
+                // 繼續執行原本 MatchZy 的連線邏輯
+                return EventPlayerConnectFullHandler(@event, info);
+            });
+
+            RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
+            RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
+            RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
+            RegisterEventHandler<EventRoundStart>(EventRoundStartHandler);
+            RegisterEventHandler<EventRoundFreezeEnd>(EventRoundFreezeEndHandler);
+            RegisterEventHandler<EventPlayerGivenC4>(EventPlayerGivenC4);
+            RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
+            RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
+
+            // --- 2. 換隊攔截 (針對 JSON 比賽，熱身可修正隊伍) ---
+            AddCommandListener("jointeam", (player, info) =>
+            {
+                if (player != null && isMatchSetup && (matchStarted || isKnifeRequired)) 
+                {
+                    if (isWarmup) 
+                    {
+                        return HookResult.Continue; 
+                    }
+
+                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}刀局{ChatColors.Default} 或 {ChatColors.LightRed}比賽{ChatColors.Default} 期間禁止自行更換隊伍！");
+                    return HookResult.Stop; 
+                }
+                return HookResult.Continue; 
+            });
+
+            AddCommandListener("noclip", OnConsoleNoClip);
+
+            // 3. 聊天指令監聽 (包含 .map 鎖定)
+            RegisterEventHandler<EventPlayerChat>((@event, info) =>
+            {
+                CCSPlayerController? player = Utilities.GetPlayerFromIndex(@event.Userid);
+                if (player == null || !player.IsValid) return HookResult.Continue;
+
+                string message = @event.Text.Trim().ToLower();
+                string[] args = message.Split(' ');
+                string messageCommandArg = args.Length > 1 ? args[1] : "";
+
+                if (message.StartsWith(".map"))
+                {
+                    if (isMatchSetup)
+                    {
+                        Server.PrintToChatAll($"{chatPrefix} 玩家 {ChatColors.Default}{ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.Red}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
+                        return HookResult.Continue;
+                    }
+                    HandleMapChangeCommand(player, messageCommandArg);
+                }
+                
+                if (message.StartsWith(".prac") || message.StartsWith(".match"))
+                {
+                    if (isMatchSetup)
+                    {
+                        Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}玩家 {ChatColors.Default}{player.PlayerName} {ChatColors.LightRed}嘗試切換模式。{ChatColors.Red}正式比賽期間禁止切換遊戲模式！{ChatColors.Default}");
+                        return HookResult.Continue;
+                    }
+                }
+                return HookResult.Continue;
+            });
             RegisterEventHandler<EventPlayerHurt>((@event, info) =>
 			{
 				CCSPlayerController? attacker = @event.Attacker;
