@@ -241,18 +241,17 @@ namespace MatchZy
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
            AddCommandListener("jointeam", (player, info) =>
-            {
-                if (player != null && !player.IsBot) 
-                {
-                    // 只在「非比賽」且「熱身」時開放，讓路人剛進服能選邊
-                    if (isWarmup && !isMatchSetup) return HookResult.Continue; 
-
-                    // 比賽中或一般競技開賽後，全面禁止
-                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}禁止自行更換隊伍！");
-                    return HookResult.Stop; 
-                }
-                return HookResult.Continue; 
-            });
+{
+    if (player != null && !player.IsBot) 
+    {
+        // 熱身且非正式比賽時放行，其餘一律攔截
+        if (isWarmup && !isMatchSetup) return HookResult.Continue; 
+        
+        player.PrintToChat($"{chatPrefix} {ChatColors.Red}禁止自行更換隊伍！");
+        return HookResult.Stop; 
+    }
+    return HookResult.Continue; 
+});
             AddCommandListener("noclip", OnConsoleNoClip);
 
            
@@ -305,17 +304,17 @@ namespace MatchZy
             // });
 
 RegisterListener<Listeners.OnMapStart>(mapName => { 
-    AddTimer(1.0f, () => {
-        ResetTeamDataCaches(); 
-        if (!isMatchSetup) {
-            // 一般路人局：自動啟動，但不強行指定 CT/T，避免換圖變 22 隊
-            AutoStart();
-        } else {
-            // 正式比賽：只刷隊名，換邊交給系統自動處理
-            SetTeamNames(); 
-        }
-    });
-});
+                AddTimer(1.0f, () => {
+                    // 只清理緩存，不手動干涉隊伍分配
+                    ResetTeamDataCaches(); 
+
+                    if (!isMatchSetup) {
+                        AutoStart();
+                    } else {
+                        SetTeamNames(); // 確保 JSON 裡的隊名有刷新就好
+                    }
+                });
+            });
             // RegisterListener<Listeners.OnMapEnd>(() => {
             //     Log($"[Listeners.OnMapEnd] Resetting match!");
             //     ResetMatch();
