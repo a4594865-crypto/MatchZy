@@ -311,19 +311,20 @@ namespace MatchZy
 
 RegisterListener<Listeners.OnMapStart>(mapName => { 
     AddTimer(1.0f, () => {
-        // 1. 清理緩存但保留大比分
         ResetTeamDataCaches(); 
 
-        // 2. 只有在「非正式比賽」(!isMatchSetup) 時才強制對齊
-        // 如果是 JSON 比賽 (isMatchSetup)，我們就讓 MatchZy 系統自己決定第 2 場的邊
-        if (!isMatchSetup) {
+        // 只有在剛開服或沒進入比賽模式時，我們才做「初始化」對齊
+        // 這樣第二場圖路人投票換過去後，就不會被這行代碼「強行拉回 CT」導致變 22 隊
+        if (!isMatchSetup && !matchStarted) {
             teamSides[matchzyTeam1] = "CT";
             teamSides[matchzyTeam2] = "TERRORIST";
             reverseTeamSides["CT"] = matchzyTeam1;
             reverseTeamSides["TERRORIST"] = matchzyTeam2;
+        }
+
+        if (!isMatchSetup) {
             AutoStart();
         } else {
-            // 正式比賽只需刷新隊名，不要手動指定 CT/T
             SetTeamNames(); 
         }
     });
