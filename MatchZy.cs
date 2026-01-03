@@ -230,7 +230,7 @@ namespace MatchZy
                     }
 
                     // 3. 正式開打或刀局中，顯示紅字警告並攔截指令
-                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}刀局或比賽期間禁止自行更換隊伍！{ChatColors.Default}");
+                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}刀局{ChatColors.Default} 或 {ChatColors.LightRed}比賽{ChatColors.Default} 期間禁止自行更換隊伍！");
                     
                     // 攔截指令，讓玩家不死亡也換不過去
                     return HookResult.Stop; 
