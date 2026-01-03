@@ -205,6 +205,7 @@ namespace MatchZy
                 { ".loadpos", OnLoadPosCommand}
             };
 
+            // 1. 基礎事件註冊區
             RegisterEventHandler<EventPlayerConnectFull>(EventPlayerConnectFullHandler);
             RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
@@ -215,22 +216,79 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-           // --- 核心修正：從指令層級攔截，並改成「個人紅字提示」 ---
+            // --- 2. 核心修正：指令層級攔截換隊 (防止死亡、僅個人提示) ---
             AddCommandListener("jointeam", (player, info) =>
             {
                 if (player != null && (matchStarted || isKnifeRequired)) 
                 {
-                    // 使用 {ChatColors.Red} 讓文字變紅，並用 {ChatColors.Default} 恢復預設色
-                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}刀局{ChatColors.Default} 或 {ChatColors.Red}比賽{ChatColors.Default}期間禁止自行更換隊伍！");
-                    
+                    // 僅發送給該玩家，避免干擾比賽
+                    player.PrintToChat($"{chatPrefix} {ChatColors.Red}刀局或比賽期間禁止自行更換隊伍！{ChatColors.Default}");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
             });
-            AddCommandListener("noclip", OnConsoleNoClip); // Override noclip
+
+            // --- 3. 核心修正：攔截所有內建投票 (ESC 換圖、踢人) ---
+            RegisterEventHandler<EventVoteStarted>((@event, info) =>
+            {
+                if (isMatchSetup)
+                {
+                    // 全服廣播紅字警示
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}正式比賽已由 JSON 鎖定，禁止發起任何投票 (含換圖、踢人)！{ChatColors.Default}");
+                    
+                    // 強制取消本次投票
+                    Server.ExecuteCommand("sv_allow_votes 0");
+                    AddTimer(1.0f, () => Server.ExecuteCommand("sv_allow_votes 1"));
+                }
+                return HookResult.Continue;
+            });
+
+            AddCommandListener("noclip", OnConsoleNoClip);
+
+            // 4. 聊天指令監聽區
+            RegisterEventHandler<EventPlayerChat>((@event, info) =>
+            {
+                int playerSlot = @event.Userid.Slot;
+                CCSPlayerController? player = @event.Userid;
+                if (player == null || !player.IsValid) return HookResult.Continue;
+
+                string message = @event.Text.Trim().ToLower();
+                string[] args = message.Split(' ');
+                string messageCommandArg = args.Length > 1 ? args[1] : "";
+
+                // --- 5. 核心修正：JSON 期間禁止 .map 指令並全服廣播 ---
+                if (message.StartsWith(".map"))
+                {
+                    if (isMatchSetup)
+                    {
+                        Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}玩家 {ChatColors.Default}{player.PlayerName} {ChatColors.LightRed}嘗試更換地圖。{ChatColors.Red}正式比賽地圖由 JSON 鎖定，禁止更換！{ChatColors.Default}");
+                        return HookResult.Continue;
+                    }
+                    HandleMapChangeCommand(player, messageCommandArg);
+                }
+                
+                // --- 6. 核心修正：JSON 期間禁止切換模式 ---
+                if (message.StartsWith(".prac") || message.StartsWith(".match"))
+                {
+                    if (isMatchSetup)
+                    {
+                        Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}玩家 {ChatColors.Default}{player.PlayerName} {ChatColors.LightRed}嘗試切換模式。{ChatColors.Red}正式比賽期間禁止切換遊戲模式！{ChatColors.Default}");
+                        return HookResult.Continue;
+                    }
+                }
+
+                // 這裡繼續原有的其他指令處理 (如 .ready, .r 等)
+                if (message == ".ready" || message == ".r")
+                {
+                    HandleReadyCommand(player);
+                }
+                
+                return HookResult.Continue;
+            });
 
             RegisterEventHandler<EventRoundEnd>((@event, info) =>
             {
+                // 原有的 RoundEnd 邏輯...
                 if (!isKnifeRound) return HookResult.Continue;
 
                 DetermineKnifeWinner();
