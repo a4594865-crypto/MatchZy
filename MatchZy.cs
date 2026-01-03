@@ -252,15 +252,9 @@ namespace MatchZy
 
             AddCommandListener("jointeam", (player, info) =>
             {
-                if ((isMatchSetup || isVeto) && player != null && player.IsValid) {
-                    if (int.TryParse(info.ArgByIndex(1), out int joiningTeam)) {
-                        int playerTeam = (int)GetPlayerTeam(player);
-                        if (joiningTeam != playerTeam) {
-                            return HookResult.Stop;
-                        }
-                    }
-                }
-                return HookResult.Continue;
+              // 核心修改：在不偵測 SteamID 的環境下，放行所有選隊請求
+              // 這能防止第二張圖因為「找不到身分」而顯示 Teams are full
+              return HookResult.Continue; 
             });
 
             AddCommandListener("noclip", OnConsoleNoClip); // Override noclip
@@ -312,17 +306,26 @@ namespace MatchZy
             //     return HookResult.Continue;
             // });
 
-            RegisterListener<Listeners.OnMapStart>(mapName => { 
-                AddTimer(1.0f, () => {
-                    if (!isMatchSetup)
-                    {
-                        AutoStart();
-                        return;
-                    }
-                    if (isWarmup) StartWarmup();
-                    if (isPractice) StartPracticeMode();
-                });
-            });
+RegisterListener<Listeners.OnMapStart>(mapName => { 
+    AddTimer(1.0f, () => {
+        // 1. 執行我們在 Teams.cs 新增的大掃除方法
+        ResetTeamDataCaches(); 
+
+        // 2. 強制對齊陣營，確保 Team 1 永遠是 CT (解決 11 變 22 跳動)
+        teamSides[matchzyTeam1] = "CT";
+        teamSides[matchzyTeam2] = "TERRORIST";
+        reverseTeamSides["CT"] = matchzyTeam1;
+        reverseTeamSides["TERRORIST"] = matchzyTeam2;
+
+        if (!isMatchSetup)
+        {
+            AutoStart();
+            return;
+        }
+        if (isWarmup) StartWarmup();
+        if (isPractice) StartPracticeMode();
+    });
+});
 
             // RegisterListener<Listeners.OnMapEnd>(() => {
             //     Log($"[Listeners.OnMapEnd] Resetting match!");
