@@ -600,24 +600,23 @@ public void SetMapSides() {
         }
 
         // 修正：使用 TeamManager 抓取比分，解決 Utilities.GetTeam 不存在的問題
-        public void BroadcastRoundScore() {
-            // 直接透過 TeamManager 搜尋 CT 與 T 陣營實體
-            var teams = Utilities.FindAllEntitiesByDesignerName<CCSTeam>("cs_team_manager");
-            
-            int ctScore = 0;
-            int tScore = 0;
+public void BroadcastRoundScore() {
+    // 抓取伺服器目前的 CT 與 T 分數
+    var teams = Utilities.FindAllEntitiesByDesignerName<CCSTeam>("cs_team_manager");
+    
+    int ctScore = 0;
+    int tScore = 0;
 
-            foreach (var team in teams) {
-                if (team.TeamNum == 3) ctScore = team.Score;
-                if (team.TeamNum == 2) tScore = team.Score;
-            }
+    foreach (var team in teams) {
+        if (team.TeamNum == 3) ctScore = team.Score;
+        if (team.TeamNum == 2) tScore = team.Score;
+    }
 
-            string ctTeamName = GetTeamNameFromSide(3); 
-            string tTeamName = GetTeamNameFromSide(2);
+    string ctTeamName = GetTeamNameFromSide(3); 
+    string tTeamName = GetTeamNameFromSide(2);
 
-            // 這裡顯示你想要的「隊名--比分」格式
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Gold}戰報：{ChatColors.Default}{ChatColors.Green}{ctTeamName}{ChatColors.Default} {ChatColors.White}{ctScore}{ChatColors.Default} : {ChatColors.White}{tScore}{ChatColors.Default} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
-          }
-        }
+    // 修改這裡的文字內容：加入「戰報：」
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Gold}戰報：{ChatColors.Default}{ChatColors.Green}{ctTeamName}{ChatColors.Default} {ChatColors.White}{ctScore}{ChatColors.Default} : {ChatColors.White}{tScore}{ChatColors.Default} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
+     }
     } // 結束 MatchZy 類別
 } // 結束 namespace MatchZy
