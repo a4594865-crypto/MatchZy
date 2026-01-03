@@ -248,6 +248,16 @@ namespace MatchZy
     }
     return HookResult.Continue; 
 });
+// 新增：徹底禁用 ESC 投票系統
+AddCommandListener("callvote", (player, info) =>
+{
+    if (player != null && isMatchSetup) 
+    {
+        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正式比賽期間，內建投票功能已被插件禁用！");
+        return HookResult.Stop; 
+    }
+    return HookResult.Continue; 
+});
             AddCommandListener("noclip", OnConsoleNoClip);
 
            
