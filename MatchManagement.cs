@@ -617,6 +617,6 @@ public void BroadcastRoundScore() {
 
     // 修改廣播格式，加入黃色的系列賽比分
     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Gold}戰報：{ChatColors.Default}{ChatColors.Green}{ctTeamName}{ChatColors.Default} {ChatColors.White}{ctScore}{ChatColors.Default} {ChatColors.Yellow}{seriesScoreMsg}{ChatColors.Default} {ChatColors.White}{tScore}{ChatColors.Default} {ChatColors.Red}{tTeamName}{ChatColors.Default}");
-}}
+}
     } // 結束 MatchZy 類別
 } // 結束 namespace MatchZy
