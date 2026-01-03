@@ -243,7 +243,7 @@ namespace MatchZy
         if (isWarmup) return HookResult.Continue; 
         
         // 正式開賽後，鎖死換隊，避免隊名互換或 22 隊 Bug
-        player.PrintToChat($"{chatPrefix} {ChatColors.Red}正式比賽已開始，禁止自行更換隊伍！");
+        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已經正式已開始，禁止更換隊伍！");
         return HookResult.Stop; 
     }
     return HookResult.Continue; 
