@@ -1,9 +1,9 @@
-
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 
 namespace MatchZy;
+
 public partial class MatchZy
 {
     public HookResult EventPlayerConnectFullHandler(EventPlayerConnectFull @event, GameEventInfo info)
@@ -16,8 +16,6 @@ public partial class MatchZy
             Log($"[FULL CONNECT] Player ID: {player!.UserId}, Name: {player.PlayerName} has connected!");
 
             // --- 坑位識別系統：移除 SteamID 白名單與踢人邏輯 ---
-            // 原本的 SteamID 檢查與白名單過濾全部移除，讓任何連線者都能進入
-
             if (player.UserId.HasValue)
             {
                 int userId = player.UserId.Value;
@@ -45,14 +43,12 @@ public partial class MatchZy
                 }
             }
             return HookResult.Continue;
-
         }
         catch (Exception e)
         {
             Log($"[EventPlayerConnectFull FATAL] An error occurred: {e.Message}");
             return HookResult.Continue;
         }
-
     }
 
     public HookResult EventPlayerDisconnectHandler(EventPlayerDisconnect @event, GameEventInfo info)
@@ -73,7 +69,6 @@ public partial class MatchZy
             }
             playerData.Remove(userId);
 
-            // 清理教練與手榴彈數據
             if (matchzyTeam1.coach.Contains(player)) matchzyTeam1.coach.Remove(player);
             else if (matchzyTeam2.coach.Contains(player)) matchzyTeam2.coach.Remove(player);
             
@@ -95,7 +90,6 @@ public partial class MatchZy
         try
         {
             // --- 解決隊伍已滿的核心：確保地圖結束時執行大掃除 ---
-            // HandleMatchEnd 會重置所有玩家狀態，讓下一張地圖席位全空
             HandleMatchEnd(); 
             return HookResult.Continue;
         }
@@ -105,31 +99,10 @@ public partial class MatchZy
             return HookResult.Continue;
         }
     }
+
     public HookResult EventCsWinPanelRoundHandler(EventCsWinPanelRound @event, GameEventInfo info)
     {
-        // EventCsWinPanelRound has stopped firing after Arms Race update, hence we handle knife round winner in EventRoundEnd.
-
-        // Log($"[EventCsWinPanelRound PRE] finalEvent: {@event.FinalEvent}");
-        // if (isKnifeRound && matchStarted)
-        // {
-        //     HandleKnifeWinner(@event);
-        // }
         return HookResult.Continue;
-    }
-
-    public HookResult EventCsWinPanelMatchHandler(EventCsWinPanelMatch @event, GameEventInfo info)
-    {
-        try
-        {
-            HandleMatchEnd();
-            // ResetMatch();
-            return HookResult.Continue;
-        }
-        catch (Exception e)
-        {
-            Log($"[EventCsWinPanelMatch FATAL] An error occurred: {e.Message}");
-            return HookResult.Continue;
-        }
     }
 
     public HookResult EventRoundStartHandler(EventRoundStart @event, GameEventInfo info)
@@ -156,7 +129,6 @@ public partial class MatchZy
             foreach (var coach in coaches)
             {
                 if (!IsPlayerValid(coach)) continue;
-                // If coaches are still left alive after freezetime ends, this code will force them to spectate their team again.
                 if (coach.PlayerPawn.Value?.LifeState != (byte)LifeState_t.LIFE_ALIVE) continue;
 
                 Position coachPosition = new(coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
@@ -184,7 +156,6 @@ public partial class MatchZy
             if (@event.Userid == null) return HookResult.Continue;
             var recv = @event.Userid;
 
-            // check if coach
             var coaches = reverseTeamSides["TERRORIST"].coach;
             if (coaches.Contains(recv)) {
                 TransferCoachBomb(recv);
@@ -269,7 +240,6 @@ public partial class MatchZy
     {
         try
         {
-            // We do not broadcast the suicide of the coach
             if (!matchStarted) return HookResult.Continue;
 
             if (@event.Attacker == @event.Userid)
