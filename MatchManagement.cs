@@ -27,7 +27,7 @@ namespace MatchZy
                 if (IsPlayerValid(player) && !@event.Silent)
                 {
                     // 回覆玩家訊息並停止動作
-                    ReplyToUserCommand(player, "刀局 或 比賽 期間禁止自行更換隊伍！"); 
+                    ReplyToUserCommand(player, "{ChatColors.LightRed}刀局{ChatColors.Default} 或 {ChatColors.LightRed}比賽{ChatColors.Default} 期間禁止自行更換隊伍！"); 
                     return HookResult.Stop; 
                 }
             }
