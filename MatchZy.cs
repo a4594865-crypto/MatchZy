@@ -364,13 +364,20 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     commandActions[message](player, null);
                 }
 
-                if (message.StartsWith(".map"))
+               if (message.StartsWith(".map"))
                 {
+                    // 核心判斷：如果是 JSON 載入的正式比賽
+                    if (isMatchSetup)
+                    {
+                        // 1. 全服廣播：讓所有人看到是誰嘗試換圖，並告知地圖已鎖定
+                        Server.PrintToChatAll($"{chatPrefix} 玩家 {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
+                        
+                        // 2. 攔截指令：不執行後續的 HandleMapChangeCommand
+                        return HookResult.Continue;
+                    }
+
+                    // 如果不是 JSON 比賽，才執行原本的換圖/投票邏輯
                     HandleMapChangeCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".readyrequired"))
-                {
-                    HandleReadyRequiredCommand(player, messageCommandArg);
                 }
 
                 if (message.StartsWith(".restore"))
