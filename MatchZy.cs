@@ -205,7 +205,7 @@ namespace MatchZy
                 { ".loadpos", OnLoadPosCommand}
             };
 
-            // 1. 基礎事件註冊區
+            // 1. 基礎事件註冊
             RegisterEventHandler<EventPlayerConnectFull>(EventPlayerConnectFullHandler);
             RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
@@ -216,27 +216,23 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // --- 2. 核心修正：指令層級攔截換隊 (防止死亡、僅個人提示) ---
+            // 2. 指令層級攔截換隊 (防止死亡、僅個人提示)
             AddCommandListener("jointeam", (player, info) =>
             {
                 if (player != null && (matchStarted || isKnifeRequired)) 
                 {
-                    // 僅發送給該玩家，避免干擾比賽
                     player.PrintToChat($"{chatPrefix} {ChatColors.Red}刀局或比賽期間禁止自行更換隊伍！{ChatColors.Default}");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
             });
 
-            // --- 3. 核心修正：攔截所有內建投票 (ESC 換圖、踢人) ---
+            // 3. 攔截內建投票 (ESC 換圖、踢人)
             RegisterEventHandler<EventVoteStarted>((@event, info) =>
             {
                 if (isMatchSetup)
                 {
-                    // 全服廣播紅字警示
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}正式比賽已由 JSON 鎖定，禁止發起任何投票 (含換圖、踢人)！{ChatColors.Default}");
-                    
-                    // 強制取消本次投票
                     Server.ExecuteCommand("sv_allow_votes 0");
                     AddTimer(1.0f, () => Server.ExecuteCommand("sv_allow_votes 1"));
                 }
@@ -245,10 +241,10 @@ namespace MatchZy
 
             AddCommandListener("noclip", OnConsoleNoClip);
 
-            // 4. 聊天指令監聽區
+            // 4. 聊天指令監聽 (已修正 L251/L252/L283 報錯)
             RegisterEventHandler<EventPlayerChat>((@event, info) =>
             {
-                int playerSlot = @event.Userid.Slot;
+                // 修正：直接從 @event.Userid 取得玩家物件，解決 Slot/int 轉換錯誤
                 CCSPlayerController? player = @event.Userid;
                 if (player == null || !player.IsValid) return HookResult.Continue;
 
@@ -256,7 +252,7 @@ namespace MatchZy
                 string[] args = message.Split(' ');
                 string messageCommandArg = args.Length > 1 ? args[1] : "";
 
-                // --- 5. 核心修正：JSON 期間禁止 .map 指令並全服廣播 ---
+                // 5. JSON 期間禁止換圖
                 if (message.StartsWith(".map"))
                 {
                     if (isMatchSetup)
@@ -267,7 +263,7 @@ namespace MatchZy
                     HandleMapChangeCommand(player, messageCommandArg);
                 }
                 
-                // --- 6. 核心修正：JSON 期間禁止切換模式 ---
+                // 6. JSON 期間禁止切換模式
                 if (message.StartsWith(".prac") || message.StartsWith(".match"))
                 {
                     if (isMatchSetup)
@@ -277,15 +273,14 @@ namespace MatchZy
                     }
                 }
 
-                // 這裡繼續原有的其他指令處理 (如 .ready, .r 等)
+                // 修正：使用 MatchZy 正確的準備函式 HandleReady
                 if (message == ".ready" || message == ".r")
                 {
-                    HandleReadyCommand(player);
+                    HandleReady(player);
                 }
                 
                 return HookResult.Continue;
             });
-
             RegisterEventHandler<EventRoundEnd>((@event, info) =>
             {
                 // 原有的 RoundEnd 邏輯...
