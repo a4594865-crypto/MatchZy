@@ -1,602 +1,284 @@
-using System.Text.Json;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Commands;
-using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
-using Newtonsoft.Json.Linq;
+using CounterStrikeSharp.API.Core.Attributes.Registration; 
 
+namespace MatchZy;
 
-namespace MatchZy
+public partial class MatchZy
 {
-
-    public partial class MatchZy
+    // --- 核心修正：攔截換隊事件，.r 開始後(刀局與比賽)皆生效 ---
+    [GameEventHandler]
+    public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo info)
     {
-        public MatchConfig matchConfig = new();
-
-        public bool isMatchSetup = false;
-
-        public bool matchModeOnly = false;
-
-        public bool resetCvarsOnSeriesEnd = true;
-
-        public string loadedConfigFile = "";
-
-        public Team matchzyTeam1 = new() {
-            teamName = "COUNTER-TERRORISTS"
-        };
-        public Team matchzyTeam2 = new() {
-            teamName = "TERRORISTS"
-        };
-
-        public Dictionary<Team, string> teamSides = new();
-        public Dictionary<string, Team> reverseTeamSides = new();
-
-        [ConsoleCommand("css_team1", "Sets team name for team1")]
-        public void OnTeam1Command(CCSPlayerController? player, CommandInfo command) {
-            HandleTeamNameChangeCommand(player, command.ArgString, 1);
-        }
-
-        [ConsoleCommand("css_team2", "Sets team name for team2")]
-        public void OnTeam2Command(CCSPlayerController? player, CommandInfo command) {
-            HandleTeamNameChangeCommand(player, command.ArgString, 2);
-        }
-
-        [ConsoleCommand("matchzy_loadmatch", "Loads a match from the given JSON file path (relative to the csgo/ directory)")]
-        public void LoadMatch(CCSPlayerController? player, CommandInfo command)
+        // 判定條件：只要比賽已準備就緒 (matchStarted) 或處於刀局中 (isKnifeRequired)
+        if (matchStarted || isKnifeRequired)
         {
-            try
-            {
-                if (player != null) return;
-                if (isMatchSetup)
-                {
-                    // command.ReplyToCommand($"[LoadMatch] A match is already setup with id: {liveMatchId}, cannot load a new match!");
-                    ReplyToUserCommand(player, Localizer["matchzy.mm.matchisalreadysetup", liveMatchId]);
-                    Log($"[LoadMatch] A match is already setup with id: {liveMatchId}, cannot load a new match!");
-                    return;
-                }
-                string fileName = command.ArgString;
-                string filePath = Path.Join(Server.GameDirectory + "/csgo", fileName);
-                if (!File.Exists(filePath)) 
-                {
-                    // command.ReplyToCommand($"[LoadMatch] Provided file does not exist! Usage: matchzy_loadmatch <filename>");
-                    ReplyToUserCommand(player, Localizer["matchzy.mm.filedoesntexist"]);
-                    Log($"[LoadMatch] Provided file does not exist! Usage: matchzy_loadmatch <filename>");
-                    return;
-                }
-                string jsonData = File.ReadAllText(filePath);
-                bool success = LoadMatchFromJSON(jsonData);
-                if (!success)
-                {
-                    // command.ReplyToCommand("Match load failed! Resetting current match");
-                    ReplyToUserCommand(player, Localizer["matchzy.mm.matchloadfailed"]);
-                    ResetMatch();
-                }
-                loadedConfigFile = fileName;
-            }
-            catch (Exception e)
-            {
-                Log($"[LoadMatch - FATAL] An error occured: {e.Message}");
-                return;
-            }
-        }
-
-        [ConsoleCommand("get5_loadmatch_url", "Loads a match from the given URL")]
-        [ConsoleCommand("matchzy_loadmatch_url", "Loads a match from the given URL")]
-        public void LoadMatchFromURL(CCSPlayerController? player, CommandInfo command)
-        {
-            if (player != null) return;
-            if (isMatchSetup)
-            {
-                // command.ReplyToCommand($"[LoadMatchDataCommand] A match is already setup with id: {liveMatchId}, cannot load a new match!");
-                ReplyToUserCommand(player, Localizer["matchzy.mm.get5matchisalreadysetup", liveMatchId]);
-                Log($"[LoadMatchDataCommand] A match is already setup with id: {liveMatchId}, cannot load a new match!");
-                return;
-            }
-            string url = command.ArgByIndex(1);
-
-            string headerName = command.ArgCount > 3 ? command.ArgByIndex(2) : "";
-            string headerValue = command.ArgCount > 3 ? command.ArgByIndex(3) : "";
-
-            Log($"[LoadMatchDataCommand] Match setup request received with URL: {url} headerName: {headerName} and headerValue: {headerValue}");
-
-            if (!IsValidUrl(url))
-            {
-                // command.ReplyToCommand($"[LoadMatchDataCommand] Invalid URL: {url}. Please provide a valid URL to load the match!");
-                ReplyToUserCommand(player, Localizer["matchzy.mm.invalidurl", url]);
-                Log($"[LoadMatchDataCommand] Invalid URL: {url}. Please provide a valid URL to load the match!");
-                return;
-            }
-            try
-            {
-                HttpClient httpClient = new();
-                if (headerName != "")
-                {
-                    httpClient.DefaultRequestHeaders.Add(headerName, headerValue);
-                }
-                HttpResponseMessage response = httpClient.GetAsync(url).Result;
-
-                if (response.IsSuccessStatusCode)
-                {
-                    string jsonData = response.Content.ReadAsStringAsync().Result;
-                    Log($"[LoadMatchFromURL] Received following data: {jsonData}");
-
-                    bool success = LoadMatchFromJSON(jsonData);
-                    if (!success)
-                    {
-                        // command.ReplyToCommand("Match load failed! Resetting current match");
-                        ReplyToUserCommand(player, Localizer["matchzy.mm.matchloadfailed"]);
-                        ResetMatch();
-                    }
-                    loadedConfigFile = url;
-                }
-                else
-                {
-                    // command.ReplyToCommand($"[LoadMatchFromURL] HTTP request failed with status code: {response.StatusCode}");
-                    ReplyToUserCommand(player, Localizer["matchzy.mm.httprequestfailed", response.StatusCode]);
-                    Log($"[LoadMatchFromURL] HTTP request failed with status code: {response.StatusCode}");
-                }
-            }
-            catch (Exception e)
-            {
-                Log($"[LoadMatchFromURL - FATAL] An error occured: {e.Message}");
-                return;
-            }
-        }
-
-        static string ValidateMatchJsonStructure(JObject jsonData)
-        {
-            string[] requiredFields = { "maplist", "team1", "team2", "num_maps" };
-
-            // Check if any required field is missing
-            foreach (string field in requiredFields)
-            {
-                if (jsonData[field] == null)
-                {
-                    return $"Missing mandatory field: {field}";
-                }
-            }
-
-            foreach (var property in jsonData.Properties())
-            {
-                string field = property.Name;
-
-                switch (field)
-                {
-                    case "matchid":
-                    case "players_per_team":
-                    case "min_players_to_ready":
-                    case "min_spectators_to_ready":
-                    case "num_maps":
-                        int numMaps;
-                        if (!int.TryParse(jsonData[field]!.ToString(), out numMaps))
-                        {
-                            return $"{field} should be an integer!";
-                            
-                        }
-                        if (field == "num_maps" && numMaps > jsonData["maplist"]!.ToObject<List<string>>()!.Count)
-                        {
-                            return $"{field} should be equal to or greater than maplist!";
-                        }
-                        
-                        break;
-                    
-                    case "cvars":
-                        if (jsonData[field]!.Type != JTokenType.Object)
-                        {
-                            return $"{field} should be a JSON structure!";
-                        }
-                        break;
-
-                    case "team1":
-                    case "team2":
-                    case "spectators":
-                        if (jsonData[field]!.Type != JTokenType.Object)
-                        {
-                            return $"{field} should be a JSON structure!";
-                        }
-                        if ((field != "spectators") && (jsonData[field]!["players"] == null || jsonData[field]!["players"]!.Type != JTokenType.Object)) 
-                        {
-                            return $"{field} should have 'players' JSON!";
-                        }
-                        break;
-
-                    case "veto_mode":
-                        if (jsonData[field]!.Type != JTokenType.Array)
-                        {
-                            return $"{field} should be an Array!";
-                        }
-                        break;
-
-                    case "maplist":
-                        if (jsonData[field]!.Type != JTokenType.Array)
-                        {
-                            return $"{field} should be an Array!";
-                        }
-                        if (!jsonData[field]!.Any())
-                        {
-                            return $"{field} should contain atleast 1 map!";
-                        }
-
-                        break;
-                    case "map_sides":
-                        if (jsonData[field]!.Type != JTokenType.Array)
-                        {
-                            return $"{field} should be an Array!";
-                        }
-                        string[] allowedValues = { "team1_ct", "team1_t", "team2_ct", "team2_t", "knife" };
-                        bool allElementsValid = jsonData[field]!.All(element => allowedValues.Contains(element.ToString()));
-
-                        if (!allElementsValid) {
-                            return $"{field} should be \"team1_ct\", \"team1_t\", or \"knife\"!";
-                        }
-                        
-                        if (jsonData[field]!.ToObject<List<string>>()!.Count < jsonData["num_maps"]!.Value<int>()) {
-                            return $"{field} should be equal to or greater than num_maps!";
-                        }
-                        break;
-
-                    case "skip_veto":
-                    case "clinch_series":
-                    case "wingman":
-                        if (!bool.TryParse(jsonData[field]!.ToString(), out bool result))
-                        {
-                            return $"{field} should be a boolean!";
-                        }
-                        break;
-                }
-            }
-
-            return "";
-        }
-
-        public bool LoadMatchFromJSON(string jsonData)
-        {
+            CCSPlayerController? player = @event.Userid;
             
-            JObject jsonDataObject = JObject.Parse(jsonData);
-
-            string validationError = ValidateMatchJsonStructure(jsonDataObject);
-
-            if (validationError != "")
+            // 關鍵保險：!@event.Silent 確保只有「玩家手動按 M」被攔截
+            // 刀局贏了之後插件自動幫玩家換邊是 Silent 模式，所以不會被擋住
+            if (IsPlayerValid(player) && !@event.Silent)
             {
-                Log($"[LoadMatchDataCommand] {validationError}");
-                return false;
+                // 回覆玩家訊息並停止動作
+                ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！"); 
+                return HookResult.Stop; 
             }
-
-            if(jsonDataObject["matchid"] != null)
-            {
-                liveMatchId = (long)jsonDataObject["matchid"]!;
-            }
-            JToken team1 = jsonDataObject["team1"]!;
-            JToken team2 = jsonDataObject["team2"]!;
-            JToken maplist = jsonDataObject["maplist"]!;
-
-            if (team1["id"] != null) matchzyTeam1.id = team1["id"]!.ToString();
-            if (team2["id"] != null) matchzyTeam2.id = team2["id"]!.ToString();
-
-            matchzyTeam1.teamName = RemoveSpecialCharacters(team1["name"]!.ToString());
-            matchzyTeam2.teamName = RemoveSpecialCharacters(team2["name"]!.ToString());
-            matchzyTeam1.teamPlayers = team1["players"];
-            matchzyTeam2.teamPlayers = team2["players"];
-
-            matchConfig = new()
-            {
-                MatchId = liveMatchId,
-                MapsPool = maplist.ToObject<List<string>>()!,
-                MapsLeftInVetoPool = maplist.ToObject<List<string>>()!,
-                NumMaps = jsonDataObject["num_maps"]!.Value<int>(),
-                MinPlayersToReady = minimumReadyRequired
-            };
-
-            GetOptionalMatchValues(jsonDataObject);
-
-            if (matchConfig.MapsPool.Count == matchConfig.NumMaps)
-            {
-                matchConfig.SkipVeto = true;
-                isPreVeto = false;
-            }
-            else if (matchConfig.MapsPool.Count < matchConfig.NumMaps)
-            {
-                Log($"[LOADMATCH] The map pool {matchConfig.MapsPool.Count} is not large enough to play a series of {matchConfig.NumMaps} maps.");
-                return false;
-            }
-
-            if (!matchConfig.SkipVeto)
-            {
-                if (matchConfig.MapBanOrder.Count != 0)
-                {
-                    if (!ValidateMapBanLogic()) return false;
-                }
-                else
-                {
-                    GenerateDefaultVetoSetup();
-                }
-            }
-
-            GetCvarValues(jsonDataObject);
-
-            Log($"[LOADMATCH] MinPlayersToReady: {matchConfig.MinPlayersToReady} SeriesClinch: {matchConfig.SeriesCanClinch}");
-            Log($"[LOADMATCH] MapsPool: {string.Join(", ", matchConfig.MapsPool)} MapsLeftInVetoPool: {string.Join(", ", matchConfig.MapsLeftInVetoPool)}");
-
-            LoadClientNames();
-
-            if (matchConfig.SkipVeto)
-            {
-                // Copy the first k maps from the maplist to the final match maps.
-                for (int i = 0; i < matchConfig.NumMaps; i++) 
-                {
-                    matchConfig.Maplist.Add(matchConfig.MapsPool[i]);
-
-                    // Push a map side if one hasn't been set yet.
-                    if (matchConfig.MapSides.Count < matchConfig.Maplist.Count) {
-                        if (matchConfig.MatchSideType == "standard" || matchConfig.MatchSideType == "always_knife") {
-                            matchConfig.MapSides.Add("knife");
-                        } else if (matchConfig.MatchSideType == "random") {
-                            matchConfig.MapSides.Add(new Random().Next(0, 2) == 0 ? "team1_ct" : "team1_t");
-                        } else {
-                            matchConfig.MapSides.Add("team1_ct");
-                        }
-                    }
-                }
-                string currentMapName = Server.MapName;
-                string mapName = matchConfig.Maplist[0].ToString();
-
-                if (IsMapReloadRequiredForGameMode(matchConfig.Wingman) || mapReloadRequired || currentMapName != mapName) 
-                {
-                    SetCorrectGameMode();
-                    ChangeMap(mapName, 0);
-                }
-            }
-            else
-            {
-                isPreVeto = true;
-            } 
-
-            readyAvailable = true;
-
-            // This is done before starting warmup so that cvars like get5_remote_log_url are set properly to send the events
-            ExecuteChangedConvars();
-
-            StartWarmup();
-
-            isMatchSetup = true;
-
-            if(matchConfig.SkipVeto) SetMapSides();
-
-            SetTeamNames();
-            UpdatePlayersMap();
-            UpdateHostname();
-
-            var seriesStartedEvent = new MatchZySeriesStartedEvent
-            {
-                MatchId = liveMatchId,
-                NumberOfMaps = matchConfig.NumMaps,
-                Team1 = new(matchzyTeam1.id, matchzyTeam1.teamName),
-                Team2 = new(matchzyTeam2.id, matchzyTeam2.teamName),
-            };
-
-            Task.Run(async () => {
-                await SendEventAsync(seriesStartedEvent);
-            });
-
-            Log($"[LoadMatchFromJSON] Success with matchid: {liveMatchId}!");
-            return true;
         }
+        return HookResult.Continue;
+    }
 
-public void SetMapSides() {
-    int mapNumber = matchConfig.CurrentMapNumber;
-    
-    // --- 核心修正：固定 Team1 永遠屬於 matchzyTeam1 ---
-    // 這樣不論換到第幾張圖，原本在 Team1 的人就不會被踢到 Team2
-    teamSides[matchzyTeam1] = "CT";
-    teamSides[matchzyTeam2] = "TERRORIST";
-    reverseTeamSides["CT"] = matchzyTeam1;
-    reverseTeamSides["TERRORIST"] = matchzyTeam2;
-    
-    // 只有在 JSON 有指定某張地圖要換邊時才對調邏輯
-    if (matchConfig.MapSides.Count > mapNumber) {
-        if (matchConfig.MapSides[mapNumber] == "team2_ct" || matchConfig.MapSides[mapNumber] == "team1_t") {
-            (teamSides[matchzyTeam1], teamSides[matchzyTeam2]) = (teamSides[matchzyTeam2], teamSides[matchzyTeam1]);
-            (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
+    public HookResult EventPlayerConnectFullHandler(EventPlayerConnectFull @event, GameEventInfo info)
+    {
+        try
+        {
+            CCSPlayerController? player = @event.Userid;
+            if (!IsPlayerValid(player)) return HookResult.Continue;
+            Log($"[FULL CONNECT] Player ID: {player!.UserId}, Name: {player.PlayerName} has connected!");
+
+            if (player.UserId.HasValue)
+            {
+                int userId = player.UserId.Value;
+                playerData[userId] = player;
+                connectedPlayers++;
+                
+                if (readyAvailable && !matchStarted) playerReadyStatus[userId] = false;
+                else playerReadyStatus[userId] = true;
+            }
+
+            if (readyAvailable && !matchStarted && GetRealPlayersCount() == 1)
+            {
+                Log($"[FULL CONNECT] First player has connected, starting warmup!");
+                ExecUnpracCommands();
+                AutoStart();
+            }
+            return HookResult.Continue;
+        }
+        catch (Exception e)
+        {
+            Log($"[EventPlayerConnectFull FATAL] An error occurred: {e.Message}");
+            return HookResult.Continue;
         }
     }
-    
-    // 必須加上這一行，確保伺服器立刻更新隊伍名稱與陣營關係
-    SetTeamNames();
-}
 
-        public void SetTeamNames()
+    public HookResult EventPlayerDisconnectHandler(EventPlayerDisconnect @event, GameEventInfo info)
+    {
+        try
         {
-            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
-        }
+            CCSPlayerController? player = @event.Userid;
+            if (!IsPlayerValid(player) || !player!.UserId.HasValue) return HookResult.Continue;
+            int userId = player.UserId.Value;
 
-        public void GetCvarValues(JObject jsonDataObject)
-        {
-            try
+            if (playerReadyStatus.ContainsKey(userId))
             {
-                if (jsonDataObject["cvars"] == null) return;
+                playerReadyStatus.Remove(userId);
+                connectedPlayers--;
+            }
+            playerData.Remove(userId);
 
-                foreach (JProperty cvarData in jsonDataObject["cvars"]!)
-                {
-                    string cvarName = cvarData.Name;
-                    string cvarValue = cvarData.Value.ToString();
-
-                    var cvar = ConVar.Find(cvarName);
-                    matchConfig.ChangedCvars[cvarName] = cvarValue;
-                    if (cvar != null)
-                    {
-                        matchConfig.OriginalCvars[cvarName] = GetConvarStringValue(cvar);
-                    }
-                }
-
-            }
-            catch (Exception e)
-            {
-                Log($"[GetCvarValues FATAL] An error occurred: {e.Message}");
-            }
-        }
-
-        public void GetOptionalMatchValues(JObject jsonDataObject)
-        {
-            if(jsonDataObject["map_sides"] != null)
-            {
-                matchConfig.MapSides = jsonDataObject["map_sides"]!.ToObject<List<string>>()!;
-            }
-            if(jsonDataObject["players_per_team"] != null)
-            {
-                matchConfig.PlayersPerTeam = jsonDataObject["players_per_team"]!.Value<int>();
-            }
-            if(jsonDataObject["min_players_to_ready"] != null)
-            {
-                matchConfig.MinPlayersToReady = jsonDataObject["min_players_to_ready"]!.Value<int>();
-            }
-            if(jsonDataObject["min_spectators_to_ready"] != null)
-            {
-                matchConfig.MinSpectatorsToReady = jsonDataObject["min_spectators_to_ready"]!.Value<int>();
-            }
-            if (jsonDataObject["spectators"] != null && jsonDataObject["spectators"]!["players"] != null)
-            {
-                matchConfig.Spectators = jsonDataObject["spectators"]!["players"]!;
-                if (matchConfig.Spectators is JArray spectatorsArray && spectatorsArray.Count == 0)
-                {
-                    // Convert the empty JArray to an empty JObject
-                    matchConfig.Spectators = new JObject();
-                }
-            }
-            if (jsonDataObject["clinch_series"] != null)
-            {
-                matchConfig.SeriesCanClinch = bool.Parse(jsonDataObject["clinch_series"]!.ToString());
-            }
-            if (jsonDataObject["skip_veto"] != null)
-            {
-                matchConfig.SkipVeto = bool.Parse(jsonDataObject["skip_veto"]!.ToString());
-            }
-            if (jsonDataObject["wingman"] != null)
-            {
-                matchConfig.Wingman = bool.Parse(jsonDataObject["wingman"]!.ToString());
-            }
-            if (jsonDataObject["veto_mode"] != null)
-            {
-                matchConfig.MapBanOrder = jsonDataObject["veto_mode"]!.ToObject<List<string>>()!;
-            }
+            if (matchzyTeam1.coach.Contains(player)) matchzyTeam1.coach.Remove(player);
+            else if (matchzyTeam2.coach.Contains(player)) matchzyTeam2.coach.Remove(player);
             
+            noFlashList.Remove(userId);
+            lastGrenadesData.Remove(userId);
+            nadeSpecificLastGrenadeData.Remove(userId);
+
+            return HookResult.Continue;
         }
+        catch (Exception e)
+        {
+            Log($"[EventPlayerDisconnect FATAL] An error occurred: {e.Message}");
+            return HookResult.Continue;
+        }
+    }
 
-        public void HandleTeamNameChangeCommand(CCSPlayerController? player, string teamName, int teamNum) {
-            if (!IsPlayerAdmin(player, "css_team", "@css/config")) {
-                SendPlayerNotAdminMessage(player);
-                return;
-            }
-            if (matchStarted) {
-                // ReplyToUserCommand(player, "Team names cannot be changed once the match is started!");
-                ReplyToUserCommand(player, Localizer["matchzy.mm.teamcannotbechanged"]);
-                return;
-            }
-            teamName = RemoveSpecialCharacters(teamName.Trim());
-            if (teamName == "") {
-                // ReplyToUserCommand(player, $"Usage: !team{teamNum} <name>");
-                ReplyToUserCommand(player, Localizer["matchzy.cc.usage", $"!team{teamNum} <name>"]);
-            }
+    public HookResult EventCsWinPanelMatchHandler(EventCsWinPanelMatch @event, GameEventInfo info)
+    {
+        try
+        {
+            HandleMatchEnd(); 
+            return HookResult.Continue;
+        }
+        catch (Exception e)
+        {
+            Log($"[EventCsWinPanelMatch FATAL] An error occurred: {e.Message}");
+            return HookResult.Continue;
+        }
+    }
 
-            if (teamNum == 1) {
-                matchzyTeam1.teamName = teamName;
-                teamSides[matchzyTeam1] = "CT";
-                reverseTeamSides["CT"] = matchzyTeam1;
-                foreach (var coach in matchzyTeam1.coach)
+    public HookResult EventCsWinPanelRoundHandler(EventCsWinPanelRound @event, GameEventInfo info)
+    {
+        return HookResult.Continue;
+    }
+
+    public HookResult EventRoundStartHandler(EventRoundStart @event, GameEventInfo info)
+    {
+        try
+        {
+            HandlePostRoundStartEvent(@event);
+            return HookResult.Continue;
+        }
+        catch (Exception e)
+        {
+            Log($"[EventRoundStart FATAL] An error occurred: {e.Message}");
+            return HookResult.Continue;
+        }
+    }
+
+    public HookResult EventRoundFreezeEndHandler(EventRoundFreezeEnd @event, GameEventInfo info)
+    {
+        try
+        {
+            if (!matchStarted) return HookResult.Continue;
+            HashSet<CCSPlayerController> coaches = GetAllCoaches();
+
+            foreach (var coach in coaches)
+            {
+                if (!IsPlayerValid(coach)) continue;
+                if (coach.PlayerPawn.Value?.LifeState != (byte)LifeState_t.LIFE_ALIVE) continue;
+
+                Position coachPosition = new(coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
+                coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
+                AddTimer(1.5f, () =>
                 {
-                    coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
-                }
-            } else if (teamNum == 2) {
-                matchzyTeam2.teamName = teamName;
-                teamSides[matchzyTeam2] = "TERRORIST";
-                reverseTeamSides["TERRORIST"] = matchzyTeam2;
-                foreach (var coach in matchzyTeam2.coach)
+                    coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
+                    CsTeam oldTeam = GetCoachTeam(coach);
+                    coach.ChangeTeam(CsTeam.Spectator);
+                    AddTimer(0.01f, () => coach.ChangeTeam(oldTeam));
+                });
+            }
+            return HookResult.Continue;
+        }
+        catch (Exception e)
+        {
+            Log($"[EventRoundFreezeEnd FATAL] An error occurred: {e.Message}");
+            return HookResult.Continue;
+        }
+    }
+
+    public HookResult EventPlayerGivenC4(EventPlayerGivenC4 @event, GameEventInfo info) {
+        try {
+            if (!matchStarted || @event.Userid == null) return HookResult.Continue;
+            var recv = @event.Userid;
+            var coaches = reverseTeamSides["TERRORIST"].coach;
+            if (coaches.Contains(recv)) TransferCoachBomb(recv);
+        } catch (Exception e) {
+            Log($"[EventPlayerGivenC4 FATAL] An error occured: {e.Message}");
+        }
+        return HookResult.Continue;
+    }
+
+    public void OnEntitySpawnedHandler(CEntityInstance entity)
+    {
+        try
+        {
+            if (!isPractice || entity == null || entity.Entity == null) return;
+            if (!Constants.ProjectileTypeMap.ContainsKey(entity.Entity.DesignerName)) return;
+
+            Server.NextFrame(() => {
+                CBaseCSGrenadeProjectile projectile = new CBaseCSGrenadeProjectile(entity.Handle);
+                if (!projectile.IsValid || !projectile.Thrower.IsValid || projectile.Thrower.Value == null || projectile.Thrower.Value.Controller.Value == null || projectile.Globalname == "custom") return;
+                CCSPlayerController player = new(projectile.Thrower.Value.Controller.Value.Handle);
+                if(!player.IsValid || player.PlayerPawn.Value == null || !player.PlayerPawn.IsValid) return;
+                int client = player.UserId!.Value;
+                Vector position = new(projectile.AbsOrigin!.X, projectile.AbsOrigin.Y, projectile.AbsOrigin.Z);
+                QAngle angle = new(projectile.AbsRotation!.X, projectile.AbsRotation.Y, projectile.AbsRotation.Z);
+                Vector velocity = new(projectile.AbsVelocity.X, projectile.AbsVelocity.Y, projectile.AbsVelocity.Z);
+                string nadeType = Constants.ProjectileTypeMap[entity.Entity.DesignerName];
+                if (!lastGrenadesData.ContainsKey(client)) lastGrenadesData[client] = new();
+                if (!nadeSpecificLastGrenadeData.ContainsKey(client)) nadeSpecificLastGrenadeData[client] = new(){};
+                GrenadeThrownData lastGrenadeThrown = new(position, angle, velocity, player.PlayerPawn.Value.CBodyComponent!.SceneNode!.AbsOrigin, player.PlayerPawn.Value.EyeAngles, nadeType, DateTime.Now, projectile.ItemIndex);
+                nadeSpecificLastGrenadeData[client][nadeType] = lastGrenadeThrown;
+                lastGrenadesData[client].Add(lastGrenadeThrown);
+                if (maxLastGrenadesSavedLimit != 0 && lastGrenadesData[client].Count > maxLastGrenadesSavedLimit) lastGrenadesData[client].RemoveAt(0);
+                lastGrenadeThrownTime[(int)projectile.Index] = DateTime.Now;
+                if (smokeColorEnabled.Value && nadeType == "smoke")
                 {
-                    coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
+                    CSmokeGrenadeProjectile smokeProjectile = new(entity.Handle);
+                    smokeProjectile.SmokeColor.X = GetPlayerTeammateColor(player).R;
+                    smokeProjectile.SmokeColor.Y = GetPlayerTeammateColor(player).G;
+                    smokeProjectile.SmokeColor.Z = GetPlayerTeammateColor(player).B;
                 }
-            }
-            Server.ExecuteCommand($"mp_teamname_{teamNum} {teamName};");
-        }
-
-        public void SwapSidesInTeamData(bool swapTeams) {
-            // if (swapTeams) {
-            //     // Here, we sync matchzyTeam1 and matchzyTeam2 with the actual team1 and team2
-            //     (matchzyTeam2, matchzyTeam1) = (matchzyTeam1, matchzyTeam2);
-            // }
-
-            (teamSides[matchzyTeam1], teamSides[matchzyTeam2]) = (teamSides[matchzyTeam2], teamSides[matchzyTeam1]);
-            (reverseTeamSides["CT"], reverseTeamSides["TERRORIST"]) = (reverseTeamSides["TERRORIST"], reverseTeamSides["CT"]);
-        }
-
-  private CsTeam GetPlayerTeam(CCSPlayerController player)
-        {
-            if (player == null || !player.IsValid) return CsTeam.None;
-            return player.TeamNum switch {
-                3 => CsTeam.CounterTerrorist,
-                2 => CsTeam.Terrorist,
-                1 => CsTeam.Spectator,
-                _ => CsTeam.None
-            };
-        }
-
-        public void EndSeries(string? winnerName, int restartDelay, int t1score, int t2score)
-        {
-            long matchId = liveMatchId;
-            (int team1Score, int team2Score) = (matchzyTeam1.seriesScore, matchzyTeam2.seriesScore);
-            if (winnerName == null)
-            {
-                PrintToAllChat($"{ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} and {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} have tied the match");
-            }
-            else
-            {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{winnerName}{ChatColors.Default} has won the match");
-            }
-
-            string winnerTeam = (winnerName == null) ? "none" : matchzyTeam1.seriesScore > matchzyTeam2.seriesScore ? "team1" : "team2";
-
-            var seriesResultEvent = new MatchZySeriesResultEvent()
-            {
-                MatchId = matchId,
-                Winner = new Winner(t1score > t2score && reverseTeamSides["CT"] == matchzyTeam1 ? "3" : "2", winnerTeam),
-                Team1SeriesScore = team1Score,
-                Team2SeriesScore = team2Score,
-                TimeUntilRestore = 10,
-            };
-
-            Task.Run(async () => {
-                await database.SetMatchEndData(matchId, winnerName ?? "Draw", team1Score, team2Score);
-                await Task.Delay(2000);
-                await SendEventAsync(seriesResultEvent);
-            });
-
-            if (resetCvarsOnSeriesEnd) ResetChangedConvars();
-            isMatchLive = false;
-            AddTimer(restartDelay, () => {
-                ResetMatch(false);
             });
         }
+        catch (Exception e) { Log($"[OnEntitySpawnedHandler FATAL] An error occurred: {e.Message}"); }
+    }
 
-        public void HandlePlayoutConfig()
+    public HookResult EventPlayerDeathPreHandler(EventPlayerDeath @event, GameEventInfo info)
+    {
+        try
         {
-            if (isPlayOutEnabled) {
-                Server.ExecuteCommand("mp_overtime_enable 0");
-                Server.ExecuteCommand("mp_match_can_clinch false");
-            } else {
-                var absoluteCfgPath = Path.Join(Server.GameDirectory + "/csgo/cfg", GetGameMode() == 1 ? liveCfgPath : liveWingmanCfgPath);
-                string? matchCanClinch = GetConvarValueFromCFGFile(absoluteCfgPath, "mp_match_can_clinch");
-                string? overtimeEnabled = GetConvarValueFromCFGFile(absoluteCfgPath, "mp_overtime_enable");
-                Server.ExecuteCommand($"mp_match_can_clinch {matchCanClinch ?? "1"}");
-                Server.ExecuteCommand($"mp_overtime_enable {overtimeEnabled ?? "1"}");
+            if (!matchStarted) return HookResult.Continue;
+            if (@event.Attacker == @event.Userid)
+            {
+                if (matchzyTeam1.coach.Contains(@event.Attacker!) || matchzyTeam2.coach.Contains(@event.Attacker!)) info.DontBroadcast = true;
             }
+            return HookResult.Continue;
         }
+        catch (Exception e) { Log($"[EventPlayerDeathPreHandler FATAL] An error occurred: {e.Message}"); return HookResult.Continue; }
+    }
 
-        // 新增：根據陣營獲取隊名
-        public string GetTeamNameFromSide(int teamNum) {
-            if (teamNum == 3) return reverseTeamSides["CT"].teamName;
-            if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
-            return "Unknown";
+    public HookResult EventSmokegrenadeDetonateHandler(EventSmokegrenadeDetonate @event, GameEventInfo info)
+    {
+        if (!isPractice || isDryRun) return HookResult.Continue;
+        CCSPlayerController? player = @event.Userid;
+        if (!IsPlayerValid(player)) return HookResult.Continue;
+        if(lastGrenadeThrownTime.TryGetValue(@event.Entityid, out var thrownTime)) 
+        {
+            PrintToPlayerChat(player!, Localizer["matchzy.pracc.smoke", player!.PlayerName, $"{(DateTime.Now - thrownTime).TotalSeconds:0.00}"]);
+            lastGrenadeThrownTime.Remove(@event.Entityid);
         }
-    } // 結束 MatchZy 類別
-} // 結束 namespace MatchZy
+        return HookResult.Continue;
+    }
+
+    public HookResult EventFlashbangDetonateHandler(EventFlashbangDetonate @event, GameEventInfo info)
+    {
+        if (!isPractice || isDryRun) return HookResult.Continue;
+        CCSPlayerController? player = @event.Userid;
+        if (!IsPlayerValid(player)) return HookResult.Continue;
+        if(lastGrenadeThrownTime.TryGetValue(@event.Entityid, out var thrownTime)) 
+        {
+            PrintToPlayerChat(player!, Localizer["matchzy.pracc.flash", player!.PlayerName, $"{(DateTime.Now - thrownTime).TotalSeconds:0.00}"]);
+            lastGrenadeThrownTime.Remove(@event.Entityid);
+        }
+        return HookResult.Continue;
+    }
+
+    public HookResult EventHegrenadeDetonateHandler(EventHegrenadeDetonate @event, GameEventInfo info)
+    {
+        if (!isPractice || isDryRun) return HookResult.Continue;
+        CCSPlayerController? player = @event.Userid;
+        if (!IsPlayerValid(player)) return HookResult.Continue;
+        if(lastGrenadeThrownTime.TryGetValue(@event.Entityid, out var thrownTime)) 
+        {
+            PrintToPlayerChat(player!, Localizer["matchzy.pracc.grenade", player!.PlayerName, $"{(DateTime.Now - thrownTime).TotalSeconds:0.00}"]);
+            lastGrenadeThrownTime.Remove(@event.Entityid);
+        }
+        return HookResult.Continue;
+    }
+
+    public HookResult EventMolotovDetonateHandler(EventMolotovDetonate @event, GameEventInfo info)
+    {
+        if (!isPractice || isDryRun) return HookResult.Continue;
+        CCSPlayerController? player = @event.Userid;
+        if (!IsPlayerValid(player)) return HookResult.Continue;
+        if(lastGrenadeThrownTime.TryGetValue(@event.Get<int>("entityid"), out var thrownTime)) 
+        {
+            PrintToPlayerChat(player!, Localizer["matchzy.pracc.molotov", player!.PlayerName, $"{(DateTime.Now - thrownTime).TotalSeconds:0.00}"]);
+        }
+        return HookResult.Continue;
+    }
+
+    public HookResult EventDecoyDetonateHandler(EventDecoyStarted @event, GameEventInfo info)
+    {
+        if (!isPractice || isDryRun) return HookResult.Continue;
+        CCSPlayerController? player = @event.Userid;
+        if (!IsPlayerValid(player)) return HookResult.Continue;
+        if(lastGrenadeThrownTime.TryGetValue(@event.Entityid, out var thrownTime)) 
+        {
+            PrintToPlayerChat(player!, Localizer["matchzy.pracc.decoy", player!.PlayerName, $"{(DateTime.Now - thrownTime).TotalSeconds:0.00}"]);
+            lastGrenadeThrownTime.Remove(@event.Entityid);
+        }
+        return HookResult.Continue;
+    }
+}
