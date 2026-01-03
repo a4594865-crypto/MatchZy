@@ -208,6 +208,7 @@ namespace MatchZy
     if (resetSeriesScore) {
         matchzyTeam1.seriesScore = 0;
         matchzyTeam2.seriesScore = 0;
+        }
     }
 }
-}
+
