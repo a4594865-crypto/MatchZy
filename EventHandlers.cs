@@ -1,11 +1,33 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Core.Attributes.Registration; // 新增這行確保事件能被偵測
 
 namespace MatchZy;
 
 public partial class MatchZy
 {
+    // --- 這段是我們新加入的，專門負責顯示「隊名--比分」 ---
+    [GameEventHandler]
+    public HookResult EventRoundEndHandler(EventRoundEnd @event, GameEventInfo info)
+    {
+        try
+        {
+            // 只有在比賽進行中 (Live) 才執行廣播
+            if (isMatchLive) 
+            {
+                // 呼叫我們在 MatchManagement (5).cs 寫好的廣播函式
+                BroadcastRoundScore(); 
+            }
+            return HookResult.Continue;
+        }
+        catch (Exception e)
+        {
+            Log($"[EventRoundEnd FATAL] An error occurred: {e.Message}");
+            return HookResult.Continue;
+        }
+    }
+
     public HookResult EventPlayerConnectFullHandler(EventPlayerConnectFull @event, GameEventInfo info)
     {
         try
@@ -15,14 +37,12 @@ public partial class MatchZy
             if (!IsPlayerValid(player)) return HookResult.Continue;
             Log($"[FULL CONNECT] Player ID: {player!.UserId}, Name: {player.PlayerName} has connected!");
 
-            // --- 坑位識別系統：移除 SteamID 白名單與踢人邏輯 ---
             if (player.UserId.HasValue)
             {
                 int userId = player.UserId.Value;
                 playerData[userId] = player;
                 connectedPlayers++;
                 
-                // 使用 UserId 作為唯一的識別 Key，不再依賴 SteamID
                 if (readyAvailable && !matchStarted)
                 {
                     playerReadyStatus[userId] = false;
@@ -61,7 +81,6 @@ public partial class MatchZy
             if (!player!.UserId.HasValue) return HookResult.Continue;
             int userId = player.UserId.Value;
 
-            // 斷開連線時立刻釋放 UserId 佔用的 Slot 資源
             if (playerReadyStatus.ContainsKey(userId))
             {
                 playerReadyStatus.Remove(userId);
@@ -89,7 +108,6 @@ public partial class MatchZy
     {
         try
         {
-            // --- 解決隊伍已滿的核心：確保地圖結束時執行大掃除 ---
             HandleMatchEnd(); 
             return HookResult.Continue;
         }
