@@ -93,11 +93,6 @@ namespace MatchZy
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
 
-            teamSides[matchzyTeam1] = "CT";
-            teamSides[matchzyTeam2] = "TERRORIST";
-            reverseTeamSides["CT"] = matchzyTeam1;
-            reverseTeamSides["TERRORIST"] = matchzyTeam2;
-
             if (!hotReload) {
                 AutoStart();
             } else {
@@ -306,17 +301,14 @@ namespace MatchZy
 
 RegisterListener<Listeners.OnMapStart>(mapName => {
     AddTimer(1.0f, () => {
-        // 只有在「完全沒有載入 JSON」的路人局，才執行強制對齊
+        // 核心修正：清理緩存，但不手動指定 CT/T
+        ResetTeamDataCaches(); 
+
         if (!isMatchSetup) {
-            ResetTeamDataCaches(); 
-            teamSides[matchzyTeam1] = "CT";
-            teamSides[matchzyTeam2] = "TERRORIST";
-            reverseTeamSides["CT"] = matchzyTeam1;
-            reverseTeamSides["TERRORIST"] = matchzyTeam2;
+            // 一般路人局：自動啟動
             AutoStart();
         } else {
-            // 正式比賽 (JSON)：只負責刷新計分板名稱，絕對不要 Reset 數據！
-            // 這樣 Map 2 的隊名就不會亂跳，也不會變 22 隊
+            // 正式比賽 (JSON)：僅刷新隊名
             SetTeamNames(); 
         }
     });
