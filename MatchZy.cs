@@ -253,7 +253,7 @@ AddCommandListener("callvote", (player, info) =>
 {
     if (player != null && isMatchSetup) 
     {
-        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正式比賽期間，內建投票功能已被插件禁用！");
+        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正式比賽期間，內建投票功能已被禁用！");
         return HookResult.Stop; 
     }
     return HookResult.Continue; 
