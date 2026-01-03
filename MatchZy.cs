@@ -244,10 +244,10 @@ namespace MatchZy
 {
     if (player != null && !player.IsBot) 
     {
-        // 修正：只要是熱身模式就允許換隊，解決您說的「熱身不能換」問題
+        // 只要是熱身，就讓玩家可以換隊調整位置
         if (isWarmup) return HookResult.Continue; 
         
-        // 正式開賽後才鎖死
+        // 正式開賽後，鎖死換隊，避免隊名互換或 22 隊 Bug
         player.PrintToChat($"{chatPrefix} {ChatColors.Red}正式比賽已開始，禁止自行更換隊伍！");
         return HookResult.Stop; 
     }
