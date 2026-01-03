@@ -213,17 +213,26 @@ namespace MatchZy
             RegisterEventHandler<EventRoundFreezeEnd>(EventRoundFreezeEndHandler);
             RegisterEventHandler<EventPlayerGivenC4>(EventPlayerGivenC4);
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
-            
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // 換隊邏輯已完整移至 MatchManagement.cs 處理，此處僅保留基本指令監聽
+            // --- 核心修正：從指令層級攔截，防止死亡並顯示訊息 ---
             AddCommandListener("jointeam", (player, info) =>
             {
+                // 如果比賽已正式開始 (.r 完畢) 或正在刀局中，直接擋掉指令
+                if (player != null && (matchStarted || isKnifeRequired)) 
+                {
+                    // 顯示不能換隊的訊息給玩家
+                    ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！");
+                    // 回傳 Stop 讓伺服器完全不執行換隊，所以玩家「不會死亡」
+                    return HookResult.Stop; 
+                }
+                // 比賽還沒開始前 (.r 期間)，維持原本邏輯放行
                 return HookResult.Continue; 
             });
 
-            AddCommandListener("noclip", OnConsoleNoClip);
-            RegisterEventHandler<EventRoundEnd>((@event, info) => 
+            AddCommandListener("noclip", OnConsoleNoClip); // Override noclip
+
+            RegisterEventHandler<EventRoundEnd>((@event, info) =>
             {
                 if (!isKnifeRound) return HookResult.Continue;
 
