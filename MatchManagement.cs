@@ -600,20 +600,35 @@ public void SetMapSides() {
         }
 
 
-private CsTeam GetPlayerTeam(CCSPlayerController player)
-{
-    // 直接根據玩家目前的遊戲陣營來判斷，不再去比對 JSON 名單
-    if (player == null || !player.IsValid) return CsTeam.None;
+// ... 這是原本就在那裡的代碼，請保留它 ...
+        public void HandlePlayoutConfig()
+        {
+            if (isPlayOutEnabled) {
+                Server.ExecuteCommand("mp_overtime_enable 0");
+                Server.ExecuteCommand("mp_match_can_clinch false");
+            } else {
+                // ... 中間內容省略 ...
+                Server.ExecuteCommand($"mp_overtime_enable {overtimeEnabled ?? "1"}");
+            }
+        } // 這是 HandlePlayoutConfig 的結束括號
 
-    // 取得玩家當前的團隊編號 (2 是 T, 3 是 CT)
-    if (player.TeamNum == 3) {
-        return CsTeam.CounterTerrorist;
-    } else if (player.TeamNum == 2) {
-        return CsTeam.Terrorist;
-    } else if (player.TeamNum == 1) {
-        return CsTeam.Spectator;
-    }
-    
-    return CsTeam.None;
-}
-}
+        // --- 請在這裡下方加入我們的新函式 ---
+        public string GetTeamNameFromSide(int teamNum) {
+            if (teamNum == 3) return reverseTeamSides["CT"].teamName;
+            if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
+            return "Unknown";
+        }
+
+        private CsTeam GetPlayerTeam(CCSPlayerController player) {
+            if (player == null || !player.IsValid) return CsTeam.None;
+            return player.TeamNum switch {
+                3 => CsTeam.CounterTerrorist,
+                2 => CsTeam.Terrorist,
+                1 => CsTeam.Spectator,
+                _ => CsTeam.None
+            };
+        }
+        // ----------------------------------
+
+    } // 這是 MatchZy 類別的結束括號
+} // 這是 Namespace 的結束括號
