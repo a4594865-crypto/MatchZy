@@ -200,31 +200,34 @@ namespace MatchZy
                 { ".loadpos", OnLoadPosCommand}
             };
 
-      // 1. 基礎事件註冊 (強力白名單補丁：只要 .whitelist 開啟，路人進服 2 秒就踢)
-            RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
-                var player = @event.Userid;
+      / 重新整合：尊重原生的白名單讀取，只在「最終確認」失敗時踢人
+RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
+    var player = @event.Userid;
 
-                // 只要 .whitelist 是開啟狀態 (isWhitelistRequired = true)
-                if (isWhitelistRequired && player != null && player.IsValid && !player.IsBot) {
-                    
-                    // 管理員豁免檢查
-                    if (IsPlayerAdmin(player, "css_whitelist", "@css/chat")) {
-                        return HookResult.Continue;
-                    }
+    // 只有在 .whitelist 已開啟的情況下才介入
+    if (isWhitelistRequired && player != null && player.IsValid && !player.IsBot) {
+        
+        // 管理員豁免 (使用原生 IsPlayerAdmin)
+        if (IsPlayerAdmin(player, "css_whitelist", "@css/chat")) {
+            return HookResult.Continue;
+        }
 
-                    // 檢查玩家是否不在合法的選手名單中
-                    if (!playerData.ContainsKey((int)player.UserId!) && !isSleep) {
-                        AddTimer(2.0f, () => {
-                            if (player.IsValid) {
-                                Server.ExecuteCommand($"kickid {player.UserId} \"伺服器白名單已開啟，您不在名單中。\"");
-                                Log($"[WHITELIST] 已強制踢出路人: {player.PlayerName}");
-                            }
-                        });
-                    }
+        // 核心修正：延遲檢查，給予原生系統比對 whitelist.cfg 的時間
+        AddTimer(3.0f, () => {
+            if (player.IsValid) {
+                // 如果過了 3 秒，該玩家仍未出現在 playerData 或 playerReadyStatus 中
+                // 表示他沒通過 whitelist.cfg 的驗證，也不是管理員
+                if (!playerData.ContainsKey((int)player.UserId!) && !isSleep) {
+                    Server.ExecuteCommand($"kickid {player.UserId} \"[MatchZy] 您不在 whitelist.cfg 白名單中。\"");
+                    Log($"[WHITELIST] 拒絕連線: {player.PlayerName} (ID: {player.UserId})");
                 }
-                // 同時執行原本 MatchZy 的連線處理邏輯
-                return EventPlayerConnectFullHandler(@event, info);
-            });
+            }
+        });
+    }
+
+    // 重要：必須呼叫原生 Handler，讓它去讀取檔案並把玩家放進 playerData
+    return EventPlayerConnectFullHandler(@event, info);
+});
 
             RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
