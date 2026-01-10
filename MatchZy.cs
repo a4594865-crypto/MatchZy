@@ -244,26 +244,36 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
+            // 修正版：禁止在 CT/T 之間互換，但允許玩家進入觀戰 (TeamNum 1)
             AddCommandListener("jointeam", (player, info) =>
             {
-                if (player != null && !player.IsBot) 
+                // 如果是機器人、熱身階段或插件處於休眠狀態，則不限制
+                if (player == null || player.IsBot || isWarmup || isSleep) return HookResult.Continue;
+
+                // 獲取玩家想加入的隊伍編號 (1=觀戰, 2=T, 3=CT)
+                string targetTeam = info.ArgByIndex(1);
+
+                // 如果比賽已開始且玩家嘗試加入的是 T(2) 或 CT(3)
+                if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
                 {
-                    if (isWarmup) return HookResult.Continue; 
-                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已經正式開始，禁止更換隊伍！");
+                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已經正式開始，禁止更換隊伍！(僅限更換至觀戰)");
+                    return HookResult.Stop; // 攔截指令，禁止換隊
+                }
+
+                // 如果目標隊伍是 "1" (觀戰)，則不執行攔截，允許切換
+                return HookResult.Continue; 
+            });
+
+            // 新增：徹底禁用 ESC 投票系統 (保持您原本的要求)
+            AddCommandListener("callvote", (player, info) =>
+            {
+                if (player != null && isMatchSetup) 
+                {
+                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正式比賽期間，內建投票功能已被禁用！");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
             });
-// 新增：徹底禁用 ESC 投票系統
-AddCommandListener("callvote", (player, info) =>
-{
-    if (player != null && isMatchSetup) 
-    {
-        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正式比賽期間，內建投票功能已被禁用！");
-        return HookResult.Stop; 
-    }
-    return HookResult.Continue; 
-});
             AddCommandListener("noclip", OnConsoleNoClip);
 
            
