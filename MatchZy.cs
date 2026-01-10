@@ -200,11 +200,11 @@ namespace MatchZy
                 { ".loadpos", OnLoadPosCommand}
             };
 
-     // --- 修正後的強力白名單補丁 (MatchZy.cs L200+) ---
+    // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
             RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
                 var player = @event.Userid;
 
-                // 檢查是否開啟白名單模式
+                // 只有開啟 .whitelist 指令時才檢查
                 if (isWhitelistRequired && player != null && player.IsValid && !player.IsBot) {
                     
                     // 管理員豁免
@@ -212,21 +212,29 @@ namespace MatchZy
                         return HookResult.Continue;
                     }
 
-                    // 延遲檢查，確保原生 EventPlayerConnectFullHandler 已完成讀取 whitelist.cfg
-                    AddTimer(2.0f, () => {
-                        if (player.IsValid) {
-                            // 檢查玩家是否不在 playerData 字典中 (代表未通過原生白名單驗證)
-                            if (!playerData.ContainsKey((int)player.UserId!) && !isSleep) {
-                                Server.ExecuteCommand($"kickid {player.UserId} \"伺服器白名單已開啟，您不在 whitelist.cfg 名單中。\"");
-                                Log($"[WHITELIST] 已強制踢出路人: {player.PlayerName}");
-                            }
-                        }
-                    });
-                }
-                // 同時執行原本 MatchZy 的連線處理邏輯
-                return EventPlayerConnectFullHandler(@event, info);
-            }); // 確保這裡有正磁的封閉括號與分號
+                    // 直接檢查 cfg 檔案內容
+                    string wlPath = Path.Join(Server.GameDirectory + "/csgo/cfg/MatchZy/whitelist.cfg");
+                    bool isAllowed = false;
 
+                    if (File.Exists(wlPath)) {
+                        var lines = File.ReadAllLines(wlPath);
+                        string playerSid = player.SteamID.ToString();
+                        isAllowed = lines.Any(line => line.Trim() == playerSid);
+                    }
+
+                    if (!isAllowed) {
+                        // 延遲踢除，確保訊息發送
+                        AddTimer(1.5f, () => {
+                            if (player != null && player.IsValid) {
+                                Server.ExecuteCommand($"kickid {player.UserId} \"伺服器白名單已開啟，您不在 whitelist.cfg 中。\"");
+                                Log($"[WHITELIST] 已踢出未授權玩家: {player.PlayerName}");
+                            }
+                        });
+                    }
+                }
+                // 呼叫原生處理程序
+                return EventPlayerConnectFullHandler(@event, info);
+            });
             RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
