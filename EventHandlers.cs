@@ -15,20 +15,31 @@ public partial class MatchZy
             if (!IsPlayerValid(player)) return HookResult.Continue;
             Log($"[FULL CONNECT] Player ID: {player!.UserId}, Name: {player.PlayerName} has connected!");
 
-            // --- 坑位識別系統：移除 SteamID 白名單與踢人邏輯 ---
+           // --- 坑位識別系統修正版：根據隊伍自動判定準備狀態 ---
             if (player.UserId.HasValue)
             {
                 int userId = player.UserId.Value;
                 playerData[userId] = player;
                 connectedPlayers++;
                 
-                // 使用 UserId 作為唯一的識別 Key，不再依賴 SteamID
+                // 1. 如果是在準備階段 (readyAvailable 開啟且比賽還沒開始)
                 if (readyAvailable && !matchStarted)
                 {
-                    playerReadyStatus[userId] = false;
+                    // 核心邏輯：如果是觀戰玩家 (TeamNum 1)，自動設為 Ready (true)
+                    // 如果是選手 (TeamNum 2 或 3)，設為 Not Ready (false)
+                    if (player.TeamNum == 1) 
+                    {
+                        playerReadyStatus[userId] = true;
+                        Log($"[ReadySystem] 觀戰玩家 {player.PlayerName} 自動設為已準備。");
+                    } 
+                    else 
+                    {
+                        playerReadyStatus[userId] = false;
+                    }
                 }
                 else
                 {
+                    // 比賽已經開始或是沒開啟準備系統，默認設為 true
                     playerReadyStatus[userId] = true;
                 }
             }
