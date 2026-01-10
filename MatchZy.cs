@@ -244,27 +244,51 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // 修正版：禁止在 CT/T 之間互換，但允許玩家進入觀戰 (TeamNum 1)
+           // 修正版：禁止 CT/T 互換，但允許去觀戰，且自動處理準備狀態
             AddCommandListener("jointeam", (player, info) =>
             {
-                // 如果是機器人、熱身階段或插件處於休眠狀態，則不限制
-                if (player == null || player.IsBot || isWarmup || isSleep) return HookResult.Continue;
+                if (player == null || player.IsBot || isSleep) return HookResult.Continue;
 
-                // 獲取玩家想加入的隊伍編號 (1=觀戰, 2=T, 3=CT)
-                string targetTeam = info.ArgByIndex(1);
+                string targetTeam = info.ArgByIndex(1); // 1=觀戰, 2=T, 3=CT
+                int userId = player.UserId ?? -1;
 
-                // 如果比賽已開始且玩家嘗試加入的是 T(2) 或 CT(3)
-                if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
+                // 邏輯 A：玩家想去觀戰 (Team 1)
+                if (targetTeam == "1") 
                 {
-                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已經正式開始，禁止更換隊伍！(僅限更換至觀戰)");
-                    return HookResult.Stop; // 攔截指令，禁止換隊
+                    if (userId != -1 && playerReadyStatus.ContainsKey(userId))
+                    {
+                        // 只要去觀戰，就自動設為 Ready，不卡開賽流程
+                        playerReadyStatus[userId] = true; 
+                    }
+                    return HookResult.Continue; // 永遠允許去觀戰
                 }
 
-                // 如果目標隊伍是 "1" (觀戰)，則不執行攔截，允許切換
+                // 邏輯 B：玩家想加入參賽隊伍 (T 或 CT)
+                if (targetTeam == "2" || targetTeam == "3")
+                {
+                    // 熱身期間 (尚未開始比賽) 允許加入隊伍，但必須重新準備
+                    if (isWarmup) 
+                    {
+                        if (userId != -1 && playerReadyStatus.ContainsKey(userId))
+                        {
+                            playerReadyStatus[userId] = false; // 加入隊伍後，強制標記為未準備
+                            player.PrintToChat($"{chatPrefix} {ChatColors.Yellow}您已加入隊伍，請輸入 {ChatColors.Green}.r {ChatColors.Yellow}重新準備。");
+                        }
+                        return HookResult.Continue;
+                    }
+
+                    // 比賽正式開始後 (matchStarted == true)，禁止從觀戰或其他地方換入隊伍
+                    if (matchStarted)
+                    {
+                        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已正式開始，禁止更換隊伍！");
+                        return HookResult.Stop;
+                    }
+                }
+
                 return HookResult.Continue; 
             });
 
-            // 新增：徹底禁用 ESC 投票系統 (保持您原本的要求)
+            // 徹底禁用 ESC 投票系統
             AddCommandListener("callvote", (player, info) =>
             {
                 if (player != null && isMatchSetup) 
