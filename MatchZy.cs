@@ -638,6 +638,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             }
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨機分隊完成！隊伍已鎖定。");
             isShufflePending = false; 
-		} // <--- 確保這裡有關閉函式的右括號	
+
     } // MatchZy 類別結束
 } // Namespace 結束
