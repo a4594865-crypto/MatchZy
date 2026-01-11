@@ -605,7 +605,7 @@ public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo i
             if (teamNum == 3) return reverseTeamSides["CT"].teamName;
             if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
             return "Unknown";
-     } // 關閉 GetTeamNameFromSide
+        } // 這是關閉 GetTeamNameFromSide 函數的
 
-  } // 關閉 public partial class MatchZy
-} // 關閉 namespace MatchZy
+    } // 這是關閉 public partial class MatchZy 的 (對應 L16 附近的 class)
+} // 這是關閉 namespace MatchZy 的 (對應 L13 附近的 namespace)
