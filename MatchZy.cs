@@ -29,6 +29,7 @@ namespace MatchZy
         public bool readyAvailable = false;
         public bool matchStarted = false;
         public bool isWarmup = false;
+		public bool isShufflePending = false; // A方案：預約隨機分隊標記
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
         public bool isMatchLive = false;
@@ -197,6 +198,8 @@ namespace MatchZy
                 { ".besttspawn", OnBestTSpawnCommand },
                 { ".worsttspawn", OnWorstTSpawnCommand },
                 { ".savepos", OnSavePosCommand},
+				{ ".shuffle", OnShuffleCommand },
+                { ".unshuffle", OnUnshuffleCommand },
                 { ".loadpos", OnLoadPosCommand}
             };
 
@@ -574,7 +577,58 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
                 return HookResult.Continue;
             });
+// --- A方案：隨機分隊指令處理 ---
+[ConsoleCommand("css_shuffle", "預約隨機分隊")]
+public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) {
+    if (!IsPlayerAdmin(player)) return;
+    if (isMatchSetup) { // 正式比賽 JSON 模式禁用
+        ReplyToUserCommand(player, "正式比賽模式禁用隨機分隊！");
+        return;
+    }
+    isShufflePending = true;
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「隨機分隊」預約。開賽時將自動洗牌！");
+}
 
+[ConsoleCommand("css_unshuffle", "取消隨機分隊")]
+public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command) {
+    if (!IsPlayerAdmin(player)) return;
+    isShufflePending = false;
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「隨機分隊」預約。將維持目前隊伍開賽。");
+}
+
+// --- 執行洗牌的邏輯核心 ---
+public void ExecuteShuffleLogic() {
+    if (!isShufflePending) return;
+
+    // 1. 抓取場上 T 和 CT 的所有真人玩家
+    List<CCSPlayerController> activePlayers = new();
+    foreach (var player in Utilities.GetPlayers()) {
+        if (player.IsValid && !player.IsBot && (player.TeamNum == 2 || player.TeamNum == 3)) {
+            activePlayers.Add(player);
+        }
+    }
+
+    if (activePlayers.Count < 2) return; // 人數不足不洗牌
+
+    // 2. 隨機打亂名單 (Fisher-Yates Shuffle)
+    Random rng = new();
+    int n = activePlayers.Count;
+    while (n > 1) {
+        n--;
+        int k = rng.Next(n + 1);
+        (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
+    }
+
+    // 3. 重新分配隊伍 (對半分)
+    int half = activePlayers.Count / 2;
+    for (int i = 0; i < activePlayers.Count; i++) {
+        if (i < half) activePlayers[i].ChangeTeam(CsTeam.Terrorist);
+        else activePlayers[i].ChangeTeam(CsTeam.CounterTerrorist);
+    }
+
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨機分隊完成！隊伍已鎖定。");
+    isShufflePending = false; // 執行完後重置標記
+}
             RegisterEventHandler<EventSmokegrenadeDetonate>(EventSmokegrenadeDetonateHandler);
             RegisterEventHandler<EventFlashbangDetonate>(EventFlashbangDetonateHandler);
             RegisterEventHandler<EventHegrenadeDetonate>(EventHegrenadeDetonateHandler);
