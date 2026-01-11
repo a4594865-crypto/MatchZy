@@ -13,37 +13,36 @@ namespace MatchZy
 
     public partial class MatchZy
     {
-        // --- 核心修正：攔截換隊事件，.r 開始後(刀局與比賽)皆生效 ---
+        // --- 核心修正：攔截換隊事件，解決觀戰者卡開賽與暖身洗牌報錯問題 ---
         [GameEventHandler]
-public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo info)
-{
-    CCSPlayerController? player = @event.Userid;
-    if (!IsPlayerValid(player)) return HookResult.Continue;
-
-    // --- 核心修正：解決觀戰者卡開賽的問題 ---
-    // 只要玩家換隊後的目標是觀戰席 (Team 1)
-    if (@event.Team == 1)
-    {
-        int userId = (int)player.UserId!.Value;
-        // 不論他之前在什麼隊伍，只要來到觀戰，就強制設為已準備
-        playerReadyStatus[userId] = true; 
-        
-        // 觀戰者永遠放行，讓他們能順利「入座」
-        return HookResult.Continue; 
-    }
-
-    // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
-    if (!isWarmup && (matchStarted || isKnifeRequired))
-    {
-        // !@event.Silent 確保只有「玩家手動按 M」被攔截
-        if (!@event.Silent)
+        public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo info)
         {
-            ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！"); 
-            return HookResult.Stop; 
+            CCSPlayerController? player = @event.Userid;
+            if (!IsPlayerValid(player)) return HookResult.Continue;
+
+            // --- 修正1：解決觀戰者卡開賽的問題 ---
+            if (@event.Team == 1)
+            {
+                int userId = (int)player.UserId!.Value;
+                // 強制設為已準備，不論他從哪裡跳過來
+                playerReadyStatus[userId] = true; 
+                return HookResult.Continue; 
+            }
+
+            // --- 修正2：攔截邏輯，加入 !isWarmup 判斷以相容 A方案(洗牌) ---
+            // 只有在「非暖身期間」且「比賽已開始或需要刀局」時才攔截
+            if (!isWarmup && (matchStarted || isKnifeRequired))
+            {
+                // !@event.Silent 確保只有「玩家手動手按 M 換隊」被攔截，插件強制換隊則放行
+                if (!@event.Silent)
+                {
+                    ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！"); 
+                    return HookResult.Stop; 
+                }
+            }
+
+            return HookResult.Continue;
         }
-    }
-    return HookResult.Continue;
-}
 
         public MatchConfig matchConfig = new();
 
