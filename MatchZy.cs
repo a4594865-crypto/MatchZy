@@ -586,7 +586,9 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
             Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/)");
         }
-  // --- 這裡開始才是放置指令函數的正確位置 ---
+  // ==========================================
+        // --- 這裡開始貼上你提供的指令函數代碼 ---
+        // ==========================================
 
         [ConsoleCommand("css_shuffle", "預約隨機分隊")]
         public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) {
@@ -630,5 +632,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨機分隊完成！隊伍已鎖定。");
             isShufflePending = false; 
         }
-    } // 類別結束
-}
+
+    } // MatchZy 類別結束
+} // Namespace 結束
