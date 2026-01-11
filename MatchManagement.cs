@@ -605,6 +605,5 @@ public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo i
             if (teamNum == 3) return reverseTeamSides["CT"].teamName;
             if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
             return "Unknown";
-        }
     } 
 }
