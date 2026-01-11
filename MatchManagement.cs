@@ -20,29 +20,26 @@ namespace MatchZy
             CCSPlayerController? player = @event.Userid;
             if (!IsPlayerValid(player)) return HookResult.Continue;
 
-            // --- 修正1：解決觀戰者卡開賽的問題 ---
+            // --- 核心修正：解決觀戰者卡開賽的問題 ---
             if (@event.Team == 1)
             {
                 int userId = (int)player.UserId!.Value;
-                // 強制設為已準備，不論他從哪裡跳過來
-                playerReadyStatus[userId] = true; 
+                playerReadyStatus[userId] = true; // 強制設為已準備
                 return HookResult.Continue; 
             }
 
-            // --- 修正2：攔截邏輯，加入 !isWarmup 判斷以相容 A方案(洗牌) ---
-            // 只有在「非暖身期間」且「比賽已開始或需要刀局」時才攔截
+            // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
+            // 加入 !isWarmup 判斷，確保暖身結束時的自動洗牌不會被攔截噴錯
             if (!isWarmup && (matchStarted || isKnifeRequired))
             {
-                // !@event.Silent 確保只有「玩家手動手按 M 換隊」被攔截，插件強制換隊則放行
                 if (!@event.Silent)
                 {
                     ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！"); 
                     return HookResult.Stop; 
                 }
             }
-
             return HookResult.Continue;
-        }
+        } // 確保這裡只有一個關閉函式的括號
 
         public MatchConfig matchConfig = new();
 
