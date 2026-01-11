@@ -33,7 +33,7 @@ public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo i
     }
 
     // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
-    if (matchStarted || isKnifeRequired)
+    if (!isWarmup && (matchStarted || isKnifeRequired))
     {
         // !@event.Silent 確保只有「玩家手動按 M」被攔截
         if (!@event.Silent)
