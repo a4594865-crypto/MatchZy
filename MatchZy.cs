@@ -594,7 +594,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/)");
         }
         // ==========================================
-        // --- 指令函數代碼 ---
+        // --- 指令函數代碼 (放在 Load 括號外) ---
         // ==========================================
 
         [ConsoleCommand("css_shuffle", "預約隨機分隊")]
@@ -639,6 +639,5 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨機分隊完成！隊伍已鎖定。");
             isShufflePending = false; 
         }
-
     } // MatchZy 類別結束
 } // Namespace 結束
