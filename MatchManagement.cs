@@ -15,24 +15,35 @@ namespace MatchZy
     {
         // --- 核心修正：攔截換隊事件，.r 開始後(刀局與比賽)皆生效 ---
         [GameEventHandler]
-        public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo info)
+public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo info)
+{
+    CCSPlayerController? player = @event.Userid;
+    if (!IsPlayerValid(player)) return HookResult.Continue;
+
+    // --- 核心修正：解決觀戰者卡開賽的問題 ---
+    // 只要玩家換隊後的目標是觀戰席 (Team 1)
+    if (@event.Team == 1)
+    {
+        int userId = (int)player.UserId!.Value;
+        // 不論他之前在什麼隊伍，只要來到觀戰，就強制設為已準備
+        playerReadyStatus[userId] = true; 
+        
+        // 觀戰者永遠放行，讓他們能順利「入座」
+        return HookResult.Continue; 
+    }
+
+    // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
+    if (matchStarted || isKnifeRequired)
+    {
+        // !@event.Silent 確保只有「玩家手動按 M」被攔截
+        if (!@event.Silent)
         {
-            // 判定條件：只要比賽已準備就緒 (matchStarted) 或處於刀局中 (isKnifeRequired)
-            if (matchStarted || isKnifeRequired)
-            {
-                CCSPlayerController? player = @event.Userid;
-                
-                // 關鍵保險：!@event.Silent 確保只有「玩家手動按 M」被攔截
-                // 刀局贏了之後插件自動幫玩家換邊是 Silent 模式，所以不會被擋住
-                if (IsPlayerValid(player) && !@event.Silent)
-                {
-                    // 回覆玩家訊息並停止動作
-                    ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！"); 
-                    return HookResult.Stop; 
-                }
-            }
-            return HookResult.Continue;
+            ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！"); 
+            return HookResult.Stop; 
         }
+    }
+    return HookResult.Continue;
+}
 
         public MatchConfig matchConfig = new();
 
