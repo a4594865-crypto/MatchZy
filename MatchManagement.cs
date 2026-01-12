@@ -23,12 +23,19 @@ namespace MatchZy
             int userId = (int)player.UserId!.Value;
 
             // --- 核心修正：觀戰者不應佔用「已準備」名額 ---
-           if (@event.Team == 1) // 進入觀戰
+          if (@event.Team == 1) // 進入觀戰
 {
-    // 核心修正：進入觀戰時，準備狀態必須設為 false
-    // 這樣畫面顯示的「當前已準備玩家」才會扣掉這個人
-    playerReadyStatus[userId] = false; 
+    // 關鍵修正：不再只是設為 false，而是直接從名單中「擦除」
+    // 這樣系統點名提示（Timer）就完全找不到這個人，不會再跳出訊息騷擾
+    playerReadyStatus.Remove(userId); 
     return HookResult.Continue; 
+}
+else if (@event.Team == 2 || @event.Team == 3) // 進入選手隊伍
+{
+    // 當玩家從觀戰回歸選手位，系統才重新把他寫入點名單，預設為未準備 (false)
+    if (!playerReadyStatus.ContainsKey(userId)) {
+        playerReadyStatus[userId] = false;
+    }
 }
 
             // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
