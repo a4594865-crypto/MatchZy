@@ -25,7 +25,6 @@ namespace MatchZy
             // --- 核心修正：觀戰者不應佔用「已準備」名額 ---
            if (@event.Team == 1) // 進入觀戰
 {
-    int userId = (int)player.UserId!.Value;
     // 核心修正：進入觀戰時，準備狀態必須設為 false
     // 這樣畫面顯示的「當前已準備玩家」才會扣掉這個人
     playerReadyStatus[userId] = false; 
