@@ -596,10 +596,30 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             });
             // ============================
             Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/)");
+        } // 結束 Load 函數
+
+        // ==========================================
+        // --- 指令函數與核心修正代碼 ---
+        // ==========================================
+
+        // --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者 ---
+        public int GetReadyPlayersCount()
+        {
+            int count = 0;
+            foreach (var entry in playerReadyStatus)
+            {
+                if (entry.Value == true)
+                {
+                    // 核心修正：只有「目前在 T(2) 或 CT(3)」的玩家，他的 Ready 才算數
+                    var player = Utilities.GetPlayerFromUserid(entry.Key);
+                    if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
+                    {
+                        count++;
+                    }
+                }
+            }
+            return count;
         }
-        // ==========================================
-        // --- 指令函數代碼 (放在 Load 括號外) ---
-        // ==========================================
 
         [ConsoleCommand("css_shuffle", "預約隨機分隊")]
         public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) {
@@ -642,27 +662,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             }
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨機分隊完成！隊伍已鎖定。");
             isShufflePending = false; 
-        } // <--- 補上這個括號，用來結束 ExecuteShuffleLogic 函數
+        } 
 
-    } // 結束 public partial class MatchZy// --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者 ---
-
-   public int GetReadyPlayersCount()
-{
-    int count = 0;
-    foreach (var entry in playerReadyStatus)
-    {
-        if (entry.Value == true)
-        {
-            // 核心修正：只有「目前在 T(2) 或 CT(3)」的玩家，他的 Ready 才算數
-            // 這樣觀戰者即便輸入 .r，也不會增加畫面上顯示的已準備人數
-            var player = Utilities.GetPlayerFromUserid(entry.Key);
-            if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
-            {
-                count++;
-            }
-        }
-    }
-    return count;
-}
-	
+    } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
