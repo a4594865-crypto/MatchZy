@@ -23,12 +23,14 @@ namespace MatchZy
             int userId = (int)player.UserId!.Value;
 
             // --- 核心修正：觀戰者不應佔用「已準備」名額 ---
-            if (@event.Team == 1) // 玩家進入觀戰
-            {
-                // 改為 false：這樣顯示人數時才不會多算一個觀戰者
-                playerReadyStatus[userId] = false; 
-                return HookResult.Continue; 
-            }
+           if (@event.Team == 1) // 進入觀戰
+{
+    int userId = (int)player.UserId!.Value;
+    // 核心修正：進入觀戰時，準備狀態必須設為 false
+    // 這樣畫面顯示的「當前已準備玩家」才會扣掉這個人
+    playerReadyStatus[userId] = false; 
+    return HookResult.Continue; 
+}
 
             // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
             if (!isWarmup && (matchStarted || isKnifeRequired))
