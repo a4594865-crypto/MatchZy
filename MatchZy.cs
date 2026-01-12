@@ -646,32 +646,23 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
     } // 結束 public partial class MatchZy// --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者 ---
 
-    public int GetRealPlayersCount()
+   public int GetReadyPlayersCount()
+{
+    int count = 0;
+    foreach (var entry in playerReadyStatus)
     {
-        // 只統計在 T 隊(2) 或 CT 隊(3) 的非機器人玩家，無視觀戰者(1)
-        return Utilities.GetPlayers().Count(p => 
-            p.IsValid && 
-            !p.IsBot && 
-            (p.TeamNum == 2 || p.TeamNum == 3)
-        );
-    }
-
-    public int GetReadyPlayersCount()
-    {
-        int count = 0;
-        foreach (var entry in playerReadyStatus)
+        if (entry.Value == true)
         {
-            if (entry.Value == true)
+            // 核心修正：只有「目前在 T(2) 或 CT(3)」的玩家，他的 Ready 才算數
+            // 這樣觀戰者即便輸入 .r，也不會增加畫面上顯示的已準備人數
+            var player = Utilities.GetPlayerFromUserid(entry.Key);
+            if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
             {
-                // 只有當已準備的玩家「目前確實在場上(T或CT)」時，才計入準備人數
-                var player = Utilities.GetPlayerFromUserid(entry.Key);
-                if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
-                {
-                    count++;
-                }
+                count++;
             }
         }
-        return count;
     }
+    return count;
+}
 	
 } // 結束 namespace MatchZy
