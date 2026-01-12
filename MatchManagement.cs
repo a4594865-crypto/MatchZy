@@ -20,16 +20,17 @@ namespace MatchZy
             CCSPlayerController? player = @event.Userid;
             if (!IsPlayerValid(player)) return HookResult.Continue;
 
-            // --- 核心修正：解決觀戰者卡開賽的問題 ---
-            if (@event.Team == 1)
+            int userId = (int)player.UserId!.Value;
+
+            // --- 核心修正：觀戰者不應佔用「已準備」名額 ---
+            if (@event.Team == 1) // 玩家進入觀戰
             {
-                int userId = (int)player.UserId!.Value;
-                playerReadyStatus[userId] = true; // 強制設為已準備
+                // 改為 false：這樣顯示人數時才不會多算一個觀戰者
+                playerReadyStatus[userId] = false; 
                 return HookResult.Continue; 
             }
 
             // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
-            // 加入 !isWarmup 判斷，確保暖身結束時的自動洗牌不會被攔截噴錯
             if (!isWarmup && (matchStarted || isKnifeRequired))
             {
                 if (!@event.Silent)
@@ -39,7 +40,7 @@ namespace MatchZy
                 }
             }
             return HookResult.Continue;
-        } // 確保這裡只有一個關閉函式的括號
+        }
 
         public MatchConfig matchConfig = new();
 
