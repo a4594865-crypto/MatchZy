@@ -604,23 +604,22 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
         // --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者 ---
         public int GetReadyPlayersCount()
+{
+    int count = 0;
+    foreach (var entry in playerReadyStatus)
+    {
+        if (entry.Value == true)
         {
-            int count = 0;
-            foreach (var entry in playerReadyStatus)
+            var player = Utilities.GetPlayerFromUserid(entry.Key);
+            // 雙重保險：即使在名單內是 True，也必須人在場上才給分
+            if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
             {
-                if (entry.Value == true)
-                {
-                    // 核心修正：只有「目前在 T(2) 或 CT(3)」的玩家，他的 Ready 才算數
-                    var player = Utilities.GetPlayerFromUserid(entry.Key);
-                    if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
-                    {
-                        count++;
-                    }
-                }
+                count++;
             }
-            return count;
         }
-
+    }
+    return count;
+}
         [ConsoleCommand("css_shuffle", "預約隨機分隊")]
         public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) {
             if (!IsPlayerAdmin(player)) return;
