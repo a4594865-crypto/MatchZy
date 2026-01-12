@@ -261,10 +261,10 @@ namespace MatchZy
     int userId = (int)(player.UserId ?? -1);
     byte currentTeam = player.TeamNum; 
 
-    // 1. 永遠放行觀戰
+ // 1. 永遠放行觀戰，並重置其準備狀態，避免佔用名額
     if (targetTeam == "1") 
     {
-        if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = true;
+        if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
         return HookResult.Continue;
     }
 
@@ -644,5 +644,34 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             isShufflePending = false; 
         } // <--- 補上這個括號，用來結束 ExecuteShuffleLogic 函數
 
-    } // 結束 public partial class MatchZy
+    } // 結束 public partial class MatchZy// --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者 ---
+
+    public int GetRealPlayersCount()
+    {
+        // 只統計在 T 隊(2) 或 CT 隊(3) 的非機器人玩家，無視觀戰者(1)
+        return Utilities.GetPlayers().Count(p => 
+            p.IsValid && 
+            !p.IsBot && 
+            (p.TeamNum == 2 || p.TeamNum == 3)
+        );
+    }
+
+    public int GetReadyPlayersCount()
+    {
+        int count = 0;
+        foreach (var entry in playerReadyStatus)
+        {
+            if (entry.Value == true)
+            {
+                // 只有當已準備的玩家「目前確實在場上(T或CT)」時，才計入準備人數
+                var player = Utilities.GetPlayerFromUserid(entry.Key);
+                if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
+                {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+	
 } // 結束 namespace MatchZy
