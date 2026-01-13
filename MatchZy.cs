@@ -664,4 +664,44 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         } 
 
     } // 結束 public partial class MatchZy
+	// --- 新增：5秒開賽倒數邏輯 ---
+    public void StartMatchCountdown()
+    {
+        // 避免重複觸發
+        if (matchStarted || isMatchLive) return;
+        
+        int countdown = 5;
+        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}全體就緒！比賽將在 5 秒後開始...");
+
+        // 建立重複計時器，每 1.0 秒執行一次
+        AddTimer(1.0f, () =>
+        {
+            if (countdown > 0)
+            {
+                // 邏輯：3秒(含)以下變紅，以上為白
+                string color = (countdown <= 3) ? "red" : "white";
+                string chatColor = (countdown <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Default}";
+                int fontSize = (countdown <= 3) ? 50 : 35; // 紅字時字體更大
+
+                // 1. 螢幕中央原生 HTML UI
+                string centerMsg = $"<font color='{color}' size='20'>MATCH STARTING</font><br/>" +
+                                   $"<font color='{color}' size='{fontSize}'>{countdown}</font>";
+                Server.PrintToCenterHtmlAll(centerMsg);
+
+                // 2. 聊天室每秒同步
+                Server.PrintToChatAll($"{chatPrefix} 比賽倒數：{chatColor}{countdown}{ChatColors.Default}...");
+
+                countdown--;
+            }
+            else
+            {
+                // 倒數結束
+                Server.PrintToCenterHtmlAll("<font color='green' size='50'>GO!</font>");
+                
+                // 執行 MatchZy 原生的開賽流程 (這會進入刀局或正式比賽)
+                // 注意：這裡必須呼叫您原始碼中定義的開賽進入點，通常是 HandleMatchStart()
+                HandleMatchStart(); 
+            }
+        }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
+    }
 } // 結束 namespace MatchZy
