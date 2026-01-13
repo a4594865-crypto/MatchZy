@@ -680,41 +680,36 @@ namespace MatchZy
             }
         }
 
-       // 替換 Utility.cs L683 開始的整段函式
-public void CheckLiveRequired()
-{
-    if (IsTeamsReady() && IsSpectatorsReady())
-    {
-        if (startCountdownTimer == null)
+        private void CheckLiveRequired()
         {
-            remainingCountdown = 10;
-            startCountdownTimer = AddTimer(1.0f, () => {
-                if (remainingCountdown > 0)
+            if (!readyAvailable || matchStarted) return;
+
+            // Todo: Implement a same ready system for both pug and match
+            int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true);
+            bool liveRequired = false;
+            if (isMatchSetup)
+            {
+                if (IsTeamsReady() && IsSpectatorsReady())
                 {
-                    string color = (remainingCountdown <= 5) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
-                    Server.PrintToChatAll($"{chatPrefix} 所有人已準備！比賽將在 {color}{remainingCountdown}{ChatColors.Default} 秒後開始...");
-                    
-                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
-                    {
-                        p.ExecuteClientCommand("play sounds/ui/not_ready.vsnd");
-                    }
-                    remainingCountdown--;
+                    liveRequired = true;
                 }
-                else
+            }
+            else if (minimumReadyRequired == 0)
+            {
+                if (countOfReadyPlayers >= connectedPlayers && connectedPlayers > 0)
                 {
-                    startCountdownTimer?.Kill();
-                    startCountdownTimer = null;
-                    
-                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
-                    {
-                        p.ExecuteClientCommand("play sounds/ui/match_start.vsnd");
-                    }
-                    HandleMatchStart(); 
+                    liveRequired = true;
                 }
-            }, TimerFlags.REPEAT);
+            }
+            else if (countOfReadyPlayers >= minimumReadyRequired)
+            {
+                liveRequired = true;
+            }
+            if (liveRequired)
+            {
+                HandleMatchStart();
+            }
         }
-    }
-}
 
         private void HandleMatchStart()
         {
