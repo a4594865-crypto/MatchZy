@@ -663,7 +663,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             isShufflePending = false; 
         } 
 
-        // --- 新增：5秒倒數 + 3秒變紅 + 音效提示 ---
+        // --- 更新修正版：解決 Server.PrintToCenterHtmlAll 報錯問題 ---
         public void StartMatchCountdown()
         {
             if (matchStarted || isMatchLive) return;
@@ -678,26 +678,28 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     string color = (countdown <= 3) ? "red" : "white";
                     int fontSize = (countdown <= 3) ? 50 : 35;
 
-                    // 1. 顯示螢幕中央 UI
-                    Server.PrintToCenterHtmlAll($"<font color='{color}' size='20'>MATCH STARTING</font><br/>" +
-                                               $"<font color='{color}' size='{fontSize}'>{countdown}</font>");
-
-                    // 2. 播放倒數音效
+                    // 1. 修正：遍歷所有玩家發送螢幕中央 UI
                     foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                     {
+                        lPlayer.PrintToCenterHtml($"<font color='{color}' size='20'>MATCH STARTING</font><br/>" +
+                                                   $"<font color='{color}' size='{fontSize}'>{countdown}</font>");
+                        
+                        // 2. 播放倒數音效
                         lPlayer.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
                     }
+
+                    // 3. 聊天室同步顯示
+                    string chatColor = (countdown <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Default}";
+                    Server.PrintToChatAll($"{chatPrefix} 比賽倒數：{chatColor}{countdown}{ChatColors.Default}...");
 
                     countdown--;
                 }
                 else
                 {
-                    // 倒數結束：顯示 GO!
-                    Server.PrintToCenterHtmlAll("<font color='green' size='50'>GO!</font>");
-                    
-                    // 播放開賽音效
+                    // 倒數結束：顯示 GO! 並播放開賽音效
                     foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                     {
+                        lPlayer.PrintToCenterHtml("<font color='green' size='50'>GO!</font>");
                         lPlayer.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
                     }
                     
