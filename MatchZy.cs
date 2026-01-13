@@ -663,41 +663,37 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             isShufflePending = false; 
         } 
 
-    // --- 核心修正：10秒聊天室倒數 (5秒變紅) + 預防原生刀局搶跑 ---
+    // 在 MatchZy 類別頂部（變數宣告區）建議加上這行，或者直接寫在函式內檢查
+    bool isCountdownRunning = false; 
+
     public void StartMatchCountdown()
     {
-        // 1. 防止重複觸發 (如果已經在比賽或正在倒數則跳過)
-        if (matchStarted || isMatchLive) return;
+        // 1. 防重發鎖：如果倒數已經在跑，就直接攔截，不准再開新的計時器
+        if (isCountdownRunning || matchStarted || isMatchLive) return;
         
-        // 2. 關鍵攔截：立刻鎖定伺服器暖身計時器
-        // 這會讓遊戲內建的 10 秒倒數無法啟動，解決「先進刀局才倒數」的問題
+        isCountdownRunning = true; // 鎖定狀態
+        
+        // 2. 攔截原生熱身
         Server.ExecuteCommand("mp_warmup_pausetimer 1");
 
         int countdown = 10; 
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}全體玩家已準備就緒！比賽即將開始...");
+        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}全體就緒！比賽將在 10 秒後開始...");
 
-        // 3. 建立每秒執行一次的計時器
         AddTimer(1.0f, () =>
         {
             if (countdown > 0)
             {
-                // 4. 變色邏輯：5秒(含)以下顯示為紅色
                 string chatColor = (countdown <= 5) ? $"{ChatColors.Red}" : $"{ChatColors.Default}";
-                
-                // 5. 聊天室發送訊息
                 Server.PrintToChatAll($"{chatPrefix} 比賽倒數：{chatColor}{countdown}{ChatColors.Default}...");
 
-                // 6. 播放倒數音效 (每一秒都嗶一聲)
                 foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                 {
                     lPlayer.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
                 }
-
                 countdown--;
             }
             else
             {
-                // 7. 倒數結束：發送 GO! 並播放響亮的開賽音效
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}GO! GO! GO! 比賽開始！");
                 
                 foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
@@ -705,11 +701,10 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     lPlayer.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
                 }
                 
-                // 8. 正式解除攔截：這時才讓刀局/比賽邏輯跑出來
                 Server.ExecuteCommand("mp_warmup_pausetimer 0; mp_warmuptime 0; mp_warmup_end;");
-                
-                // 這裡呼叫 MatchZy 內建的開賽進入點 (通常位於 MatchZy_Method.cs 中)
                 HandleMatchStart(); 
+                
+                isCountdownRunning = false; // 比賽開始，解除鎖定
             }
         }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
     }
