@@ -628,14 +628,14 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 return;
             }
             isShufflePending = true;
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「隨機分隊」預約。開賽時將自動洗牌！");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 隨機隊伍分配 」。開賽時將自動洗牌！");
         }
 
         [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
         public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command) {
             if (!IsPlayerAdmin(player)) return;
             isShufflePending = false;
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「隨機分隊」預約。將維持目前隊伍開賽。");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 隨機隊伍分配 」。將維持目前隊伍開賽。");
         }
 
         public void ExecuteShuffleLogic() {
