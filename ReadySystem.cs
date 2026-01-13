@@ -121,4 +121,51 @@ public partial class MatchZy
         teamReadyOverride[(CsTeam)player.TeamNum] = true;
         CheckLiveRequired();
     }
+    public void CheckLiveRequired()
+{
+    // 檢查是否所有必要的隊伍都已準備好
+    if (IsTeamsReady() && IsSpectatorsReady())
+    {
+        // 確保倒數計時器不會重複啟動
+        if (startCountdownTimer == null)
+        {
+            remainingCountdown = 10;
+            
+            // 啟動每秒執行一次的計時器
+            startCountdownTimer = AddTimer(1.0f, () => {
+                if (remainingCountdown > 0)
+                {
+                    // 顏色邏輯：5秒(含)以下顯示紅色，否則顯示綠色
+                    string color = (remainingCountdown <= 5) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
+                    
+                    // 聊天室廣播訊息
+                    Server.PrintToChatAll($"{chatPrefix} 所有人已準備！比賽將在 {color}{remainingCountdown}{ChatColors.Default} 秒後開始...");
+                    
+                    // 播放提示音效給所有非機器人玩家
+                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                    {
+                        p.ExecuteClientCommand("play sounds/ui/not_ready.vsnd");
+                    }
+
+                    remainingCountdown--;
+                }
+                else
+                {
+                    // 倒數歸零，清除計時器
+                    startCountdownTimer?.Kill();
+                    startCountdownTimer = null;
+                    
+                    // 播放開賽震撼音效
+                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                    {
+                        p.ExecuteClientCommand("play sounds/ui/match_start.vsnd");
+                    }
+
+                    // 呼叫 MatchZy 內建的開賽函式
+                    HandleMatchStart(); 
+                }
+            }, TimerFlags.REPEAT);
+        }
+    }
+}
 }
