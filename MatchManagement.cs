@@ -36,8 +36,6 @@ else if (@event.Team == 2 || @event.Team == 3) // 進入選手隊伍
     if (!playerReadyStatus.ContainsKey(userId)) {
         playerReadyStatus[userId] = false;
     }
-    // 每次有人歸隊，檢查一次是否符合開賽倒數條件
-            CheckLiveRequired();
 }
 
             // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
