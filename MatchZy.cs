@@ -663,48 +663,49 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             isShufflePending = false; 
         } 
 
-    } // 結束 public partial class MatchZy
-// --- 更新版：5秒倒數 + 3秒變紅 + 音效提示 ---
-    public void StartMatchCountdown()
-    {
-        if (matchStarted || isMatchLive) return;
-        
-        int countdown = 5;
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}全體就緒！比賽將在 5 秒後開始...");
-
-        AddTimer(1.0f, () =>
+        // --- 新增：5秒倒數 + 3秒變紅 + 音效提示 ---
+        public void StartMatchCountdown()
         {
-            if (countdown > 0)
+            if (matchStarted || isMatchLive) return;
+            
+            int countdown = 5;
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}全體就緒！比賽將在 5 秒後開始...");
+
+            AddTimer(1.0f, () =>
             {
-                string color = (countdown <= 3) ? "red" : "white";
-                int fontSize = (countdown <= 3) ? 50 : 35;
-
-                // 1. 顯示螢幕中央 UI
-                Server.PrintToCenterHtmlAll($"<font color='{color}' size='20'>MATCH STARTING</font><br/>" +
-                                           $"<font color='{color}' size='{fontSize}'>{countdown}</font>");
-
-                // 2. 播放倒數音效 (使用遊戲內建的 UI 提示音)
-                foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                if (countdown > 0)
                 {
-                    // 每一秒都播一個清脆的嗶聲
-                    lPlayer.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
-                }
+                    string color = (countdown <= 3) ? "red" : "white";
+                    int fontSize = (countdown <= 3) ? 50 : 35;
 
-                countdown--;
-            }
-            else
-            {
-                // 倒數結束：顯示 GO!
-                Server.PrintToCenterHtmlAll("<font color='green' size='50'>GO!</font>");
-                
-                // 播放開賽音效 (較響亮的提示音)
-                foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
-                {
-                    lPlayer.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
+                    // 1. 顯示螢幕中央 UI
+                    Server.PrintToCenterHtmlAll($"<font color='{color}' size='20'>MATCH STARTING</font><br/>" +
+                                               $"<font color='{color}' size='{fontSize}'>{countdown}</font>");
+
+                    // 2. 播放倒數音效
+                    foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                    {
+                        lPlayer.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
+                    }
+
+                    countdown--;
                 }
-                
-                HandleMatchStart(); 
-            }
-        }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
-    }
-} // 結束 namespace MatchZy
+                else
+                {
+                    // 倒數結束：顯示 GO!
+                    Server.PrintToCenterHtmlAll("<font color='green' size='50'>GO!</font>");
+                    
+                    // 播放開賽音效
+                    foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                    {
+                        lPlayer.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
+                    }
+                    
+                    // 呼叫原本的開賽進入點
+                    HandleMatchStart(); 
+                }
+            }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
+        }
+
+    } // 這裡結束 MatchZy 類別
+} // 這裡結束 namespace MatchZy
