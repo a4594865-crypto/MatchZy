@@ -663,42 +663,51 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             isShufflePending = false; 
         } 
 
-        public void StartMatchCountdown()
-{
-    // 檢查是否已經在比賽中，避免重複觸發
-    if (matchStarted || isMatchLive) return;
-
-    int countdown = 5; // 強制設定為 5 秒
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}全體就緒！即將開始...");
-
-    AddTimer(1.0f, () =>
+      // --- 最終修正版：修正名稱錯誤、UI 覆蓋、與啟動順序 ---
+    public void StartMatchCountdown()
     {
-        if (countdown > 0)
-        {
-            string color = (countdown <= 3) ? "red" : "white"; // 3秒變紅
-            int fontSize = (countdown <= 3) ? 50 : 35;
+        // 1. 檢查狀態，避免重複觸發
+        if (matchStarted || isMatchLive) return;
+        
+        // 2. 暫停原本可能干擾的計時器（如果有的話）
+        // Server.ExecuteCommand("mp_warmup_pausetimer 1"); 
 
-            foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
-            {
-                // 使用 \n 強制換行，確保訊息跳出原生 UI 的覆蓋範圍
-                lPlayer.PrintToCenterHtml($"<br><br><font color='{color}' size='{fontSize}'>{countdown}</font>");
-                lPlayer.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
-            }
-            countdown--;
-        }
-        else
-        {
-            foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
-            {
-                lPlayer.PrintToCenterHtml("<font color='green' size='50'>GO!</font>");
-                lPlayer.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
-            }
-            
-            // 重要：倒數完才真正進入刀局或比賽邏輯
-            ExecuteMatchStartNow(); 
-        }
-    }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
-}
+        int countdown = 5; 
+        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}全體就緒！即將開始...");
 
+        AddTimer(1.0f, () =>
+        {
+            if (countdown > 0)
+            {
+                string color = (countdown <= 3) ? "red" : "white";
+                int fontSize = (countdown <= 3) ? 50 : 35;
+
+                foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                {
+                    // 加入 <br> 讓字體往下移，避免被計分板蓋住
+                    lPlayer.PrintToCenterHtml($"<br><br><br><font color='{color}' size='{fontSize}'>{countdown}</font>");
+                    lPlayer.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
+                }
+                
+                string chatColor = (countdown <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Default}";
+                Server.PrintToChatAll($"{chatPrefix} 比賽倒數：{chatColor}{countdown}{ChatColors.Default}...");
+                
+                countdown--;
+            }
+            else
+            {
+                // 3. 倒數結束動作
+                foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                {
+                    lPlayer.PrintToCenterHtml("<br><br><br><font color='green' size='50'>GO!</font>");
+                    lPlayer.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
+                }
+                
+                // 4. 正式啟動 MatchZy 的開賽邏輯
+                // 這裡呼叫 HandleMatchStart() 是最安全的，因為它是 partial class 的一部分
+                HandleMatchStart(); 
+            }
+        }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
+    }
     } // 這裡結束 MatchZy 類別
 } // 這裡結束 namespace MatchZy
