@@ -663,17 +663,18 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             isShufflePending = false; 
         } 
 
-    // 在 MatchZy 類別頂部（變數宣告區）建議加上這行，或者直接寫在函式內檢查
-    bool isCountdownRunning = false; 
+    // 在 MatchZy 類別頂部變數區定義（或確保已有）
+    private bool isCountdownActive = false; 
 
     public void StartMatchCountdown()
     {
-        // 1. 防重發鎖：如果倒數已經在跑，就直接攔截，不准再開新的計時器
-        if (isCountdownRunning || matchStarted || isMatchLive) return;
+        // 1. 如果已經在倒數、比賽已開始或正在 Live，直接攔截
+        if (isCountdownActive || matchStarted || isMatchLive) return;
         
-        isCountdownRunning = true; // 鎖定狀態
+        // 2. 標記倒數開始，鎖定入口
+        isCountdownActive = true; 
         
-        // 2. 攔截原生熱身
+        // 3. 攔截原生熱身暫停
         Server.ExecuteCommand("mp_warmup_pausetimer 1");
 
         int countdown = 10; 
@@ -683,6 +684,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         {
             if (countdown > 0)
             {
+                // 4. 5秒變紅字邏輯
                 string chatColor = (countdown <= 5) ? $"{ChatColors.Red}" : $"{ChatColors.Default}";
                 Server.PrintToChatAll($"{chatPrefix} 比賽倒數：{chatColor}{countdown}{ChatColors.Default}...");
 
@@ -694,6 +696,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             }
             else
             {
+                // 5. 倒數歸零，準備開賽
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}GO! GO! GO! 比賽開始！");
                 
                 foreach (var lPlayer in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
@@ -701,10 +704,14 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     lPlayer.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
                 }
                 
-                Server.ExecuteCommand("mp_warmup_pausetimer 0; mp_warmuptime 0; mp_warmup_end;");
-                HandleMatchStart(); 
+                // 6. 核心修正：先設定狀態位，再執行開賽指令，防止重複觸發
+                matchStarted = true;
+                isCountdownActive = false; 
                 
-                isCountdownRunning = false; // 比賽開始，解除鎖定
+                Server.ExecuteCommand("mp_warmup_pausetimer 0; mp_warmuptime 0; mp_warmup_end;");
+                
+                // 7. 正式呼叫 MatchZy 開賽
+                HandleMatchStart();
             }
         }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.REPEAT);
     }
