@@ -681,37 +681,39 @@ namespace MatchZy
         }
 
         private void CheckLiveRequired()
-        {
-            if (!readyAvailable || matchStarted) return;
-
-            // Todo: Implement a same ready system for both pug and match
-            int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true);
-            bool liveRequired = false;
-            if (isMatchSetup)
-            {
-                if (IsTeamsReady() && IsSpectatorsReady())
-                {
-                    liveRequired = true;
-                }
-            }
-            else if (minimumReadyRequired == 0)
-            {
-                if (countOfReadyPlayers >= connectedPlayers && connectedPlayers > 0)
-                {
-                    liveRequired = true;
-                }
-            }
-            else if (countOfReadyPlayers >= minimumReadyRequired)
-            {
-                liveRequired = true;
-            }
-            // --- 修改後的代碼 ---
-if (liveRequired)
 {
-    // 不再直接開賽，而是進入倒數階段
-    StartMatchCountdown(); 
-}
+    // 關鍵修正：如果已經在倒數中 (matchStartCountdownTimer != null)，
+    // 或者比賽已經開始，就直接跳出，避免重複觸發 StartMatchCountdown
+    if (!readyAvailable || matchStarted || matchStartCountdownTimer != null) return;
+
+    int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true);
+    bool liveRequired = false;
+
+    if (isMatchSetup)
+    {
+        if (IsTeamsReady() && IsSpectatorsReady())
+        {
+            liveRequired = true;
         }
+    }
+    else if (minimumReadyRequired == 0)
+    {
+        if (countOfReadyPlayers >= connectedPlayers && connectedPlayers > 0)
+        {
+            liveRequired = true;
+        }
+    }
+    else if (countOfReadyPlayers >= minimumReadyRequired)
+    {
+        liveRequired = true;
+    }
+
+    if (liveRequired)
+    {
+        // 進入 ReadySystem.cs 定義的優化版倒數邏輯
+        StartMatchCountdown();
+    }
+}
 
         private void HandleMatchStart()
         {
