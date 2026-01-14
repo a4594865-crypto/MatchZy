@@ -122,27 +122,29 @@ public partial class MatchZy
         teamReadyOverride[(CsTeam)player.TeamNum] = true;
         CheckLiveRequired();
     }
-    // --- 優化版：加入音效線程安全保護 ---
-public void StartMatchCountdown()
+   // --- 7秒倒數版：第3秒變紅，含訊息攔截開關 ---
+    public void StartMatchCountdown()
     {
         // 1. 防止重複觸發
         if (matchStartCountdownTimer != null) return;
 
-        // 設定倒數秒數
-        countdownRemaining = 5; 
+        // 啟動攔截開關，封鎖定時的人數提醒訊息
+        isCountdownActive = true; 
+
+        // 設定倒數秒數為 7 秒
+        countdownRemaining = 7; 
         PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
-        // 2. 建立每秒執行一次的計時器
+        // 2. 建立計時器
         matchStartCountdownTimer = AddTimer(1.0f, () => {
-            // 確保所有邏輯回到主執行緒執行，避免崩潰
             Server.NextFrame(() => {
                 if (countdownRemaining > 0)
                 {
-                    // 顏色邏輯：由於總共只有 5 秒，建議 3 秒以上綠色，2 秒以下紅色
-                    string color = (countdownRemaining > 2) ? $"{ChatColors.Green}" : $"{ChatColors.Red}";
+                    // 顏色邏輯：剩餘 3 秒或以下時變為紅色，否則為綠色
+                    string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                     PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                    // 音效邏輯：最後 3, 2, 1 秒時播放 Panorama 揭曉音效
+                    // 音效邏輯：最後 3 秒播放提示音
                     if (countdownRemaining <= 3)
                     {
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
@@ -155,17 +157,14 @@ public void StartMatchCountdown()
                 }
                 else
                 {
-                    // 3. 倒數結束：清理計時器並啟動比賽
+                    // 3. 倒數結束
                     matchStartCountdownTimer?.Kill();
                     matchStartCountdownTimer = null;
 
-                    // 如果比賽因其他因素已經開始，則跳出
+                    // 恢復開關，允許訊息再次發送
+                    isCountdownActive = false; 
+
                     if (matchStarted) return;
-
-                    // 顯示您要求的彩色開賽訊息
-                    // PrintToAllChat($"{ChatColors.LightRed}▶ {ChatColors.Lime}刀局開始，{ChatColors.Gold}勝者選邊 {ChatColors.LightRed}◀");
-
-                    // 【關鍵】執行開賽邏輯，這行絕對不能註解，否則會卡在 1 秒
                     HandleMatchStart(); 
                 }
             });
@@ -174,12 +173,18 @@ public void StartMatchCountdown()
 
     public void CancelMatchCountdown(string reason)
     {
-        // 中止邏輯：清理計時器並發送通知
         if (matchStartCountdownTimer != null)
         {
             matchStartCountdownTimer.Kill();
             matchStartCountdownTimer = null;
+
+            // 重要：倒數中止時立即解鎖，確保「玩家離線」或「換隊」的訊息能正常顯示
+            isCountdownActive = false; 
+
             PrintToAllChat($"{ChatColors.Red}倒數中止：{reason}");
+
+            // 補發人數狀態，讓玩家知道目前準備進度
+            PrintUnreadyPlayers();
         }
     }
-}
+ }   
