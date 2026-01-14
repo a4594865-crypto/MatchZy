@@ -565,7 +565,7 @@ else if (@event.Team == 2 || @event.Team == 3) // 進入選手隊伍
             }
             else
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{winnerName}{ChatColors.Default} has won the match");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{winnerName}{ChatColors.Default} 贏得了最終勝利！");
             }
 
             string winnerTeam = (winnerName == null) ? "none" : matchzyTeam1.seriesScore > matchzyTeam2.seriesScore ? "team1" : "team2";
