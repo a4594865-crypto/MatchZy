@@ -25,7 +25,7 @@ namespace MatchZy
         public override string ModuleDescription => "A plugin for running and managing CS2 practice/pugs/scrims/matches!";
 		public CounterStrikeSharp.API.Modules.Timers.Timer? matchStartCountdownTimer = null;
         public int countdownRemaining = 10;
-        public bool isCountdownActive = false; // 紀錄是否正在 5 秒倒數中
+
         public string chatPrefix = $"[{ChatColors.Green}MatchZy{ChatColors.Default}]";
         public string adminChatPrefix = $"[{ChatColors.Red}ADMIN{ChatColors.Default}]";
 
