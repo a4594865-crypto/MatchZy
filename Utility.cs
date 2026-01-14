@@ -684,7 +684,8 @@ namespace MatchZy
 
         private void CheckLiveRequired()
         {
-            if (!readyAvailable || matchStarted) return;
+            // 核心修正：如果正在倒數、開賽處理中、或是比賽已經開始，絕對不能進入開賽邏輯
+            if (!readyAvailable || matchStarted || isCountdownRunning || isStartingProcess || isMatchLive) return;
 
             // Todo: Implement a same ready system for both pug and match
             int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true);
@@ -709,6 +710,7 @@ namespace MatchZy
             }
             if (liveRequired)
             {
+                // 只有確定沒有在執行中，才會進入 HandleMatchStart
                 HandleMatchStart();
             }
         }
