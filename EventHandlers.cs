@@ -116,19 +116,10 @@ public partial class MatchZy
         return HookResult.Continue;
     }
 
-   public HookResult EventRoundStartHandler(EventRoundStart @event, GameEventInfo info)
+    public HookResult EventRoundStartHandler(EventRoundStart @event, GameEventInfo info)
     {
         try
         {
-            // --- 終極鎖定：如果正在倒數或開賽處理中，禁止執行 CheckLiveRequired ---
-            // 這是防止 mp_warmup_end 導致的回合重啟瘋狂噴發 ID 的核心防線
-            if (isCountdownRunning || isStartingProcess || matchStarted || isMatchLive) 
-            {
-                HandlePostRoundStartEvent(@event);
-                return HookResult.Continue;
-            }
-
-            CheckLiveRequired();
             HandlePostRoundStartEvent(@event);
             return HookResult.Continue;
         }
@@ -137,7 +128,7 @@ public partial class MatchZy
             Log($"[EventRoundStart FATAL] An error occurred: {e.Message}");
             return HookResult.Continue;
         }
-    } // 確保這裡有一個結束括號
+    }
 
     public HookResult EventRoundFreezeEndHandler(EventRoundFreezeEnd @event, GameEventInfo info)
     {

@@ -682,8 +682,7 @@ namespace MatchZy
 
         private void CheckLiveRequired()
         {
-            // 核心修正：如果正在倒數、開賽處理中、或是比賽已經開始，絕對不能進入開賽邏輯
-            if (!readyAvailable || matchStarted || isCountdownRunning || isStartingProcess || isMatchLive) return;
+            if (!readyAvailable || matchStarted) return;
 
             // Todo: Implement a same ready system for both pug and match
             int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true);
@@ -708,168 +707,136 @@ namespace MatchZy
             }
             if (liveRequired)
             {
-                // 只有確定沒有在執行中，才會進入 HandleMatchStart
                 HandleMatchStart();
             }
         }
 
-        // 1. 強化版的開賽控制邏輯
-    private void HandleMatchStart()
-    {
-        // 核心鎖定：如果正在倒數、開賽中、或已 Live，立刻攔截
-        if (isCountdownRunning || isStartingProcess || matchStarted || isMatchLive) return;
-
-        // --- 強制關鍵 1：立刻關閉準備功能與標記倒數，防止任何事件再次觸發 ---
-        isCountdownRunning = true; 
-        isStartingProcess = true; // 立即鎖定，防止 10 秒倒數期間被穿透
-        int countdown = 10;
-
-        // 鎖定原生熱身計時器
-        Server.ExecuteCommand("mp_warmup_pausetimer 1");
-        PrintToAllChat($"{ChatColors.Green}全體就緒！比賽將在 10 秒後開始...");
-
-        AddTimer(1.0f, () => {
-            if (countdown > 0) {
-                string chatColor = (countdown <= 5) ? $"{ChatColors.Red}" : $"{ChatColors.Default}";
-                Server.PrintToChatAll($"{chatPrefix} 比賽倒數：{chatColor}{countdown}{ChatColors.Default}...");
-
-                foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot)) {
-                    p.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
-                }
-                countdown--;
-            } else {
-                // 倒數結束動作
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}GO! GO! GO! 比賽開始！");
-                foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot)) {
-                    p.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
-                }
-
-                // 解除鎖定並強制結束熱身
-                Server.ExecuteCommand("mp_warmup_pausetimer 0; mp_warmuptime 0; mp_warmup_end;");
-
-                // 呼叫開賽初始化
-                FinishMatchInitialization();
-            }
-        }, TimerFlags.REPEAT);
-    }
-
-    private void FinishMatchInitialization()
-    {
-        // --- 強制關鍵 2：防護鎖定，若已在處理中則退出 ---
-        if (isStartingProcess) return;
-        isStartingProcess = true;
-
-        isPractice = false;
-        isDryRun = false;
-        
-        // --- 強制關鍵 3：標記比賽已開始，這會攔截大部分插件原生的重複檢查 ---
-        matchStarted = true; 
-
-        if (isRoundRestorePending)
+        private void HandleMatchStart()
         {
-            RestoreRoundBackup(null, pendingRestoreFileName);
-            isRoundRestorePending = false;
-            pendingRestoreFileName = "";
-            // 恢復備份不需要產新 ID，直接結束
-            isStartingProcess = false; 
-            isCountdownRunning = false;
+            isPractice = false;
+            isDryRun = false;
+            if (isRoundRestorePending)
+            {
+                RestoreRoundBackup(null, pendingRestoreFileName);
+                isRoundRestorePending = false;
+                pendingRestoreFileName = "";
+                return;
+            }
+            // If default names, we pick a player and use their name as their team name
+            if (matchzyTeam1.teamName == "COUNTER-TERRORISTS")
+            {
+                // matchzyTeam1.teamName = teamName;
+                teamSides[matchzyTeam1] = "CT";
+                reverseTeamSides["CT"] = matchzyTeam1;
+                foreach (var key in playerData.Keys)
+                {
+                    if (playerData[key].TeamNum == 3)
+                    {
+                        matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_"));
+                        foreach (var coach in matchzyTeam1.coach) {
+                            coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
+                        }
+                        break;
+                    }
+                }
+                // Server.ExecuteCommand($"mp_teamname_1 {matchzyTeam1.teamName}");
+            }
+
+            if (matchzyTeam2.teamName == "TERRORISTS")
+            {
+                // matchzyTeam2.teamName = teamName;
+                teamSides[matchzyTeam2] = "TERRORIST";
+                reverseTeamSides["TERRORIST"] = matchzyTeam2;
+                foreach (var key in playerData.Keys)
+                {
+                    if (playerData[key].TeamNum == 2)
+                    {
+                        matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_"));
+                        foreach (var coach in matchzyTeam2.coach) {
+                            coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
+                        }
+                        break;
+                    }
+                }
+                // Server.ExecuteCommand($"mp_teamname_2 {matchzyTeam2.teamName}");
+            }
+
+            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
+            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
+
+            HandleClanTags();
+
+            string seriesType = "BO" + matchConfig.NumMaps.ToString();
+            liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, matchConfig);
+            SetupRoundBackupFile();
+
+            GetSpawns();
+
+            if (isPreVeto)
+            {
+                CreateVeto();
+            }
+            else if (isKnifeRequired)
+            {
+                StartKnifeRound();
+            }
+            else
+            {
+                StartDemoRecording();
+                StartLive();
+            }
+            if (showCreditsOnMatchStart.Value)
+            {
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}MatchZy{ChatColors.Default} Plugin by {ChatColors.Green}WD-{ChatColors.Default}");
+            }
+            if (matchStartMessage.Value.Trim() != "" && matchStartMessage.Value.Trim() != "\"\"")
+            {
+                List<string> matchStartMessages = [.. matchStartMessage.Value.Split("$$$")];
+                foreach (string message in matchStartMessages)
+                {
+                    PrintToAllChat(GetColorTreatedString(FormatCvarValue(message.Trim())));
+                }
+            }
+        }
+
+        public void HandleClanTags()
+        {
+            // Currently it is not possible to keep updating player tags while in warmup without restarting the match
+            // Hence returning from here until we find a proper solution
             return;
-        }
 
-        // 隊伍名稱判定 (您的原始邏輯)
-        if (matchzyTeam1.teamName == "COUNTER-TERRORISTS")
-        {
-            teamSides[matchzyTeam1] = "CT";
-            reverseTeamSides["CT"] = matchzyTeam1;
-            foreach (var key in playerData.Keys)
+            if (readyAvailable && !matchStarted)
             {
-                if (playerData[key].TeamNum == 3)
+                foreach (var key in playerData.Keys)
                 {
-                    matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_"));
-                    foreach (var coach in matchzyTeam1.coach) {
-                        coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
+                    if (playerReadyStatus[key])
+                    {
+                        playerData[key].Clan = "[Ready]";
                     }
-                    break;
+                    else
+                    {
+                        playerData[key].Clan = "[Unready]";
+                    }
+                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
+                }
+            }
+            else if (matchStarted)
+            {
+                foreach (var key in playerData.Keys)
+                {
+                    if (playerData[key].TeamNum == 2)
+                    {
+                        playerData[key].Clan = reverseTeamSides["TERRORIST"].teamTag;
+                    }
+                    else if (playerData[key].TeamNum == 3)
+                    {
+                        playerData[key].Clan = reverseTeamSides["CT"].teamTag;
+                    }
+                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
                 }
             }
         }
 
-        if (matchzyTeam2.teamName == "TERRORISTS")
-        {
-            teamSides[matchzyTeam2] = "TERRORIST";
-            reverseTeamSides["TERRORIST"] = matchzyTeam2;
-            foreach (var key in playerData.Keys)
-            {
-                if (playerData[key].TeamNum == 2)
-                {
-                    matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_"));
-                    foreach (var coach in matchzyTeam2.coach) {
-                        coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
-                    }
-                    break;
-                }
-            }
-        }
-
-        Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-        Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
-
-        HandleClanTags();
-
-        string seriesType = "BO" + matchConfig.NumMaps.ToString();
-        
-        // 核心修正：在此處產生 ID，因為 matchStarted 已為 true，其他地方不會再觸發
-        liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, matchConfig);
-        SetupRoundBackupFile();
-        GetSpawns();
-
-        if (isPreVeto) {
-            CreateVeto();
-        } else if (isKnifeRequired) {
-            StartKnifeRound();
-        } else {
-            StartDemoRecording();
-            StartLive();
-        }
-
-        // --- 結尾顯示開賽訊息 ---
-        if (showCreditsOnMatchStart.Value) {
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}MatchZy{ChatColors.Default} Plugin by {ChatColors.Green}WD-{ChatColors.Default}");
-        }
-        if (matchStartMessage.Value.Trim() != "" && matchStartMessage.Value.Trim() != "\"\"") {
-            List<string> matchStartMessages = [.. matchStartMessage.Value.Split("$$$")];
-            foreach (string message in matchStartMessages) {
-                PrintToAllChat(GetColorTreatedString(FormatCvarValue(message.Trim())));
-            }
-        }
-
-        // 請把原本的 isStartingProcess = false; 刪掉，改成下面這 4 行：
-       AddTimer(10.0f, () => { 
-            isStartingProcess = false; 
-            isCountdownRunning = false; 
-        });
-    } // 結束 FinishMatchInitialization
-    public void HandleClanTags()
-    {
-        // 這是為了滿足編譯需求補回的定義，目前維持不執行任何動作
-        return;
-
-        if (readyAvailable && !matchStarted)
-        {
-            foreach (var key in playerData.Keys)
-            {
-                playerData[key].Clan = playerReadyStatus[key] ? "[Ready]" : "[Unready]";
-            }
-        }
-        else if (matchStarted)
-        {
-            foreach (var key in playerData.Keys)
-            {
-                if (playerData[key].TeamNum == 2) playerData[key].Clan = reverseTeamSides["TERRORIST"].teamTag;
-                else if (playerData[key].TeamNum == 3) playerData[key].Clan = reverseTeamSides["CT"].teamTag;
-            }
-        }
-    }
         private void HandleMatchEnd()
         {
             if (!isMatchLive) return;

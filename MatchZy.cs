@@ -39,8 +39,7 @@ namespace MatchZy
         public bool isMatchLive = false;
         public long liveMatchId = -1;
         public int autoStartMode = 1;
-        public bool isCountdownRunning = false; 
-        public bool isStartingProcess = false;
+
         public bool mapReloadRequired = false;
 
         // Pause Data
