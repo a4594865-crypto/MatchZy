@@ -266,7 +266,7 @@ namespace MatchZy
             }
 
            PrintToAllChat($"{ChatColors.Green}======================");
-           PrintToAllChat($"{ChatColors.Lime}       刀局開始    ");
+           PrintToAllChat($"{ChatColors.Red}★ {ChatColors.LightRed}刀局開始 {ChatColors.Red}★ {ChatColors.Default}勝者選邊");
            PrintToAllChat($"{ChatColors.Green}======================");
         }
 
