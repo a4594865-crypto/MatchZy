@@ -124,52 +124,49 @@ public partial class MatchZy
     }
    // --- 7秒倒數版：第3秒變紅，含訊息攔截開關 ---
     public void StartMatchCountdown()
-    {
-        // 1. 防止重複觸發
-        if (matchStartCountdownTimer != null) return;
+{
+    if (matchStartCountdownTimer != null) return;
 
-        // 啟動攔截開關，封鎖定時的人數提醒訊息
-        isCountdownActive = true; 
+    // 啟動開關：這會讓所有定時人數提醒訊息在此期間「噤聲」
+    isCountdownActive = true; 
 
-        // 設定倒數秒數為 7 秒
-        countdownRemaining = 7; 
-        PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
+    countdownRemaining = 7; 
+    PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
-        // 2. 建立計時器
-        matchStartCountdownTimer = AddTimer(1.0f, () => {
-            Server.NextFrame(() => {
-                if (countdownRemaining > 0)
+    matchStartCountdownTimer = AddTimer(1.0f, () => {
+        Server.NextFrame(() => {
+            if (countdownRemaining > 0)
+            {
+                // 邏輯：7, 6, 5, 4 是綠色；3, 2, 1 是紅色
+                string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
+                PrintToAllChat($"倒數：{color}{countdownRemaining}");
+
+                // 最後 3 秒播放音效
+                if (countdownRemaining <= 3)
                 {
-                    // 顏色邏輯：剩餘 3 秒或以下時變為紅色，否則為綠色
-                    string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
-                    PrintToAllChat($"倒數：{color}{countdownRemaining}");
-
-                    // 音效邏輯：最後 3 秒播放提示音
-                    if (countdownRemaining <= 3)
+                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                     {
-                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
-                        {
-                            p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
-                        }
+                        p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                     }
-                    
-                    countdownRemaining--;
                 }
-                else
-                {
-                    // 3. 倒數結束
-                    matchStartCountdownTimer?.Kill();
-                    matchStartCountdownTimer = null;
+                countdownRemaining--;
+            }
+            else
+            {
+                matchStartCountdownTimer?.Kill();
+                matchStartCountdownTimer = null;
 
-                    // 恢復開關，允許訊息再次發送
-                    isCountdownActive = false; 
+                // 倒數結束，解除開關封鎖
+                isCountdownActive = false; 
 
-                    if (matchStarted) return;
-                    HandleMatchStart(); 
-                }
-            });
-        }, TimerFlags.REPEAT);
-    }
+                if (matchStarted) return;
+                
+                // 觸發開賽訊息
+                HandleMatchStart(); 
+            }
+        });
+    }, TimerFlags.REPEAT);
+}
 
     public void CancelMatchCountdown(string reason)
     {
