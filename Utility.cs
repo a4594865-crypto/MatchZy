@@ -265,9 +265,9 @@ namespace MatchZy
                 Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;mp_restartgame 1;mp_warmup_end;");
             }
 
-            PrintToAllChat($"{ChatColors.Olive}KNIFE!");
-            PrintToAllChat($"{ChatColors.Lime}KNIFE!");
-            PrintToAllChat($"{ChatColors.Green}KNIFE!");
+           PrintToAllChat($"{ChatColors.Green}======================");
+           PrintToAllChat($"{ChatColors.Lime}       刀局開始    ");
+           PrintToAllChat($"{ChatColors.Green}======================");
         }
 
         private void SendSideSelectionMessage()
@@ -324,9 +324,7 @@ namespace MatchZy
             // This is to reload the map once it is over so that all flags are reset accordingly
             Server.ExecuteCommand("mp_match_end_restart true");
 
-            PrintToAllChat($"{ChatColors.Olive}LIVE!");
-            PrintToAllChat($"{ChatColors.Lime}LIVE!");
-            PrintToAllChat($"{ChatColors.Green}LIVE!");
+           PrintToAllChat($"{ChatColors.Green}★ ★ ★ {ChatColors.Lime}比賽正式開始！祝各位好運！{ChatColors.Green} ★ ★ ★");
 
             var goingLiveEvent = new GoingLiveEvent
             {
