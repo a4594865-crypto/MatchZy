@@ -844,8 +844,29 @@ namespace MatchZy
         }
 
         // --- 最後鎖定：比賽已 Live，所以不需要在此函式內將 isCountdownRunning 設回 false ---
-        // 這樣可以保證比賽進行中，絕對不會再次觸發倒數邏輯
         isStartingProcess = false; 
+    } // <--- 這裡必須有一個括號來結束 FinishMatchInitialization 函式
+
+    public void HandleClanTags()
+    {
+        // 這是為了滿足編譯需求補回的定義，目前維持不執行任何動作
+        return;
+
+        if (readyAvailable && !matchStarted)
+        {
+            foreach (var key in playerData.Keys)
+            {
+                playerData[key].Clan = playerReadyStatus[key] ? "[Ready]" : "[Unready]";
+            }
+        }
+        else if (matchStarted)
+        {
+            foreach (var key in playerData.Keys)
+            {
+                if (playerData[key].TeamNum == 2) playerData[key].Clan = reverseTeamSides["TERRORIST"].teamTag;
+                else if (playerData[key].TeamNum == 3) playerData[key].Clan = reverseTeamSides["CT"].teamTag;
+            }
+        }
     }
         private void HandleMatchEnd()
         {
