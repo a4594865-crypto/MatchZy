@@ -713,53 +713,51 @@ namespace MatchZy
             }
         }
 
-        // 這是新的倒數與開賽控制邏輯
+        // 1. 強化版的開賽控制邏輯
     private void HandleMatchStart()
     {
-        // 核心鎖定：如果正在倒數、或已經開始開賽流程，就直接退回，防止日誌狂噴 match_id
+        // 核心鎖定：如果正在倒數、或已經開始開賽流程，就直接退回
         if (isCountdownRunning || isStartingProcess || matchStarted || isMatchLive) return;
 
         isCountdownRunning = true;
         int countdown = 10;
 
-        // 鎖定伺服器原生熱身倒數，讓它停住不動，直到我們倒數完
+        // 暫停伺服器熱身計時器，防止刀局搶先噴出
         Server.ExecuteCommand("mp_warmup_pausetimer 1");
         PrintToAllChat($"{ChatColors.Green}全體就緒！比賽將在 10 秒後開始...");
 
         // 啟動 10 秒計時器
         AddTimer(1.0f, () => {
             if (countdown > 0) {
-                // 5秒以下變紅字
                 string chatColor = (countdown <= 5) ? $"{ChatColors.Red}" : $"{ChatColors.Default}";
                 Server.PrintToChatAll($"{chatPrefix} 比賽倒數：{chatColor}{countdown}{ChatColors.Default}...");
 
-                // 播放音效
                 foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot)) {
                     p.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
                 }
                 countdown--;
             } else {
-                // 倒數到 0，播放開賽訊息
+                // 倒數歸零：執行開賽動作
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}GO! GO! GO! 比賽開始！");
                 foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot)) {
                     p.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
                 }
 
-                // 正式解除熱身鎖定，讓刀局開始
+                // 正式解鎖熱身，讓伺服器切換狀態
                 Server.ExecuteCommand("mp_warmup_pausetimer 0; mp_warmuptime 0; mp_warmup_end;");
 
-                // 呼叫原本的開賽邏輯（這時才會產生日誌中的 match_id）
+                // 呼叫開賽初始化（此時才會產生日誌中的 match_id）
                 FinishMatchInitialization();
-
-                isCountdownRunning = false; 
+                
+                // 注意：這裡不重置 isCountdownRunning，交給 FinishMatchInitialization 統一處理以防洗屏
             }
         }, TimerFlags.REPEAT);
     }
 
-    // 這段函式裝載的就是你原本提供的那段代碼，現在確保它在 10 秒後才跑
+    // 2. 初始化邏輯（數完 10 秒後才跑）
     private void FinishMatchInitialization()
     {
-        // 防止重複開賽鎖
+        // 雙重防護鎖定
         if (isStartingProcess) return;
         isStartingProcess = true;
 
@@ -770,11 +768,12 @@ namespace MatchZy
             RestoreRoundBackup(null, pendingRestoreFileName);
             isRoundRestorePending = false;
             pendingRestoreFileName = "";
-            isStartingProcess = false;
+            // 如果是恢復備份，提早解鎖
+            AddTimer(2.0f, () => { isStartingProcess = false; isCountdownRunning = false; });
             return;
         }
 
-        // --- 以下是你提供的隊名判定邏輯 ---
+        // --- 隊名判定邏輯 ---
         if (matchzyTeam1.teamName == "COUNTER-TERRORISTS")
         {
             teamSides[matchzyTeam1] = "CT";
@@ -815,7 +814,8 @@ namespace MatchZy
         HandleClanTags();
 
         string seriesType = "BO" + matchConfig.NumMaps.ToString();
-        // 在這裡才真正寫入資料庫，這會解決你說的 match_id 一直噴的問題
+        
+        // 核心修正：在此處產 ID，確保每場比賽倒數完只產生一個
         liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, matchConfig);
         SetupRoundBackupFile();
         GetSpawns();
@@ -829,7 +829,7 @@ namespace MatchZy
             StartLive();
         }
 
-        // 下面是原本代碼結尾的製作訊息
+        // 結尾訊息
         if (showCreditsOnMatchStart.Value) {
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}MatchZy{ChatColors.Default} Plugin by {ChatColors.Green}WD-{ChatColors.Default}");
         }
@@ -840,46 +840,36 @@ namespace MatchZy
             }
         }
 
-        // 延遲重置鎖定，確保伺服器穩定
-        AddTimer(2.0f, () => { isStartingProcess = false; });
+        // 核心防洗屏修正：延遲 5 秒後才解鎖，確保比賽進入穩定 Live 狀態
+        AddTimer(5.0f, () => { 
+            isStartingProcess = false; 
+            isCountdownRunning = false; 
+        });
     }
-        public void HandleClanTags()
-        {
-            // Currently it is not possible to keep updating player tags while in warmup without restarting the match
-            // Hence returning from here until we find a proper solution
-            return;
 
-            if (readyAvailable && !matchStarted)
+    // 3. HandleClanTags 函式（保持原樣，僅修正括號完整性）
+    public void HandleClanTags()
+    {
+        return; // 目前 MatchZy 原生邏輯建議返回直到解決方案穩定
+
+        if (readyAvailable && !matchStarted)
+        {
+            foreach (var key in playerData.Keys)
             {
-                foreach (var key in playerData.Keys)
-                {
-                    if (playerReadyStatus[key])
-                    {
-                        playerData[key].Clan = "[Ready]";
-                    }
-                    else
-                    {
-                        playerData[key].Clan = "[Unready]";
-                    }
-                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
-                }
-            }
-            else if (matchStarted)
-            {
-                foreach (var key in playerData.Keys)
-                {
-                    if (playerData[key].TeamNum == 2)
-                    {
-                        playerData[key].Clan = reverseTeamSides["TERRORIST"].teamTag;
-                    }
-                    else if (playerData[key].TeamNum == 3)
-                    {
-                        playerData[key].Clan = reverseTeamSides["CT"].teamTag;
-                    }
-                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
-                }
+                playerData[key].Clan = playerReadyStatus[key] ? "[Ready]" : "[Unready]";
+                Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
             }
         }
+        else if (matchStarted)
+        {
+            foreach (var key in playerData.Keys)
+            {
+                if (playerData[key].TeamNum == 2) playerData[key].Clan = reverseTeamSides["TERRORIST"].teamTag;
+                else if (playerData[key].TeamNum == 3) playerData[key].Clan = reverseTeamSides["CT"].teamTag;
+                Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
+            }
+        }
+    }
 
         private void HandleMatchEnd()
         {
