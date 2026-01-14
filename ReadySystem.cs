@@ -171,13 +171,26 @@ namespace MatchZy
 
         public void PrintUnreadyPlayers()
         {
-            // 倒數時不顯示雜訊
+            // 只要開關開啟（正在倒數），以下三種訊息通通攔截不發送
             if (isCountdownActive) return; 
 
             int readyCount = GetReadyPlayersCount();
+
+            // 1. 處理：最少需要 X 人 (minimumreadyplayers)
             if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
             {
                 PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
+            }
+            // 2. 處理：未準備玩家名單 (unreadyplayers)
+            else if (readyAvailable && !matchStarted)
+            {
+                // 注意：這裡的 GetUnreadyPlayersList() 是 MatchZy 內建獲取名單的方法
+                PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", GetUnreadyPlayersList()]);
+            }
+            // 3. 處理：當前已準備人數 (readyplayers)
+            else if (!matchStarted)
+            {
+                PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
             }
         }
  } // MatchZy Class 結束
