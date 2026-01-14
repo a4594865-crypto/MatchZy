@@ -22,18 +22,30 @@ namespace MatchZy
         public const string liveCfgPath = "MatchZy/live.cfg";
         public const string liveWingmanCfgPath = "MatchZy/live_wingman.cfg";
 
+        // --- 全域攔截：針對所有人 ---
         private void PrintToAllChat(string message)
         {
+            // 如果正在倒數，且這則訊息不是我們要顯示的「倒數：」字樣，就攔截不發送
+            if (isCountdownActive && !message.Contains("倒數：")) return;
+            
             Server.PrintToChatAll($"{chatPrefix} {message}");
         }
 
+        // --- 全域攔截：針對單一玩家 (如傷害提示等) ---
         private void PrintToPlayerChat(CCSPlayerController player, string message)
         {
+            // 倒數期間，連單個人的私訊提醒也封鎖，保持畫面絕對乾淨
+            if (isCountdownActive && !message.Contains("倒數：")) return;
+
             player.PrintToChat($"{chatPrefix} {message}");
         }
 
+        // --- 全域攔截：針對指令回覆 (如玩家輸入 .ready 的系統回覆) ---
         private void ReplyToUserCommand(CCSPlayerController? player, string message, bool console = false)
         {
+            // 倒數期間，靜音所有指令回覆
+            if (isCountdownActive && !message.Contains("倒數：")) return;
+
             if (player == null)
             {
                 Server.PrintToConsole($"{chatPrefix} {message}");
