@@ -141,7 +141,7 @@ public partial class MatchZy
                     string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                     PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                    // 最後 3 秒播放音效
+                    // 最後 3 秒播放揭曉音效
                     if (countdownRemaining <= 3)
                     {
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
@@ -161,7 +161,7 @@ public partial class MatchZy
 
                     if (matchStarted) return;
                     
-                    // 【在此修改】將 "The series has started at" 改為中文
+                    // 修改原英文開賽訊息為中文
                     PrintToAllChat($"{chatPrefix} {ChatColors.Lime}系列賽已於 {ChatColors.Gold}{DateTime.Now:HH:mm:ss} {ChatColors.Lime}正式開始！");
                     
                     HandleMatchStart(); 
@@ -177,7 +177,7 @@ public partial class MatchZy
             matchStartCountdownTimer.Kill();
             matchStartCountdownTimer = null;
 
-            // 重要：倒數中止時立即解鎖，確保重要訊息能顯示
+            // 重要：倒數中止時立即解鎖，確保後續重要警告能顯示
             isCountdownActive = false; 
 
             PrintToAllChat($"{ChatColors.Red}倒數中止：{reason}");
@@ -187,17 +187,19 @@ public partial class MatchZy
         }
     }
 
-    // --- 解決編譯報錯：手動補上此函數 ---
+    // --- 解決編譯報錯：手動補上此函數並對齊語言檔 ---
     public void PrintUnreadyPlayers()
     {
-        // 如果正在倒數中，攔截訊息不發出
+        // 如果正在 7 秒倒數中，攔截所有提醒訊息
         if (isCountdownActive) return;
 
-        // 這裡會抓取您原本在 MatchZy4.cs 定義的最低準備人數
         int readyCount = GetReadyPlayersCount();
+        
+        // 使用您提供的語言檔標籤：matchzy.utility.minimumreadyplayers
         if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
         {
-            PrintToAllChat($"{chatPrefix} 最少需要 {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default} 人準備，目前：{ChatColors.Lime}{readyCount}");
+            // 自動讀取語言檔：最少需要 {0} 個已準備玩家，當前：{1}
+            PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
         }
     }
  }   
