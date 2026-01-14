@@ -122,27 +122,27 @@ public partial class MatchZy
         teamReadyOverride[(CsTeam)player.TeamNum] = true;
         CheckLiveRequired();
     }
-    // --- 優化版：加入音效線程安全保護 ---
-public void StartMatchCountdown()
+    // --- 優化版：7 秒倒數，第 3 秒變紅 ---
+    public void StartMatchCountdown()
     {
         // 1. 防止重複觸發
         if (matchStartCountdownTimer != null) return;
 
-        // 設定倒數秒數
-        countdownRemaining = 5; 
+        // 設定倒數秒數為 7
+        countdownRemaining = 7; 
         PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
         // 2. 建立每秒執行一次的計時器
         matchStartCountdownTimer = AddTimer(1.0f, () => {
-            // 確保所有邏輯回到主執行緒執行，避免崩潰
+            // 確保所有邏輯回到主執行緒執行
             Server.NextFrame(() => {
                 if (countdownRemaining > 0)
                 {
-                    // 顏色邏輯：由於總共只有 5 秒，建議 3 秒以上綠色，2 秒以下紅色
-                    string color = (countdownRemaining > 2) ? $"{ChatColors.Green}" : $"{ChatColors.Red}";
+                    // 顏色邏輯：剩餘 3 秒或以下時變為紅色，其餘為綠色
+                    string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                     PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                    // 音效邏輯：最後 3, 2, 1 秒時播放 Panorama 揭曉音效
+                    // 音效邏輯：最後 3 秒播放揭曉音效
                     if (countdownRemaining <= 3)
                     {
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
@@ -162,10 +162,7 @@ public void StartMatchCountdown()
                     // 如果比賽因其他因素已經開始，則跳出
                     if (matchStarted) return;
 
-                    // 顯示您要求的彩色開賽訊息
-                    // PrintToAllChat($"{ChatColors.LightRed}▶ {ChatColors.Lime}刀局開始，{ChatColors.Gold}勝者選邊 {ChatColors.LightRed}◀");
-
-                    // 【關鍵】執行開賽邏輯，這行絕對不能註解，否則會卡在 1 秒
+                    // 執行開賽邏輯
                     HandleMatchStart(); 
                 }
             });
@@ -179,6 +176,8 @@ public void StartMatchCountdown()
         {
             matchStartCountdownTimer.Kill();
             matchStartCountdownTimer = null;
+            
+            // 僅發送中止原因，不呼叫不存在的函數以避免報錯
             PrintToAllChat($"{ChatColors.Red}倒數中止：{reason}");
         }
     }
