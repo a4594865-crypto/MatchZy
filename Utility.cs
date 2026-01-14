@@ -266,7 +266,7 @@ namespace MatchZy
             }
 
            PrintToAllChat($"{ChatColors.Green}======================");
-           PrintToAllChat($"{ChatColors.Red}★ {ChatColors.LightRed}刀局開始 {ChatColors.Red}★ {ChatColors.Default}勝者選邊");
+           PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★{ChatColors.Default}");
            PrintToAllChat($"{ChatColors.Green}======================");
         }
 
@@ -324,7 +324,7 @@ namespace MatchZy
             // This is to reload the map once it is over so that all flags are reset accordingly
             Server.ExecuteCommand("mp_match_end_restart true");
 
-           PrintToAllChat($"{ChatColors.Green}★ ★ ★ {ChatColors.Lime}比賽正式開始！祝各位好運！{ChatColors.Green} ★ ★ ★");
+           PrintToAllChat($"{ChatColors.Lime}★ ★ ★ {ChatColors.Default}比賽正式開始！祝各位好運！ {ChatColors.Lime}★ ★ ★");
 
             var goingLiveEvent = new GoingLiveEvent
             {
