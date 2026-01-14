@@ -182,10 +182,18 @@ namespace MatchZy
             }
             else if (readyAvailable && !matchStarted)
             {
-                // 改用 MatchZy 核心逻辑：找出還沒準備的玩家名單
+                // 修正 ulong 轉換問題：直接從所有玩家中找「不在已準備名單」的人
+                // 這裡我們不使用 playerReadyStatus[p.SteamID]，避免類型衝突
                 var unreadyPlayers = Utilities.GetPlayers()
                     .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                    .Where(p => !playerReadyStatus.ContainsKey(p.SteamID) || !playerReadyStatus[p.SteamID])
+                    .Where(p => {
+                        // 檢查 playerReadyStatus 是否包含該 SteamID，且狀態為 false (未準備)
+                        bool isReady = false;
+                        if (playerReadyStatus.TryGetValue(p.SteamID, out isReady)) {
+                            return !isReady;
+                        }
+                        return true; // 找不到也算未準備
+                    })
                     .Select(p => p.PlayerName);
                 
                 string unreadyList = string.Join(", ", unreadyPlayers);
