@@ -125,25 +125,28 @@ public partial class MatchZy
     // --- 優化版：加入音效線程安全保護 ---
 public void StartMatchCountdown()
     {
+        // 1. 防止重複觸發
         if (matchStartCountdownTimer != null) return;
 
-        countdownRemaining = 5;
+        // 設定倒數秒數
+        countdownRemaining = 5; 
         PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
+        // 2. 建立每秒執行一次的計時器
         matchStartCountdownTimer = AddTimer(1.0f, () => {
+            // 確保所有邏輯回到主執行緒執行，避免崩潰
             Server.NextFrame(() => {
                 if (countdownRemaining > 0)
                 {
-                    string color = (countdownRemaining > 5) ? $"{ChatColors.Green}" : $"{ChatColors.Red}";
+                    // 顏色邏輯：由於總共只有 5 秒，建議 3 秒以上綠色，2 秒以下紅色
+                    string color = (countdownRemaining > 2) ? $"{ChatColors.Green}" : $"{ChatColors.Red}";
                     PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                    // 音效邏輯：倒數 3, 2, 1 時播放
+                    // 音效邏輯：最後 3, 2, 1 秒時播放 Panorama 揭曉音效
                     if (countdownRemaining <= 3)
                     {
-                        // 遍歷所有玩家播放新的 Panorama 音效
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
-                            // 使用您指定的路徑，注意結尾通常建議加上 .vsnd 或使用完整路徑
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
                     }
@@ -152,12 +155,18 @@ public void StartMatchCountdown()
                 }
                 else
                 {
+                    // 3. 倒數結束：清理計時器並啟動比賽
                     matchStartCountdownTimer?.Kill();
                     matchStartCountdownTimer = null;
 
+                    // 如果比賽因其他因素已經開始，則跳出
                     if (matchStarted) return;
-                   // PrintToAllChat($"{ChatColors.Lime}比賽正式開始！");
-                   // HandleMatchStart();
+
+                    // 顯示您要求的彩色開賽訊息
+                    // PrintToAllChat($"{ChatColors.LightRed}▶ {ChatColors.Lime}刀局開始，{ChatColors.Gold}勝者選邊 {ChatColors.LightRed}◀");
+
+                    // 【關鍵】執行開賽邏輯，這行絕對不能註解，否則會卡在 1 秒
+                    HandleMatchStart(); 
                 }
             });
         }, TimerFlags.REPEAT);
@@ -165,6 +174,7 @@ public void StartMatchCountdown()
 
     public void CancelMatchCountdown(string reason)
     {
+        // 中止邏輯：清理計時器並發送通知
         if (matchStartCountdownTimer != null)
         {
             matchStartCountdownTimer.Kill();
