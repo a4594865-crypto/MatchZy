@@ -105,29 +105,29 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-// --- 7 秒倒數與攔截邏輯 ---
+// --- 5 秒倒數與全音效攔截邏輯 ---
         public void StartMatchCountdown()
         {
             if (matchStartCountdownTimer != null) return;
 
             isCountdownActive = true; 
-            countdownRemaining = 7; 
+            countdownRemaining = 5; // 改為 5 秒倒數
             PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
             matchStartCountdownTimer = AddTimer(1.0f, () => {
                 Server.NextFrame(() => {
                     if (countdownRemaining > 0)
                     {
+                        // 顏色邏輯：最後 3 秒顯示紅色，其餘綠色
                         string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                         PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                        if (countdownRemaining <= 3)
+                        // --- 修正：移除 if (countdownRemaining <= 3) 限制，讓每一秒都播音效 ---
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
-                            foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
-                            {
-                                p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
-                            }
+                            p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
+                        
                         countdownRemaining--;
                     }
                     else
