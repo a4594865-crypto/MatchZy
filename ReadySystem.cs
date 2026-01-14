@@ -122,37 +122,32 @@ public partial class MatchZy
         teamReadyOverride[(CsTeam)player.TeamNum] = true;
         CheckLiveRequired();
     }
-    // --- 進階優化版：去秒、分段顏色、結尾音效 ---
+    // --- 優化版：加入音效線程安全保護 ---
     public void StartMatchCountdown()
     {
-        // 1. 防止重複觸發
         if (matchStartCountdownTimer != null) return;
 
         countdownRemaining = 10; 
         PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
-        // 2. 建立計時器
         matchStartCountdownTimer = AddTimer(1.0f, () => {
             if (countdownRemaining > 0)
             {
-                // 顏色邏輯：10-6 秒綠色，5-1 秒紅色
                 string color = (countdownRemaining > 5) ? $"{ChatColors.Green}" : $"{ChatColors.Red}";
-                
-                // 顯示文字：去掉「秒」字
                 PrintToAllChat($"倒數：{color}{countdownRemaining}"); 
 
-                // 音效邏輯：最後 3 秒播放音效
+                // --- 關鍵修正：播放音效也必須放進 NextFrame ---
                 if (countdownRemaining <= 3)
                 {
-                    // 執行伺服器指令播放音效給全體玩家
-                    Server.ExecuteCommand("play sounds/ui/beep02.wav");
+                    Server.NextFrame(() => {
+                        Server.ExecuteCommand("play sounds/ui/beep02.wav");
+                    });
                 }
                 
                 countdownRemaining--;
             }
             else
             {
-                // 3. 倒數結束：清理計時器並切換回主執行緒
                 matchStartCountdownTimer?.Kill();
                 matchStartCountdownTimer = null;
                 
@@ -160,15 +155,12 @@ public partial class MatchZy
                     if (matchStarted) return; 
 
                     PrintToAllChat($"{ChatColors.Lime}比賽正式開始！");
-                    
-                    // 正式執行開賽邏輯 (定義在 Utility.cs)
-                    HandleMatchStart(); 
+                    HandleMatchStart();
                 });
             }
         }, TimerFlags.REPEAT);
     }
 
-    // --- 中止倒數函數 ---
     public void CancelMatchCountdown(string reason)
     {
         if (matchStartCountdownTimer != null)
