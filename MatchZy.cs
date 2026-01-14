@@ -309,14 +309,13 @@ namespace MatchZy
                 return HookResult.Continue;
             });
 
-            // --- [第二步修正] 解決倒數啟動時，系統重整導致的「重複加入隊伍」廣播 ---
+            // --- 修正版：攔截倒數期間的所有隊伍變動廣播 ---
             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
             {
-                // 如果正在倒數開關已開啟 (isCountdownActive 為 true)
-                if (isCountdownActive)
+                // 只要計時器正在跑，或者開關是開啟的，就絕對靜音
+                if (matchStartCountdownTimer != null || isCountdownActive)
                 {
-                    // 禁用這則訊息的文字顯示與聲音，解決倒數開始時「重複噴出加入隊伍」的問題
-                    @event.Silent = true;
+                    @event.Silent = true; 
                     return HookResult.Changed;
                 }
                 return HookResult.Continue;
@@ -447,16 +446,22 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-                // 1. 如果有人輸入 .r 或 .ready
-                if (message == ".r" || message == ".ready") {
-                    // 預判：如果加上這個人就達到開賽門檻 (minimumReadyRequired)
-                    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
-                        // 提前鎖定開關，並隱藏這則訊息
-                        isCountdownActive = true; 
-                        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
-                        return HookResult.Handled; // 這是關鍵：讓 .r 指令消失，不噴在畫面上
-                    }
-                }
+                // 1. 攔截開賽指令
+if (message == ".r" || message == ".ready") {
+    // 判斷是否為最後一個準備的人
+    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
+        
+        // ---【核心關鍵：順序對調】---
+        // 必須先將開關設為 true，這樣接下來 OnPlayerReady 觸發的所有系統訊息都會被靜音
+        isCountdownActive = true; 
+        
+        // 然後才執行準備邏輯
+        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
+        
+        // 隱藏玩家輸入的 .r
+        return HookResult.Handled; 
+    }
+}
 
                 // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
                 if (isCountdownActive && !originalMessage.Contains("倒數：")) {
