@@ -121,4 +121,45 @@ public partial class MatchZy
         teamReadyOverride[(CsTeam)player.TeamNum] = true;
         CheckLiveRequired();
     }
+    // --- 這是您新增的倒數計時邏輯 ---
+    public void StartMatchCountdown()
+    {
+        // 1. 防止重複觸發：如果已經在倒數，就直接跳出
+        if (matchStartCountdownTimer != null) return;
+
+        countdownRemaining = 10; // 設定倒數 10 秒
+        PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽將在 {countdownRemaining} 秒後開始...");
+
+        // 2. 建立計時器，每 1 秒執行一次
+        matchStartCountdownTimer = AddTimer(1.0f, () => {
+            if (countdownRemaining > 0)
+            {
+                // 剩餘 3 秒時改為紅色字體提醒
+                string color = countdownRemaining <= 3 ? $"{ChatColors.Red}" : $"{ChatColors.Orange}";
+                PrintToAllChat($"比賽開始倒數：{color}{countdownRemaining} 秒..."); 
+                
+                countdownRemaining--;
+            }
+            else
+            {
+                // 3. 倒數結束：清理計時器並正式開賽
+                matchStartCountdownTimer?.Kill();
+                matchStartCountdownTimer = null;
+                
+                PrintToAllChat($"{ChatColors.Lime}比賽開始！祝各位好運！");
+                HandleMatchStart(); // 這裡會呼叫 Utility.cs 裡的原始開賽邏輯
+            }
+        }, TimerFlags.REPEAT); // 必須設定 REPEAT 讓它每秒跑一次
+    }
+
+    // --- 新增：中止倒數的函數 (用於玩家輸入 .unready 時) ---
+    public void CancelMatchCountdown(string reason)
+    {
+        if (matchStartCountdownTimer != null)
+        {
+            matchStartCountdownTimer.Kill();
+            matchStartCountdownTimer = null;
+            PrintToAllChat($"{ChatColors.Red}倒數終止：{reason}");
+        }
+    }
 }
