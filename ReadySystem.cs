@@ -169,7 +169,7 @@ namespace MatchZy
             }
         }
 
-      public void PrintUnreadyPlayers()
+     public void PrintUnreadyPlayers()
         {
             // 只要在倒數，就攔截所有準備訊息
             if (isCountdownActive) return; 
@@ -182,17 +182,16 @@ namespace MatchZy
             }
             else if (readyAvailable && !matchStarted)
             {
-                // 修正 ulong 轉換問題：直接從所有玩家中找「不在已準備名單」的人
-                // 這裡我們不使用 playerReadyStatus[p.SteamID]，避免類型衝突
+                // 找出還沒準備的玩家名單
                 var unreadyPlayers = Utilities.GetPlayers()
                     .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     .Where(p => {
-                        // 檢查 playerReadyStatus 是否包含該 SteamID，且狀態為 false (未準備)
                         bool isReady = false;
-                        if (playerReadyStatus.TryGetValue(p.SteamID, out isReady)) {
+                        // 關鍵修正：將 p.SteamID (ulong) 強制轉換為 (int) 以匹配 Dictionary 的 Key
+                        if (playerReadyStatus.TryGetValue((int)p.SteamID, out isReady)) {
                             return !isReady;
                         }
-                        return true; // 找不到也算未準備
+                        return true; 
                     })
                     .Select(p => p.PlayerName);
                 
