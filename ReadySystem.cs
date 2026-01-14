@@ -169,7 +169,7 @@ namespace MatchZy
             }
         }
 
-       public void PrintUnreadyPlayers()
+      public void PrintUnreadyPlayers()
         {
             // 只要在倒數，就攔截所有準備訊息
             if (isCountdownActive) return; 
@@ -182,9 +182,10 @@ namespace MatchZy
             }
             else if (readyAvailable && !matchStarted)
             {
-                // 這裡我們手動過濾出未準備的玩家名字，組成字串
+                // 改用 MatchZy 核心逻辑：找出還沒準備的玩家名單
                 var unreadyPlayers = Utilities.GetPlayers()
-                    .Where(p => p.IsValid && !p.IsBot && p.TeamNum > 1 && !readyPlayers.Contains(p.SteamID))
+                    .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    .Where(p => !playerReadyStatus.ContainsKey(p.SteamID) || !playerReadyStatus[p.SteamID])
                     .Select(p => p.PlayerName);
                 
                 string unreadyList = string.Join(", ", unreadyPlayers);
