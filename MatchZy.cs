@@ -245,6 +245,20 @@ namespace MatchZy
                 return EventPlayerConnectFullHandler(@event, info);
             });
             RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
+            // 1. 斷線事件處理：原有的處理程序 + 額外的新增中止邏輯
+            RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
+                var player = @event.Userid;
+
+                // --- 新增：倒數期間有人斷線就中止 ---
+                if (player != null && matchStartCountdownTimer != null)
+                {
+                    CancelMatchCountdown($"玩家 {player.PlayerName} 斷開連線，倒數中止。");
+                }
+
+                // 呼叫原本可能定義在其他檔案的處理程序 (保持原架構相容)
+                return EventPlayerDisconnectHandler(@event, info);
+            });
+
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
             RegisterEventHandler<EventRoundStart>(EventRoundStartHandler);
@@ -253,40 +267,45 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-           // 修正版：禁止比賽中互換隊伍，但允許去觀戰以及從觀戰歸隊
+            // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
             AddCommandListener("jointeam", (player, info) =>
-{
-    // 重點：如果 isWarmup 為 true，這段邏輯會直接跳過 (Continue)
-    if (player == null || player.IsBot || isSleep || isWarmup) return HookResult.Continue;
+            {
+                // 如果是機器人、睡眠模式或還在熱身初期則跳過
+                if (player == null || player.IsBot || isSleep || isWarmup) return HookResult.Continue;
 
-    string targetTeam = info.ArgByIndex(1); 
-    int userId = (int)(player.UserId ?? -1);
-    byte currentTeam = player.TeamNum; 
+                // --- 新增：倒數期間有人嘗試換隊 (包含跳去觀戰)，立即中止 ---
+                if (matchStartCountdownTimer != null)
+                {
+                    CancelMatchCountdown($"玩家 {player.PlayerName} 變動隊伍，倒數中止。");
+                }
 
- // 1. 永遠放行觀戰，並重置其準備狀態，避免佔用名額
-    if (targetTeam == "1") 
-    {
-        if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
-        return HookResult.Continue;
-    }
+                string targetTeam = info.ArgByIndex(1); 
+                int userId = (int)(player.UserId ?? -1);
+                byte currentTeam = player.TeamNum; 
 
-    // 2. 比賽正式開始後 (matchStarted)
-    if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
-    {
-        // 只有「正在場上打球的人」想「換到對面」才會被擋
-        if (currentTeam == 2 || currentTeam == 3)
-        {
-            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已正式開始，禁止互換隊伍！");
-            return HookResult.Stop; 
-        }
-        
-        // 斷線重連進來的人 (currentTeam 為 1) 會直接放行
-        return HookResult.Continue;
-    }
+                // 1. 永遠放行觀戰，並重置其準備狀態，避免佔用名額
+                if (targetTeam == "1") 
+                {
+                    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
+                    return HookResult.Continue;
+                }
 
-    return HookResult.Continue;
-});
+                // 2. 比賽正式開始後 (matchStarted)
+                if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
+                {
+                    // 只有「正在場上打球的人」想「換到對面」才會被擋
+                    if (currentTeam == 2 || currentTeam == 3)
+                    {
+                        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已正式開始，禁止互換隊伍！");
+                        return HookResult.Stop; 
+                    }
+                    
+                    // 斷線重連進來的人 (currentTeam 為 1) 會直接放行
+                    return HookResult.Continue;
+                }
 
+                return HookResult.Continue;
+            });
             // 徹底禁用 ESC 投票系統
             AddCommandListener("callvote", (player, info) =>
             {
