@@ -17,8 +17,6 @@ namespace MatchZy
 {
     public partial class MatchZy
     {
-        public bool isCountdownRunning = false; 
-        public bool isStartingProcess = false;
         public const string warmupCfgPath = "MatchZy/warmup.cfg";
         public const string knifeCfgPath = "MatchZy/knife.cfg";
         public const string liveCfgPath = "MatchZy/live.cfg";
@@ -845,9 +843,11 @@ namespace MatchZy
             }
         }
 
-        // --- 最後鎖定：比賽已 Live，所以不需要在此函式內將 isCountdownRunning 設回 false ---
-        isStartingProcess = false; 
-    } // <--- 這裡必須有一個括號來結束 FinishMatchInitialization 函式
+// 延遲 5 秒後才允許下一次開賽指令，徹底防止伺服器引擎不穩定導致的 ID 連發
+        AddTimer(5.0f, () => { 
+            isStartingProcess = false; 
+            isCountdownRunning = false; // 這裡同步重置倒數鎖，確保 5 秒後系統完全恢復正常
+        });
 
     public void HandleClanTags()
     {
