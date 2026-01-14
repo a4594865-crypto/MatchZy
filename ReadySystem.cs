@@ -122,51 +122,53 @@ public partial class MatchZy
         teamReadyOverride[(CsTeam)player.TeamNum] = true;
         CheckLiveRequired();
     }
-   // --- 7秒倒數版：第3秒變紅，含訊息攔截開關 ---
+// --- 7秒倒數版：第3秒變紅，含訊息攔截開關 ---
     public void StartMatchCountdown()
-{
-    if (matchStartCountdownTimer != null) return;
+    {
+        if (matchStartCountdownTimer != null) return;
 
-    // 啟動開關：這會讓所有定時人數提醒訊息在此期間「噤聲」
-    isCountdownActive = true; 
+        // 啟動開關：這會讓所有定時人數提醒訊息在此期間「噤聲」
+        isCountdownActive = true; 
 
-    countdownRemaining = 7; 
-    PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
+        countdownRemaining = 7; 
+        PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
-    matchStartCountdownTimer = AddTimer(1.0f, () => {
-        Server.NextFrame(() => {
-            if (countdownRemaining > 0)
-            {
-                // 邏輯：7, 6, 5, 4 是綠色；3, 2, 1 是紅色
-                string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
-                PrintToAllChat($"倒數：{color}{countdownRemaining}");
-
-                // 最後 3 秒播放音效
-                if (countdownRemaining <= 3)
+        matchStartCountdownTimer = AddTimer(1.0f, () => {
+            Server.NextFrame(() => {
+                if (countdownRemaining > 0)
                 {
-                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                    // 邏輯：7, 6, 5, 4 是綠色；3, 2, 1 是紅色
+                    string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
+                    PrintToAllChat($"倒數：{color}{countdownRemaining}");
+
+                    // 最後 3 秒播放音效
+                    if (countdownRemaining <= 3)
                     {
-                        p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                        {
+                            p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
+                        }
                     }
+                    countdownRemaining--;
                 }
-                countdownRemaining--;
-            }
-            else
-            {
-                matchStartCountdownTimer?.Kill();
-                matchStartCountdownTimer = null;
+                else
+                {
+                    matchStartCountdownTimer?.Kill();
+                    matchStartCountdownTimer = null;
 
-                // 倒數結束，解除開關封鎖
-                isCountdownActive = false; 
+                    // 倒數結束，解除開關封鎖
+                    isCountdownActive = false; 
 
-                if (matchStarted) return;
-                
-                // 觸發開賽訊息
-                HandleMatchStart(); 
-            }
-        });
-    }, TimerFlags.REPEAT);
-}
+                    if (matchStarted) return;
+                    
+                    // 【在此修改】將 "The series has started at" 改為中文
+                    PrintToAllChat($"{chatPrefix} {ChatColors.Lime}系列賽已於 {ChatColors.Gold}{DateTime.Now:HH:mm:ss} {ChatColors.Lime}正式開始！");
+                    
+                    HandleMatchStart(); 
+                }
+            });
+        }, TimerFlags.REPEAT);
+    }
 
     public void CancelMatchCountdown(string reason)
     {
@@ -175,13 +177,27 @@ public partial class MatchZy
             matchStartCountdownTimer.Kill();
             matchStartCountdownTimer = null;
 
-            // 重要：倒數中止時立即解鎖，確保「玩家離線」或「換隊」的訊息能正常顯示
+            // 重要：倒數中止時立即解鎖，確保重要訊息能顯示
             isCountdownActive = false; 
 
             PrintToAllChat($"{ChatColors.Red}倒數中止：{reason}");
 
-            // 補發人數狀態，讓玩家知道目前準備進度
+            // 呼叫下方補上的函數，避免編譯報錯
             PrintUnreadyPlayers();
+        }
+    }
+
+    // --- 解決編譯報錯：手動補上此函數 ---
+    public void PrintUnreadyPlayers()
+    {
+        // 如果正在倒數中，攔截訊息不發出
+        if (isCountdownActive) return;
+
+        // 這裡會抓取您原本在 MatchZy4.cs 定義的最低準備人數
+        int readyCount = GetReadyPlayersCount();
+        if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
+        {
+            PrintToAllChat($"{chatPrefix} 最少需要 {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default} 人準備，目前：{ChatColors.Lime}{readyCount}");
         }
     }
  }   
