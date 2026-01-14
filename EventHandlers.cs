@@ -116,13 +116,19 @@ public partial class MatchZy
         return HookResult.Continue;
     }
 
-    public HookResult EventRoundStartHandler(EventRoundStart @event, GameEventInfo info)
+   public HookResult EventRoundStartHandler(EventRoundStart @event, GameEventInfo info)
+{
+    // --- 終極鎖定：如果正在倒數或開賽處理中，禁止執行 CheckLiveRequired ---
+    if (isCountdownRunning || isStartingProcess || matchStarted || isMatchLive) 
     {
-        try
-        {
-            HandlePostRoundStartEvent(@event);
-            return HookResult.Continue;
-        }
+        HandlePostRoundStartEvent(@event);
+        return HookResult.Continue;
+    }
+
+    CheckLiveRequired();
+    HandlePostRoundStartEvent(@event);
+    return HookResult.Continue;
+}
         catch (Exception e)
         {
             Log($"[EventRoundStart FATAL] An error occurred: {e.Message}");
