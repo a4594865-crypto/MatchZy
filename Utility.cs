@@ -716,17 +716,18 @@ namespace MatchZy
         // 1. 強化版的開賽控制邏輯
     private void HandleMatchStart()
     {
-        // 核心鎖定：如果正在倒數、或已經開始開賽流程，就直接退回
+        // 核心鎖定：如果正在倒數、開賽中、或已 Live，立刻攔截
         if (isCountdownRunning || isStartingProcess || matchStarted || isMatchLive) return;
 
+        // --- 強制關鍵 1：立刻關閉準備功能與標記倒數，防止任何事件再次觸發 ---
+        readyAvailable = false; 
         isCountdownRunning = true;
         int countdown = 10;
 
-        // 暫停伺服器熱身計時器，防止刀局搶先噴出
+        // 鎖定原生熱身計時器
         Server.ExecuteCommand("mp_warmup_pausetimer 1");
         PrintToAllChat($"{ChatColors.Green}全體就緒！比賽將在 10 秒後開始...");
 
-        // 啟動 10 秒計時器
         AddTimer(1.0f, () => {
             if (countdown > 0) {
                 string chatColor = (countdown <= 5) ? $"{ChatColors.Red}" : $"{ChatColors.Default}";
@@ -737,43 +738,45 @@ namespace MatchZy
                 }
                 countdown--;
             } else {
-                // 倒數歸零：執行開賽動作
+                // 倒數結束動作
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}GO! GO! GO! 比賽開始！");
                 foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot)) {
                     p.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
                 }
 
-                // 正式解鎖熱身，讓伺服器切換狀態
+                // 解除鎖定並強制結束熱身
                 Server.ExecuteCommand("mp_warmup_pausetimer 0; mp_warmuptime 0; mp_warmup_end;");
 
-                // 呼叫開賽初始化（此時才會產生日誌中的 match_id）
+                // 呼叫開賽初始化
                 FinishMatchInitialization();
-                
-                // 注意：這裡不重置 isCountdownRunning，交給 FinishMatchInitialization 統一處理以防洗屏
             }
         }, TimerFlags.REPEAT);
     }
 
-    // 2. 初始化邏輯（數完 10 秒後才跑）
     private void FinishMatchInitialization()
     {
-        // 雙重防護鎖定
+        // --- 強制關鍵 2：防護鎖定，若已在處理中則退出 ---
         if (isStartingProcess) return;
         isStartingProcess = true;
 
         isPractice = false;
         isDryRun = false;
+        
+        // --- 強制關鍵 3：標記比賽已開始，這會攔截大部分插件原生的重複檢查 ---
+        matchStarted = true; 
+
         if (isRoundRestorePending)
         {
             RestoreRoundBackup(null, pendingRestoreFileName);
             isRoundRestorePending = false;
             pendingRestoreFileName = "";
-            // 如果是恢復備份，提早解鎖
-            AddTimer(2.0f, () => { isStartingProcess = false; isCountdownRunning = false; });
+            // 恢復備份不需要產新 ID，直接結束
+            isStartingProcess = false; 
+            isCountdownRunning = false;
             return;
         }
 
-        // --- 隊名判定邏輯 ---
+        // 隊伍名稱判定 (您的原始邏輯)
         if (matchzyTeam1.teamName == "COUNTER-TERRORISTS")
         {
             teamSides[matchzyTeam1] = "CT";
@@ -815,7 +818,7 @@ namespace MatchZy
 
         string seriesType = "BO" + matchConfig.NumMaps.ToString();
         
-        // 核心修正：在此處產 ID，確保每場比賽倒數完只產生一個
+        // 核心修正：在此處產生 ID，因為 matchStarted 已為 true，其他地方不會再觸發
         liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, matchConfig);
         SetupRoundBackupFile();
         GetSpawns();
@@ -829,7 +832,7 @@ namespace MatchZy
             StartLive();
         }
 
-        // 結尾訊息
+        // --- 結尾顯示開賽訊息 ---
         if (showCreditsOnMatchStart.Value) {
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}MatchZy{ChatColors.Default} Plugin by {ChatColors.Green}WD-{ChatColors.Default}");
         }
@@ -840,37 +843,10 @@ namespace MatchZy
             }
         }
 
-        // 核心防洗屏修正：延遲 5 秒後才解鎖，確保比賽進入穩定 Live 狀態
-        AddTimer(5.0f, () => { 
-            isStartingProcess = false; 
-            isCountdownRunning = false; 
-        });
+        // --- 最後鎖定：比賽已 Live，所以不需要在此函式內將 isCountdownRunning 設回 false ---
+        // 這樣可以保證比賽進行中，絕對不會再次觸發倒數邏輯
+        isStartingProcess = false; 
     }
-
-    // 3. HandleClanTags 函式（保持原樣，僅修正括號完整性）
-    public void HandleClanTags()
-    {
-        return; // 目前 MatchZy 原生邏輯建議返回直到解決方案穩定
-
-        if (readyAvailable && !matchStarted)
-        {
-            foreach (var key in playerData.Keys)
-            {
-                playerData[key].Clan = playerReadyStatus[key] ? "[Ready]" : "[Unready]";
-                Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
-            }
-        }
-        else if (matchStarted)
-        {
-            foreach (var key in playerData.Keys)
-            {
-                if (playerData[key].TeamNum == 2) playerData[key].Clan = reverseTeamSides["TERRORIST"].teamTag;
-                else if (playerData[key].TeamNum == 3) playerData[key].Clan = reverseTeamSides["CT"].teamTag;
-                Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
-            }
-        }
-    }
-
         private void HandleMatchEnd()
         {
             if (!isMatchLive) return;
