@@ -63,38 +63,33 @@ namespace MatchZy
 
         [ConsoleCommand("css_ready", "Marks the player ready")]
         public void OnPlayerReady(CCSPlayerController? player, CommandInfo? command)
-{
-    if (player == null) return;
-
-    // --- 終極鎖定：如果正在倒數、正在開賽初始化、或比賽已 Live，立刻阻斷所有準備邏輯 ---
-    if (isCountdownRunning || isStartingProcess || matchStarted || isMatchLive) return;
-
-    Log($"[!ready command] Sent by: {player.UserId} readyAvailable: {readyAvailable} matchStarted: {matchStarted}");
-    
-    if (readyAvailable && !matchStarted)
-    {
-        if (player.UserId.HasValue)
         {
-            if (!playerReadyStatus.ContainsKey(player.UserId.Value))
+            if (player == null) return;
+            Log($"[!ready command] Sent by: {player.UserId} readyAvailable: {readyAvailable} matchStarted: {matchStarted}");
+            if (readyAvailable && !matchStarted)
             {
-                playerReadyStatus[player.UserId.Value] = false;
+                if (player.UserId.HasValue)
+                {
+                    if (!playerReadyStatus.ContainsKey(player.UserId.Value))
+                    {
+                        playerReadyStatus[player.UserId.Value] = false;
+                    }
+                    if (playerReadyStatus[player.UserId.Value])
+                    {
+                        // player.PrintToChat($"{chatPrefix} You are already ready!");
+                        PrintToPlayerChat(player, Localizer["matchzy.ready.markedready"]);
+                    }
+                    else
+                    {
+                        playerReadyStatus[player.UserId.Value] = true;
+                        // player.PrintToChat($"{chatPrefix} {Localizer["matchzy.youareready"]}");
+                        PrintToPlayerChat(player, Localizer["matchzy.ready.markedready"]);
+                    }
+                    CheckLiveRequired();
+                    HandleClanTags();
+                }
             }
-            if (playerReadyStatus[player.UserId.Value])
-            {
-                PrintToPlayerChat(player, Localizer["matchzy.ready.markedready"]);
-            }
-            else
-            {
-                playerReadyStatus[player.UserId.Value] = true;
-                PrintToPlayerChat(player, Localizer["matchzy.ready.markedready"]);
-            }
-            
-            // 只有通過上方 isCountdownRunning 檢查的人才能呼叫這兩個函式
-            CheckLiveRequired();
-            HandleClanTags();
         }
-    }
-}
 
         [ConsoleCommand("css_unready", "Marks the player unready")]
         [ConsoleCommand("css_notready", "Marks the player unready")]
