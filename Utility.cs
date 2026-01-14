@@ -17,6 +17,8 @@ namespace MatchZy
 {
     public partial class MatchZy
     {
+        public bool isCountdownRunning = false; 
+        public bool isStartingProcess = false;
         public const string warmupCfgPath = "MatchZy/warmup.cfg";
         public const string knifeCfgPath = "MatchZy/knife.cfg";
         public const string liveCfgPath = "MatchZy/live.cfg";
