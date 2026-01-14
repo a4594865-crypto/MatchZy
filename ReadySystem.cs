@@ -92,9 +92,12 @@ public partial class MatchZy
         return teamReadyOverride[team];
     }
 
-    [ConsoleCommand("css_forceready", "Force-readies the team")]
+   [ConsoleCommand("css_forceready", "Force-readies the team")]
     public void OnForceReadyCommandCommand(CCSPlayerController? player, CommandInfo? command)
     {
+        // --- 核心修正 1：如果已經在倒數、正在開賽、或已經 Live，立刻攔截指令 ---
+        if (isCountdownRunning || isStartingProcess || matchStarted || isMatchLive) return;
+
         Log($"{readyAvailable} {isMatchSetup} {allowForceReady} {IsPlayerValid(player)}");
         if (!readyAvailable || !isMatchSetup || !allowForceReady || !IsPlayerValid(player)) return;
 
@@ -103,7 +106,6 @@ public partial class MatchZy
 
         if (playerCount < minReady) 
         {
-            // ReplyToUserCommand(player, $"You must have at least {minReady} player(s) on the server to ready up.");
             ReplyToUserCommand(player, Localizer["matchzy.rs.minreadyplayers", minReady]);
             return;
         }
@@ -113,12 +115,15 @@ public partial class MatchZy
             if (!playerData[key].IsValid) continue;
             if (playerData[key].TeamNum == player.TeamNum) {
                 playerReadyStatus[key] = true;
-                // ReplyToUserCommand(playerData[key], $"Your team was force-readied by {player.PlayerName}");
                 ReplyToUserCommand(playerData[key], Localizer["matchzy.rs.forcereadiedby", player.PlayerName]);
             }
         }
 
         teamReadyOverride[(CsTeam)player.TeamNum] = true;
-        CheckLiveRequired();
+
+        // --- 核心修正 2：確保這裡的開賽檢查不會在倒數期間重複啟動 ---
+        if (!isCountdownRunning && !isStartingProcess && !matchStarted) 
+        {
+            CheckLiveRequired();
+        }
     }
-}
