@@ -2,7 +2,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
-
+using CounterStrikeSharp.API.Modules.Timers; // 加入這一行才能識別 TimerFlags
 namespace MatchZy;
 
 public partial class MatchZy
