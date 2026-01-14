@@ -123,41 +123,44 @@ public partial class MatchZy
         CheckLiveRequired();
     }
     // --- 優化版：加入音效線程安全保護 ---
-    public void StartMatchCountdown()
+public void StartMatchCountdown()
     {
         if (matchStartCountdownTimer != null) return;
 
-        countdownRemaining = 10; 
+        countdownRemaining = 10;
         PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
         matchStartCountdownTimer = AddTimer(1.0f, () => {
-            if (countdownRemaining > 0)
-            {
-                string color = (countdownRemaining > 5) ? $"{ChatColors.Green}" : $"{ChatColors.Red}";
-                PrintToAllChat($"倒數：{color}{countdownRemaining}"); 
-
-                // --- 關鍵修正：播放音效也必須放進 NextFrame ---
-                if (countdownRemaining <= 3)
+            // 確保所有邏輯都在主執行緒執行
+            Server.NextFrame(() => {
+                if (countdownRemaining > 0)
                 {
-                    Server.NextFrame(() => {
-                        Server.ExecuteCommand("play sounds/ui/beep02.wav");
-                    });
-                }
-                
-                countdownRemaining--;
-            }
-            else
-            {
-                matchStartCountdownTimer?.Kill();
-                matchStartCountdownTimer = null;
-                
-                Server.NextFrame(() => {
-                    if (matchStarted) return; 
+                    string color = (countdownRemaining > 5) ? $"{ChatColors.Green}" : $"{ChatColors.Red}";
+                    PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
+                    // 音效邏輯：倒數 3, 2, 1 時播放
+                    if (countdownRemaining <= 3)
+                    {
+                        // 使用您驗證過有效的方法：對每個真實玩家執行客戶端指令
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                        {
+                            p.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
+                        }
+                    }
+                    
+                    countdownRemaining--;
+                }
+                else
+                {
+                    // 倒數結束清理
+                    matchStartCountdownTimer?.Kill();
+                    matchStartCountdownTimer = null;
+
+                    if (matchStarted) return;
                     PrintToAllChat($"{ChatColors.Lime}比賽正式開始！");
                     HandleMatchStart();
-                });
-            }
+                }
+            });
         }, TimerFlags.REPEAT);
     }
 
