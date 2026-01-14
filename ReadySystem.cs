@@ -105,24 +105,27 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-// --- 5 秒倒數與全音效攔截邏輯 ---
+// --- 直接開始 5 秒音效倒數 ---
         public void StartMatchCountdown()
         {
             if (matchStartCountdownTimer != null) return;
 
             isCountdownActive = true; 
-            countdownRemaining = 5; // 改為 5 秒倒數
-            PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
+            countdownRemaining = 5; // 設定為 5 秒
+
+            // 已拿掉：PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！...");
 
             matchStartCountdownTimer = AddTimer(1.0f, () => {
                 Server.NextFrame(() => {
                     if (countdownRemaining > 0)
                     {
-                        // 顏色邏輯：最後 3 秒顯示紅色，其餘綠色
+                        // 顏色邏輯：3, 2, 1 秒顯示紅色，5, 4 秒顯示綠色
                         string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
+                        
+                        // 這裡噴出的訊息包含「倒數：」，所以會穿過 MatchZy.cs 與 Utility.cs 的防火牆
                         PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                        // --- 修正：移除 if (countdownRemaining <= 3) 限制，讓每一秒都播音效 ---
+                        // 每一秒都播音效 (5, 4, 3, 2, 1)
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
