@@ -105,7 +105,7 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-        // --- 7 秒倒數與攔截邏輯 ---
+// --- 7 秒倒數與攔截邏輯 ---
         public void StartMatchCountdown()
         {
             if (matchStartCountdownTimer != null) return;
@@ -144,31 +144,41 @@ namespace MatchZy
         }
 
         public void CancelMatchCountdown(string reason)
-{
-    if (matchStartCountdownTimer != null)
-    {
-        // 1. 停止計時器並清理
-        matchStartCountdownTimer.Kill();
-        matchStartCountdownTimer = null;
-        
-        // 2. 先關閉攔截開關，確保這條訊息能被發送
-        isCountdownActive = false; 
+        {
+            if (matchStartCountdownTimer != null)
+            {
+                // 1. 停止計時器並清理
+                matchStartCountdownTimer.Kill();
+                matchStartCountdownTimer = null;
+                
+                // 2. 先關閉攔截開關
+                isCountdownActive = false; 
 
-        // 3. 自動對名字上色，並在名字結束後恢復白色
-        // 邏輯：在「玩家 」後接紅色，在後續動作（變動/斷開/移至）前切換回預設白
-        string coloredReason = reason
-            .Replace("玩家 ", $"玩家 {ChatColors.Red}")
-            .Replace(" 變動隊伍", $"{ChatColors.Default} 變動隊伍")
-            .Replace(" 斷開連線", $"{ChatColors.Default} 斷開連線")
-            .Replace(" 移至觀戰", $"{ChatColors.Default} 移至觀戰");
+                // 3. 自動對名字上色
+                string coloredReason = reason
+                    .Replace("玩家 ", $"玩家 {ChatColors.Red}")
+                    .Replace(" 變動隊伍", $"{ChatColors.Default} 變動隊伍")
+                    .Replace(" 斷開連線", $"{ChatColors.Default} 斷開連線")
+                    .Replace(" 移至觀戰", $"{ChatColors.Default} 移至觀戰");
 
-        // 4. 輸出最終訊息
-        // 效果：倒數中止：玩家 (紅名字) 變動隊伍/離開。
-        PrintToAllChat($"{ChatColors.Default}倒數中止：{coloredReason}");
-        
-        // 5. 立即顯示當前還缺多少人的提示
-        PrintUnreadyPlayers();
-    }
-}
-    } // MatchZy Class 結束
+                // 4. 輸出最終訊息
+                PrintToAllChat($"{ChatColors.Default}倒數中止：{coloredReason}");
+                
+                // 5. 立即顯示當前還缺多少人的提示
+                PrintUnreadyPlayers();
+            }
+        }
+
+        public void PrintUnreadyPlayers()
+        {
+            // 倒數時不顯示雜訊
+            if (isCountdownActive) return; 
+
+            int readyCount = GetReadyPlayersCount();
+            if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
+            {
+                PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
+            }
+        }
+ } // MatchZy Class 結束
 } // Namespace 結束
