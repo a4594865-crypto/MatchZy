@@ -705,10 +705,12 @@ namespace MatchZy
             {
                 liveRequired = true;
             }
-            if (liveRequired)
-            {
-                HandleMatchStart();
-            }
+            // --- 修改後的代碼 ---
+if (liveRequired)
+{
+    // 不再直接開賽，而是進入倒數階段
+    StartMatchCountdown(); 
+}
         }
 
         private void HandleMatchStart()
