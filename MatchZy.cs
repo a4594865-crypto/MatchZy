@@ -244,7 +244,7 @@ namespace MatchZy
                 // 呼叫原生處理程序
                 return EventPlayerConnectFullHandler(@event, info);
             });
-            RegisterEventHandler<EventPlayerDisconnect>(EventPlayerDisconnectHandler);
+            
             // 1. 斷線事件處理：原有的處理程序 + 額外的新增中止邏輯
             RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
                 var player = @event.Userid;
