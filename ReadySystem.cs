@@ -131,7 +131,6 @@ public void StartMatchCountdown()
         PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
         matchStartCountdownTimer = AddTimer(1.0f, () => {
-            // 確保所有邏輯都在主執行緒執行
             Server.NextFrame(() => {
                 if (countdownRemaining > 0)
                 {
@@ -141,9 +140,10 @@ public void StartMatchCountdown()
                     // 音效邏輯：倒數 3, 2, 1 時播放
                     if (countdownRemaining <= 3)
                     {
-                        // 使用您驗證過有效的方法：對每個真實玩家執行客戶端指令
+                        // 遍歷所有玩家播放新的 Panorama 音效
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
+                            // 使用您指定的路徑，注意結尾通常建議加上 .vsnd 或使用完整路徑
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
                     }
@@ -152,7 +152,6 @@ public void StartMatchCountdown()
                 }
                 else
                 {
-                    // 倒數結束清理
                     matchStartCountdownTimer?.Kill();
                     matchStartCountdownTimer = null;
 
