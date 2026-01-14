@@ -720,8 +720,8 @@ namespace MatchZy
         if (isCountdownRunning || isStartingProcess || matchStarted || isMatchLive) return;
 
         // --- 強制關鍵 1：立刻關閉準備功能與標記倒數，防止任何事件再次觸發 ---
-        readyAvailable = false; 
-        isCountdownRunning = true;
+        isCountdownRunning = true; 
+        isStartingProcess = true; // 立即鎖定，防止 10 秒倒數期間被穿透
         int countdown = 10;
 
         // 鎖定原生熱身計時器
