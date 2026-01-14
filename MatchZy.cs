@@ -268,46 +268,60 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
+           // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
             AddCommandListener("jointeam", (player, info) =>
-{
-    // 基本檢查：如果是機器人或睡眠模式，直接跳過不做處理
-    if (player == null || player.IsBot || isSleep) return HookResult.Continue;
+            {
+                // 基本檢查：如果是機器人或睡眠模式，直接跳過不做處理
+                if (player == null || player.IsBot || isSleep) return HookResult.Continue;
 
-    // --- 關鍵修正 A：中止倒數邏輯放在最前面，且不被 isWarmup 攔截 ---
-    if (matchStartCountdownTimer != null)
-    {
-        CancelMatchCountdown($"玩家 {player.PlayerName} 變動隊伍，倒數中止。");
-    }
+                // --- 關鍵修正 A：中止倒數邏輯放在最前面，且不被 isWarmup 攔截 ---
+                if (matchStartCountdownTimer != null)
+                {
+                    CancelMatchCountdown($"玩家 {player.PlayerName} 變動隊伍，倒數中止。");
+                }
 
-    // --- 關鍵修正 B：中止完倒數後，如果是熱身階段，則放行所有換隊行為 ---
-    if (isWarmup) return HookResult.Continue;
+                // --- 關鍵修正 B：中止完倒數後，如果是熱身階段，則放行所有換隊行為 ---
+                if (isWarmup) return HookResult.Continue;
 
-    // 以下是你原本的比賽中禁止換隊邏輯，不會被動到
-    string targetTeam = info.ArgByIndex(1); 
-    int userId = (int)(player.UserId ?? -1);
-    byte currentTeam = player.TeamNum; 
+                // 以下是你原本的比賽中禁止換隊邏輯，不會被動到
+                string targetTeam = info.ArgByIndex(1); 
+                int userId = (int)(player.UserId ?? -1);
+                byte currentTeam = player.TeamNum; 
 
-    // 1. 永遠放行觀戰，並重置其準備狀態
-    if (targetTeam == "1") 
-    {
-        if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
-        return HookResult.Continue;
-    }
+                // 1. 永遠放行觀戰，並重置其準備狀態
+                if (targetTeam == "1") 
+                {
+                    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
+                    return HookResult.Continue;
+                }
 
-    // 2. 比賽正式開始後 (matchStarted) 的換隊限制
-    if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
-    {
-        if (currentTeam == 2 || currentTeam == 3)
-        {
-            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已正式開始，禁止互換隊伍！");
-            return HookResult.Stop; 
-        }
-        return HookResult.Continue;
-    }
+                // 2. 比賽正式開始後 (matchStarted) 的換隊限制
+                if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
+                {
+                    if (currentTeam == 2 || currentTeam == 3)
+                    {
+                        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已正式開始，禁止互換隊伍！");
+                        return HookResult.Stop; 
+                    }
+                    return HookResult.Continue;
+                }
 
-    return HookResult.Continue;
-});
+                return HookResult.Continue;
+            });
+
+            // --- [第二步修正] 解決倒數啟動時，系統重整導致的「重複加入隊伍」廣播 ---
+            RegisterEventHandler<EventPlayerTeam>((@event, info) =>
+            {
+                // 如果正在倒數開關已開啟 (isCountdownActive 為 true)
+                if (isCountdownActive)
+                {
+                    // 禁用這則訊息的文字顯示與聲音，解決倒數開始時「重複噴出加入隊伍」的問題
+                    @event.Silent = true;
+                    return HookResult.Changed;
+                }
+                return HookResult.Continue;
+            }, HookMode.Pre);
+			
             // 徹底禁用 ESC 投票系統
             AddCommandListener("callvote", (player, info) =>
             {
