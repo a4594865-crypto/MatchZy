@@ -442,36 +442,34 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
             RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
-                // --- [核心修正] 頂端攔截邏輯：隱藏指令並過濾倒數雜訊 ---
+                // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-                // 1. 攔截最後一人的開賽指令 (.r / .ready)
-                if (message == ".r" || message == ".ready") {
-                    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
-                        // 順序對調：先設為 true，確保 OnPlayerReady 產生的系統雜訊被靜音
-                        isCountdownActive = true; 
-                        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
-                        return HookResult.Handled; 
-                    }
-                }
+                // 1. 攔截開賽指令
+if (message == ".r" || message == ".ready") {
+    // 判斷是否為最後一個準備的人
+    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
+        
+        // ---【核心關鍵：順序對調】---
+        // 必須先將開關設為 true，這樣接下來 OnPlayerReady 觸發的所有系統訊息都會被靜音
+        isCountdownActive = true; 
+        
+        // 然後才執行準備邏輯
+        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
+        
+        // 隱藏玩家輸入的 .r
+        return HookResult.Handled; 
+    }
+}
 
-                // 2. 倒數期間的過濾規則
-                if (isCountdownActive) {
-                    // 【關鍵修正】：白名單放行「倒數」與「就緒」相關的系統訊息
-                    if (originalMessage.Contains("倒數：") || 
-                        originalMessage.Contains("就緒") || 
-                        originalMessage.Contains("Ready")) 
-                    {
-                        return HookResult.Continue; // 允許這些訊息顯示在聊天室
-                    }
-                    
-                    // 其他玩家閒聊或重複指令一律隱藏
+                // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
+                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
                     return HookResult.Handled;
                 }
-                // --- [修正結束] ---
+                // --- [第一步結束] ---
 
-                // 以下維持您原本的所有代碼
+                // 以下是您原本的所有代碼，保持完全不動
                 int currentVersion = Api.GetVersion();
                 int index = @event.Userid + 1;
                 var playerUserId = NativeAPI.GetUseridFromIndex(index);
