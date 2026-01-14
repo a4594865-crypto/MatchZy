@@ -200,6 +200,7 @@ namespace MatchZy
                 // 調用您的語言檔標籤
                 PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
             }
-        }
-    }
-}
+          }
+      }
+   }
+ }
