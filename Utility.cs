@@ -843,12 +843,12 @@ namespace MatchZy
             }
         }
 
-// 延遲 5 秒後才允許下一次開賽指令，徹底防止伺服器引擎不穩定導致的 ID 連發
+        // 請把原本的 isStartingProcess = false; 刪掉，改成下面這 4 行：
         AddTimer(5.0f, () => { 
             isStartingProcess = false; 
-            isCountdownRunning = false; // 這裡同步重置倒數鎖，確保 5 秒後系統完全恢復正常
+            isCountdownRunning = false; 
         });
-
+    } // 結束 FinishMatchInitialization
     public void HandleClanTags()
     {
         // 這是為了滿足編譯需求補回的定義，目前維持不執行任何動作
