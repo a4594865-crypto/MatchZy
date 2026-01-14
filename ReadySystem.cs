@@ -144,7 +144,7 @@ public void StartMatchCountdown()
                         // 使用您驗證過有效的方法：對每個真實玩家執行客戶端指令
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
-                            p.ExecuteClientCommand("play sounds/ui/beep22.vsnd");
+                            p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
                     }
                     
