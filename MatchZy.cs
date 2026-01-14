@@ -35,13 +35,14 @@ namespace MatchZy
         public bool readyAvailable = false;
         public bool matchStarted = false;
         public bool isWarmup = false;
+		public bool isCountdownActive = false; // 加入這一行，宣告全域開關
 		public bool isShufflePending = false; // A方案：預約隨機分隊標記
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
         public bool isMatchLive = false;
         public long liveMatchId = -1;
         public int autoStartMode = 1;
-
+        
         public bool mapReloadRequired = false;
 
         // Pause Data
