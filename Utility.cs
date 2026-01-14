@@ -22,14 +22,14 @@ namespace MatchZy
         public const string liveCfgPath = "MatchZy/live.cfg";
         public const string liveWingmanCfgPath = "MatchZy/live_wingman.cfg";
 
-        // 在 Utility.cs 中修改此函數
-private void PrintToAllChat(string message)
-{
-    // 增加放行條件：如果是「就緒」或「Ready」，則不攔截
-    if (isCountdownActive && !message.Contains("倒數：") && !message.Contains("就緒") && !message.Contains("Ready")) return;
-    
-    Server.PrintToChatAll($"{chatPrefix} {message}");
-}
+       // --- 保持現狀：這段不需要動 ---
+        private void PrintToAllChat(string message)
+        {
+            // 只要訊息不含「倒數：」，在倒數期間一律封鎖
+            if (isCountdownActive && !message.Contains("倒數：")) return;
+            
+            Server.PrintToChatAll($"{chatPrefix} {message}");
+        }
 
         // --- 全域攔截：針對單一玩家 (如傷害提示等) ---
         private void PrintToPlayerChat(CCSPlayerController player, string message)
