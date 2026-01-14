@@ -122,51 +122,59 @@ public partial class MatchZy
         teamReadyOverride[(CsTeam)player.TeamNum] = true;
         CheckLiveRequired();
     }
-    // --- 優化後的倒數計時邏輯：解決伺服器崩潰問題 ---
+    // --- 進階優化版：去秒、分段顏色、結尾音效 ---
     public void StartMatchCountdown()
     {
-        // 1. 防止重複觸發：如果已經在倒數中，就直接跳出
+        // 1. 防止重複觸發
         if (matchStartCountdownTimer != null) return;
 
-        countdownRemaining = 10; // 設定倒數 10 秒
-        PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽將在 {countdownRemaining} 秒後開始...");
+        countdownRemaining = 10; 
+        PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
         // 2. 建立計時器
         matchStartCountdownTimer = AddTimer(1.0f, () => {
             if (countdownRemaining > 0)
             {
-                string color = countdownRemaining <= 3 ? $"{ChatColors.Red}" : $"{ChatColors.Orange}";
-                PrintToAllChat($"比賽開始倒數：{color}{countdownRemaining} 秒..."); 
+                // 顏色邏輯：10-6 秒綠色，5-1 秒紅色
+                string color = (countdownRemaining > 5) ? $"{ChatColors.Green}" : $"{ChatColors.Red}";
+                
+                // 顯示文字：去掉「秒」字
+                PrintToAllChat($"倒數：{color}{countdownRemaining}"); 
+
+                // 音效邏輯：最後 3 秒播放音效
+                if (countdownRemaining <= 3)
+                {
+                    // 執行伺服器指令播放音效給全體玩家
+                    Server.ExecuteCommand("play sounds/ui/beep02.wav");
+                }
+                
                 countdownRemaining--;
             }
             else
             {
-                // 3. 倒數結束：先清理計時器防止重複進入
+                // 3. 倒數結束：清理計時器並切換回主執行緒
                 matchStartCountdownTimer?.Kill();
                 matchStartCountdownTimer = null;
                 
-                // --- 核心修正：使用大寫 S 的 Server.NextFrame ---
-                // 這會將開賽邏輯排程到伺服器的下一個物理幀，確保線程安全
                 Server.NextFrame(() => {
-                    // 再次確保比賽狀態，防止極端情況下的重複開賽
                     if (matchStarted) return; 
 
-                    PrintToAllChat($"{ChatColors.Lime}比賽開始！祝各位好運！");
+                    PrintToAllChat($"{ChatColors.Lime}比賽正式開始！");
                     
-                    // 正式執行開賽邏輯
+                    // 正式執行開賽邏輯 (定義在 Utility.cs)
                     HandleMatchStart(); 
                 });
             }
-        }, TimerFlags.REPEAT); // 每秒跑一次
+        }, TimerFlags.REPEAT);
     }
 
-    // --- 中止倒數函數：供 .unready 或斷線時呼叫 ---
+    // --- 中止倒數函數 ---
     public void CancelMatchCountdown(string reason)
     {
         if (matchStartCountdownTimer != null)
         {
-            matchStartCountdownTimer.Kill(); //
-            matchStartCountdownTimer = null; //
+            matchStartCountdownTimer.Kill();
+            matchStartCountdownTimer = null;
             PrintToAllChat($"{ChatColors.Red}倒數中止：{reason}");
         }
     }
