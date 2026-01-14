@@ -15,7 +15,7 @@ namespace MatchZy
     [MinimumApiVersion(227)]
     public partial class MatchZy : BasePlugin
     {
-
+        
         public override string ModuleName => "MatchZy";
 
         public override string ModuleVersion => "0.8.15";
@@ -23,6 +23,8 @@ namespace MatchZy
         public override string ModuleAuthor => "WD- (https://github.com/shobhit-pathak/)";
 
         public override string ModuleDescription => "A plugin for running and managing CS2 practice/pugs/scrims/matches!";
+		public CounterStrikeSharp.API.Modules.Timers.Timer? matchStartCountdownTimer = null;
+        public int countdownRemaining = 10;
 
         public string chatPrefix = $"[{ChatColors.Green}MatchZy{ChatColors.Default}]";
         public string adminChatPrefix = $"[{ChatColors.Red}ADMIN{ChatColors.Default}]";
