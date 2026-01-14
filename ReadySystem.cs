@@ -10,7 +10,6 @@ namespace MatchZy
     public partial class MatchZy
     {
         // --- 核心宣告 ---
-        public bool isCountdownActive = false; // 解決「尚未出現」報錯
 
         public Dictionary<CsTeam, bool> teamReadyOverride = new() {
             {CsTeam.Terrorist, false},
