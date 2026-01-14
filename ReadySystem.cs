@@ -127,7 +127,7 @@ public void StartMatchCountdown()
     {
         if (matchStartCountdownTimer != null) return;
 
-        countdownRemaining = 10;
+        countdownRemaining = 5;
         PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
         matchStartCountdownTimer = AddTimer(1.0f, () => {
@@ -156,8 +156,8 @@ public void StartMatchCountdown()
                     matchStartCountdownTimer = null;
 
                     if (matchStarted) return;
-                    PrintToAllChat($"{ChatColors.Lime}比賽正式開始！");
-                    HandleMatchStart();
+                   // PrintToAllChat($"{ChatColors.Lime}比賽正式開始！");
+                   // HandleMatchStart();
                 }
             });
         }, TimerFlags.REPEAT);
