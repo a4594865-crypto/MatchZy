@@ -844,7 +844,7 @@ namespace MatchZy
         }
 
         // 請把原本的 isStartingProcess = false; 刪掉，改成下面這 4 行：
-        AddTimer(5.0f, () => { 
+       AddTimer(10.0f, () => { 
             isStartingProcess = false; 
             isCountdownRunning = false; 
         });
