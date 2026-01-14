@@ -144,15 +144,15 @@ public partial class MatchZy
                 matchStartCountdownTimer?.Kill();
                 matchStartCountdownTimer = null;
                 
-                // --- 核心修正：使用 Server.NextFrame 確保線程安全 ---
-                // 這會將開賽邏輯排程到伺服器的下一個物理幀，防止引擎當機
+                // --- 核心修正：使用大寫 S 的 Server.NextFrame ---
+                // 這會將開賽邏輯排程到伺服器的下一個物理幀，確保線程安全
                 Server.NextFrame(() => {
-                    // 再次確保比賽還沒真正開始
+                    // 再次確保比賽狀態，防止極端情況下的重複開賽
                     if (matchStarted) return; 
 
                     PrintToAllChat($"{ChatColors.Lime}比賽開始！祝各位好運！");
                     
-                    // 正式執行原本定義在 Utility.cs 裡的開賽邏輯
+                    // 正式執行開賽邏輯
                     HandleMatchStart(); 
                 });
             }
@@ -164,8 +164,8 @@ public partial class MatchZy
     {
         if (matchStartCountdownTimer != null)
         {
-            matchStartCountdownTimer.Kill();
-            matchStartCountdownTimer = null;
+            matchStartCountdownTimer.Kill(); //
+            matchStartCountdownTimer = null; //
             PrintToAllChat($"{ChatColors.Red}倒數中止：{reason}");
         }
     }
