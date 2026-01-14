@@ -429,12 +429,31 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
             RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
+                // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
+                var originalMessage = @event.Text.Trim();
+                var message = originalMessage.ToLower();
+
+                // 1. 如果有人輸入 .r 或 .ready
+                if (message == ".r" || message == ".ready") {
+                    // 預判：如果加上這個人就達到開賽門檻 (minimumReadyRequired)
+                    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
+                        // 提前鎖定開關，並隱藏這則訊息
+                        isCountdownActive = true; 
+                        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
+                        return HookResult.Handled; // 這是關鍵：讓 .r 指令消失，不噴在畫面上
+                    }
+                }
+
+                // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
+                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
+                    return HookResult.Handled;
+                }
+                // --- [第一步結束] ---
+
+                // 以下是您原本的所有代碼，保持完全不動
                 int currentVersion = Api.GetVersion();
                 int index = @event.Userid + 1;
                 var playerUserId = NativeAPI.GetUseridFromIndex(index);
-
-                var originalMessage = @event.Text.Trim();
-                var message = @event.Text.Trim().ToLower();
 
                 var parts = originalMessage.Split(' ');
                 var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
@@ -446,7 +465,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 }
 
                 if (player == null) {
-                    // Somehow we did not had the player in playerData, hence updating the maps again before getting the player
                     UpdatePlayersMap();
                     player = playerData[playerUserId];
                 }
@@ -456,19 +474,13 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     commandActions[message](player, null);
                 }
 
-               if (message.StartsWith(".map"))
+                if (message.StartsWith(".map"))
                 {
-                    // 核心判斷：如果是 JSON 載入的正式比賽
                     if (isMatchSetup)
                     {
-                        // 1. 全服廣播：讓所有人看到是誰嘗試換圖，並告知地圖已鎖定
                         Server.PrintToChatAll($"{chatPrefix} 玩家 {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
-                        
-                        // 2. 攔截指令：不執行後續的 HandleMapChangeCommand
                         return HookResult.Continue;
                     }
-
-                    // 如果不是 JSON 比賽，才執行原本的換圖/投票邏輯
                     HandleMapChangeCommand(player, messageCommandArg);
                 }
 
@@ -486,7 +498,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                         }
                         else
                         {
-                            // ReplyToUserCommand(player, "Usage: .asay <message>");
                             ReplyToUserCommand(player, Localizer["matchzy.cc.usage", ".asay <message>"]);
                         }
                     }
@@ -582,7 +593,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
                 return HookResult.Continue;
             });
-
             RegisterEventHandler<EventPlayerBlind>((@event, info) =>
             {
                 CCSPlayerController? player = @event.Userid;
