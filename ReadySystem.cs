@@ -3,142 +3,115 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
-using CounterStrikeSharp.API.Modules.Timers; // 加入這一行才能識別 TimerFlags
-namespace MatchZy;
+using CounterStrikeSharp.API.Modules.Timers; 
 
-public partial class MatchZy
-{
-    public Dictionary<CsTeam, bool> teamReadyOverride = new() {
-        {CsTeam.Terrorist, false},
-        {CsTeam.CounterTerrorist, false},
-        {CsTeam.Spectator, false}
-    };
-
-    public bool allowForceReady = true;
-
-    public bool IsTeamsReady()
-    {
-        return IsTeamReady((int)CsTeam.CounterTerrorist) && IsTeamReady((int)CsTeam.Terrorist);
-    }
-
-    public bool IsSpectatorsReady()
-    {
-        return IsTeamReady((int)CsTeam.Spectator);
-    }
-
-    public bool IsTeamReady(int team)
-    {
-        // if (matchStarted) return true;
-
-        int minPlayers = GetPlayersPerTeam(team);
-        int minReady = GetTeamMinReady(team);
-        (int playerCount, int readyCount) = GetTeamPlayerCount(team, false);
-
-        Log($"[IsTeamReady] team: {team} minPlayers:{minPlayers} minReady:{minReady} playerCount:{playerCount} readyCount:{readyCount}");
-
-        if (team == (int)CsTeam.Spectator && minReady == 0)
-        {
-            return true;
-        }
-
-        if (readyAvailable && playerCount == 0)
-        {
-            // We cannot ready for veto with no players, regardless of force status or min_players_to_ready.
-            return false;
-        }
-
-        if (playerCount == readyCount && playerCount >= minPlayers)
-        {
-            return true;
-        }
-
-        if (IsTeamForcedReady((CsTeam)team) && readyCount >= minReady)
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    public int GetPlayersPerTeam(int team)
-    {
-        if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.PlayersPerTeam;
-        if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
-        return 0;
-    }
-
-    public int GetTeamMinReady(int team)
-    {
-        if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.MinPlayersToReady;
-        if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
-        return 0;
-    }
-
-    public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
-    {
-        int playerCount = 0;
-        int readyCount = 0;
-        foreach (var key in playerData.Keys)
-        {
-            if (!playerData[key].IsValid) continue;
-            if (playerData[key].TeamNum == team) {
-                playerCount++;
-                if (playerReadyStatus[key] == true) readyCount++;
-            }
-        }
-        return (playerCount, readyCount);
-    }
-
-    public bool IsTeamForcedReady(CsTeam team) {
-        return teamReadyOverride[team];
-    }
-
-    [ConsoleCommand("css_forceready", "Force-readies the team")]
-    public void OnForceReadyCommandCommand(CCSPlayerController? player, CommandInfo? command)
-    {
-        Log($"{readyAvailable} {isMatchSetup} {allowForceReady} {IsPlayerValid(player)}");
-        if (!readyAvailable || !isMatchSetup || !allowForceReady || !IsPlayerValid(player)) return;
-
-        int minReady = GetTeamMinReady(player!.TeamNum);
-        (int playerCount, int readyCount) = GetTeamPlayerCount(player!.TeamNum, false);
-
-        if (playerCount < minReady) 
-        {
-            // ReplyToUserCommand(player, $"You must have at least {minReady} player(s) on the server to ready up.");
-            ReplyToUserCommand(player, Localizer["matchzy.rs.minreadyplayers", minReady]);
-            return;
-        }
-
-        foreach (var key in playerData.Keys)
-        {
-            if (!playerData[key].IsValid) continue;
-            if (playerData[key].TeamNum == player.TeamNum) {
-                playerReadyStatus[key] = true;
-                // ReplyToUserCommand(playerData[key], $"Your team was force-readied by {player.PlayerName}");
-                ReplyToUserCommand(playerData[key], Localizer["matchzy.rs.forcereadiedby", player.PlayerName]);
-            }
-        }
-
-        teamReadyOverride[(CsTeam)player.TeamNum] = true;
-        CheckLiveRequired();
-    }
-
-    
 namespace MatchZy
 {
     public partial class MatchZy
     {
-        // 【第一步】在這裡宣告開關，就不會再報錯「語境中尚未出現」了
-        public bool isCountdownActive = false; 
+        // --- 核心宣告 ---
+        public bool isCountdownActive = false; // 解決「尚未出現」報錯
 
-        // --- 7 秒倒數功能：倒數時封鎖所有其他訊息 ---
+        public Dictionary<CsTeam, bool> teamReadyOverride = new() {
+            {CsTeam.Terrorist, false},
+            {CsTeam.CounterTerrorist, false},
+            {CsTeam.Spectator, false}
+        };
+
+        public bool allowForceReady = true;
+
+        public bool IsTeamsReady()
+        {
+            return IsTeamReady((int)CsTeam.CounterTerrorist) && IsTeamReady((int)CsTeam.Terrorist);
+        }
+
+        public bool IsSpectatorsReady()
+        {
+            return IsTeamReady((int)CsTeam.Spectator);
+        }
+
+        public bool IsTeamReady(int team)
+        {
+            int minPlayers = GetPlayersPerTeam(team);
+            int minReady = GetTeamMinReady(team);
+            (int playerCount, int readyCount) = GetTeamPlayerCount(team, false);
+
+            if (team == (int)CsTeam.Spectator && minReady == 0) return true;
+            if (readyAvailable && playerCount == 0) return false;
+
+            if (playerCount == readyCount && playerCount >= minPlayers) return true;
+
+            if (IsTeamForcedReady((CsTeam)team) && readyCount >= minReady) return true;
+
+            return false;
+        }
+
+        public int GetPlayersPerTeam(int team)
+        {
+            if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.PlayersPerTeam;
+            if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
+            return 0;
+        }
+
+        public int GetTeamMinReady(int team)
+        {
+            if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.MinPlayersToReady;
+            if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
+            return 0;
+        }
+
+        public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
+        {
+            int playerCount = 0;
+            int readyCount = 0;
+            foreach (var key in playerData.Keys)
+            {
+                if (!playerData[key].IsValid) continue;
+                if (playerData[key].TeamNum == team) {
+                    playerCount++;
+                    if (playerReadyStatus[key] == true) readyCount++;
+                }
+            }
+            return (playerCount, readyCount);
+        }
+
+        public bool IsTeamForcedReady(CsTeam team) {
+            return teamReadyOverride[team];
+        }
+
+        [ConsoleCommand("css_forceready", "Force-readies the team")]
+        public void OnForceReadyCommandCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (!readyAvailable || !isMatchSetup || !allowForceReady || !IsPlayerValid(player)) return;
+
+            int minReady = GetTeamMinReady(player!.TeamNum);
+            (int playerCount, int readyCount) = GetTeamPlayerCount(player!.TeamNum, false);
+
+            if (playerCount < minReady) 
+            {
+                ReplyToUserCommand(player, Localizer["matchzy.rs.minreadyplayers", minReady]);
+                return;
+            }
+
+            foreach (var key in playerData.Keys)
+            {
+                if (!playerData[key].IsValid) continue;
+                if (playerData[key].TeamNum == player.TeamNum) {
+                    playerReadyStatus[key] = true;
+                    ReplyToUserCommand(playerData[key], Localizer["matchzy.rs.forcereadiedby", player.PlayerName]);
+                }
+            }
+
+            teamReadyOverride[(CsTeam)player.TeamNum] = true;
+            CheckLiveRequired();
+        }
+
+        // --- 7 秒倒數與攔截邏輯 ---
         public void StartMatchCountdown()
         {
             if (matchStartCountdownTimer != null) return;
 
-            // 【核心邏輯】倒數開始，把靜音開關打開
             isCountdownActive = true; 
-
             countdownRemaining = 7; 
             PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
 
@@ -162,8 +135,6 @@ namespace MatchZy
                     {
                         matchStartCountdownTimer?.Kill();
                         matchStartCountdownTimer = null;
-
-                        // 【核心邏輯】倒數結束，把靜音開關關掉，恢復訊息
                         isCountdownActive = false; 
 
                         if (matchStarted) return;
@@ -179,27 +150,20 @@ namespace MatchZy
             {
                 matchStartCountdownTimer.Kill();
                 matchStartCountdownTimer = null;
-
-                // 【核心邏輯】中止時立刻恢復訊息發送，確保能看到中止原因
                 isCountdownActive = false; 
-
                 PrintToAllChat($"{ChatColors.Red}倒數中止：{reason}");
             }
         }
 
-        // --- 攔截點：確保語言檔訊息不發出 ---
-        // 請確保您插件中印出「未準備玩家」的函數包含這一行判斷
         public void PrintUnreadyPlayers()
         {
-            // 如果開關是啟動狀態（倒數中），直接跳出，一行字都不印
             if (isCountdownActive) return; 
 
             int readyCount = GetReadyPlayersCount();
             if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
             {
-                // 調用您的語言檔標籤
                 PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
             }
-          }
-      }
-
+        }
+    } // MatchZy Class 結束
+} // Namespace 結束
