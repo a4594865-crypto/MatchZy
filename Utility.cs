@@ -685,7 +685,8 @@ namespace MatchZy
 
         private void CheckLiveRequired()
         {
-            if (!readyAvailable || matchStarted || isCountdownRunning) return;
+            // 如果正在倒數、正在開賽或比賽已 Live，則直接攔截不執行
+            if (!readyAvailable || matchStarted || isCountdownRunning || isStartingProcess) return;
 
             int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true);
             bool liveRequired = false;
@@ -715,17 +716,17 @@ namespace MatchZy
 
         private void HandleMatchStart()
         {
-            // --- 核心修正：防止重複觸發與日誌刷屏 ---
-            if (isCountdownRunning || matchStarted || isMatchLive) return;
+            // --- 核心鎖定：防止日誌無限產生 match_id ---
+            if (isCountdownRunning || isStartingProcess || matchStarted || isMatchLive) return;
 
             isCountdownRunning = true;
             int countdown = 10;
 
-            // 鎖定熱身計時器，防止刀局倒數搶跑
+            // 鎖定伺服器熱身計時器，防止刀局倒數搶跑
             Server.ExecuteCommand("mp_warmup_pausetimer 1");
             PrintToAllChat($"{ChatColors.Green}全體就緒！比賽將在 10 秒後開始...");
 
-            // 啟動逐秒計時器
+            // 啟動 10 秒逐秒倒數計時器
             AddTimer(1.0f, () => {
                 if (countdown > 0) {
                     // 5秒以下變紅字
@@ -738,26 +739,29 @@ namespace MatchZy
                     }
                     countdown--;
                 } else {
-                    // 倒數歸零動作
+                    // 倒數結束動作
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}GO! GO! GO! 比賽開始！");
                     foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot)) {
                         p.ExecuteClientCommand("play sounds/ui/match_ready.vsnd");
                     }
 
-                    // 解除熱身暫停，讓引擎正式進入開賽階段
+                    // 正式解鎖並結束熱身，讓刀局開始
                     Server.ExecuteCommand("mp_warmup_pausetimer 0; mp_warmuptime 0; mp_warmup_end;");
 
-                    // 執行初始化 (即原本 HandleMatchStart 的邏輯)
+                    // 呼叫初始化邏輯
                     FinishMatchInitialization();
 
-                    isCountdownRunning = false; // 流程結束，解鎖
+                    isCountdownRunning = false; 
                 }
             }, TimerFlags.REPEAT);
         }
 
-        // 這是原本 HandleMatchStart 內部的初始化邏輯，確保倒數完才執行
         private void FinishMatchInitialization()
         {
+            // 二次鎖定，防止此段落被 RoundStart 重複觸發
+            if (isStartingProcess) return;
+            isStartingProcess = true;
+
             isPractice = false;
             isDryRun = false;
             if (isRoundRestorePending)
@@ -765,10 +769,11 @@ namespace MatchZy
                 RestoreRoundBackup(null, pendingRestoreFileName);
                 isRoundRestorePending = false;
                 pendingRestoreFileName = "";
+                isStartingProcess = false;
                 return;
             }
 
-            // 隊伍名稱判定邏輯
+            // 隊伍名稱判定
             if (matchzyTeam1.teamName == "COUNTER-TERRORISTS")
             {
                 teamSides[matchzyTeam1] = "CT";
@@ -809,7 +814,7 @@ namespace MatchZy
             HandleClanTags();
 
             string seriesType = "BO" + matchConfig.NumMaps.ToString();
-            // 在此處才真正寫入資料庫，防止日誌無限產生 match_id
+            // 倒數結束才寫入資料庫，徹底解決日誌噴發 match_id 的問題
             liveMatchId = database.InitMatch(matchzyTeam1.teamName, matchzyTeam2.teamName, "-", isMatchSetup, liveMatchId, matchConfig.CurrentMapNumber, seriesType, matchConfig);
             SetupRoundBackupFile();
             GetSpawns();
@@ -823,17 +828,9 @@ namespace MatchZy
                 StartLive();
             }
 
-            if (showCreditsOnMatchStart.Value) {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}MatchZy{ChatColors.Default} Plugin by {ChatColors.Green}WD-{ChatColors.Default}");
-            }
-            if (matchStartMessage.Value.Trim() != "" && matchStartMessage.Value.Trim() != "\"\"") {
-                List<string> matchStartMessages = [.. matchStartMessage.Value.Split("$$$")];
-                foreach (string message in matchStartMessages) {
-                    PrintToAllChat(GetColorTreatedString(FormatCvarValue(message.Trim())));
-                }
-            }
+            // 延遲重置開賽鎖，確保伺服器穩定
+            AddTimer(2.0f, () => { isStartingProcess = false; });
         }
-
         public void HandleClanTags()
         {
             // Currently it is not possible to keep updating player tags while in warmup without restarting the match
