@@ -122,63 +122,84 @@ public partial class MatchZy
         teamReadyOverride[(CsTeam)player.TeamNum] = true;
         CheckLiveRequired();
     }
-   // --- 優化版：7 秒倒數，第 3 秒變紅 ---
-    public void StartMatchCountdown()
+
+    
+namespace MatchZy
+{
+    public partial class MatchZy
     {
-        // 1. 防止重複觸發
-        if (matchStartCountdownTimer != null) return;
+        // 【第一步】在這裡宣告開關，就不會再報錯「語境中尚未出現」了
+        public bool isCountdownActive = false; 
 
-        // 設定倒數秒數為 7
-        countdownRemaining = 7; 
-        PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
-
-        // 2. 建立每秒執行一次的計時器
-        matchStartCountdownTimer = AddTimer(1.0f, () => {
-            // 確保所有邏輯回到主執行緒執行
-            Server.NextFrame(() => {
-                if (countdownRemaining > 0)
-                {
-                    // 顏色邏輯：剩餘 3 秒或以下時變為紅色，其餘為綠色
-                    string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
-                    PrintToAllChat($"倒數：{color}{countdownRemaining}");
-
-                    // 音效邏輯：最後 3 秒播放揭曉音效
-                    if (countdownRemaining <= 3)
-                    {
-                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
-                        {
-                            p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
-                        }
-                    }
-                    
-                    countdownRemaining--;
-                }
-                else
-                {
-                    // 3. 倒數結束：清理計時器並啟動比賽
-                    matchStartCountdownTimer?.Kill();
-                    matchStartCountdownTimer = null;
-
-                    // 如果比賽因其他因素已經開始，則跳出
-                    if (matchStarted) return;
-
-                    // 執行開賽邏輯
-                    HandleMatchStart(); 
-                }
-            });
-        }, TimerFlags.REPEAT);
-    }
-
-    public void CancelMatchCountdown(string reason)
-    {
-        // 中止邏輯：清理計時器並發送通知
-        if (matchStartCountdownTimer != null)
+        // --- 7 秒倒數功能：倒數時封鎖所有其他訊息 ---
+        public void StartMatchCountdown()
         {
-            matchStartCountdownTimer.Kill();
-            matchStartCountdownTimer = null;
-            
-            // 僅發送中止原因，不呼叫不存在的函數以避免報錯
-            PrintToAllChat($"{ChatColors.Red}倒數中止：{reason}");
+            if (matchStartCountdownTimer != null) return;
+
+            // 【核心邏輯】倒數開始，把靜音開關打開
+            isCountdownActive = true; 
+
+            countdownRemaining = 7; 
+            PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！比賽即將開始...");
+
+            matchStartCountdownTimer = AddTimer(1.0f, () => {
+                Server.NextFrame(() => {
+                    if (countdownRemaining > 0)
+                    {
+                        string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
+                        PrintToAllChat($"倒數：{color}{countdownRemaining}");
+
+                        if (countdownRemaining <= 3)
+                        {
+                            foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                            {
+                                p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
+                            }
+                        }
+                        countdownRemaining--;
+                    }
+                    else
+                    {
+                        matchStartCountdownTimer?.Kill();
+                        matchStartCountdownTimer = null;
+
+                        // 【核心邏輯】倒數結束，把靜音開關關掉，恢復訊息
+                        isCountdownActive = false; 
+
+                        if (matchStarted) return;
+                        HandleMatchStart(); 
+                    }
+                });
+            }, TimerFlags.REPEAT);
+        }
+
+        public void CancelMatchCountdown(string reason)
+        {
+            if (matchStartCountdownTimer != null)
+            {
+                matchStartCountdownTimer.Kill();
+                matchStartCountdownTimer = null;
+
+                // 【核心邏輯】中止時立刻恢復訊息發送，確保能看到中止原因
+                isCountdownActive = false; 
+
+                PrintToAllChat($"{ChatColors.Red}倒數中止：{reason}");
+            }
+        }
+
+        // --- 攔截點：確保語言檔訊息不發出 ---
+        // 請確保您插件中印出「未準備玩家」的函數包含這一行判斷
+        public void PrintUnreadyPlayers()
+        {
+            // 如果開關是啟動狀態（倒數中），直接跳出，一行字都不印
+            if (isCountdownActive) return; 
+
+            int readyCount = GetReadyPlayersCount();
+            if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
+            {
+                // 調用您的語言檔標籤
+                PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
+            }
         }
     }
 }
