@@ -169,25 +169,31 @@ namespace MatchZy
             }
         }
 
-        public void PrintUnreadyPlayers()
+       public void PrintUnreadyPlayers()
         {
-            // 只要開關開啟（正在倒數），以下三種訊息通通攔截不發送
+            // 只要在倒數，就攔截所有準備訊息
             if (isCountdownActive) return; 
 
             int readyCount = GetReadyPlayersCount();
 
-            // 1. 處理：最少需要 X 人 (minimumreadyplayers)
             if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
             {
                 PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
             }
-            // 2. 處理：未準備玩家名單 (unreadyplayers)
             else if (readyAvailable && !matchStarted)
             {
-                // 注意：這裡的 GetUnreadyPlayersList() 是 MatchZy 內建獲取名單的方法
-                PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", GetUnreadyPlayersList()]);
+                // 這裡我們手動過濾出未準備的玩家名字，組成字串
+                var unreadyPlayers = Utilities.GetPlayers()
+                    .Where(p => p.IsValid && !p.IsBot && p.TeamNum > 1 && !readyPlayers.Contains(p.SteamID))
+                    .Select(p => p.PlayerName);
+                
+                string unreadyList = string.Join(", ", unreadyPlayers);
+
+                if (!string.IsNullOrEmpty(unreadyList))
+                {
+                    PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyList]);
+                }
             }
-            // 3. 處理：當前已準備人數 (readyplayers)
             else if (!matchStarted)
             {
                 PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
