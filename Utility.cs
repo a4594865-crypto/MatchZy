@@ -249,38 +249,46 @@ namespace MatchZy
         }
 
         private void StartKnifeRound()
-        {
-            // Kills unready players message timer
-            if (unreadyPlayerMessageTimer != null)
-            {
-                unreadyPlayerMessageTimer.Kill();
-                unreadyPlayerMessageTimer = null;
-            }
+{
+    // Kills unready players message timer
+    if (unreadyPlayerMessageTimer != null)
+    {
+        unreadyPlayerMessageTimer.Kill();
+        unreadyPlayerMessageTimer = null;
+    }
 
-            // Setting match phases bools
-            matchStarted = true;
-            isKnifeRound = true;
-            readyAvailable = false;
-            isWarmup = false;
+    // --- 【關鍵修正：在此處主動洗牌】 ---
+    // 必須在 matchStarted 變為 true 且遊戲重啟前執行
+    if (isShufflePending) 
+    {
+        ExecuteShuffleLogic(); // 呼叫定義在 MatchZy.cs 的洗牌邏輯
+    }
 
-            var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath);
+    // Setting match phases bools
+    matchStarted = true;
+    isKnifeRound = true;
+    readyAvailable = false;
+    isWarmup = false;
 
-            if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
-            {
-                Log($"[StartKnifeRound] Starting Knife! Executing Knife CFG from {knifeCfgPath}");
-                Server.ExecuteCommand($"exec {knifeCfgPath}");
-                Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
-            }
-            else
-            {
-                Log($"[StartKnifeRound] Starting Knife! Knife CFG not found in {absolutePath}, using default CFG!");
-                Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;mp_restartgame 1;mp_warmup_end;");
-            }
+    var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath);
 
-           PrintToAllChat($"{ChatColors.Green}======================");
-           PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★{ChatColors.Default}");
-           PrintToAllChat($"{ChatColors.Green}======================");
-        }
+    if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
+    {
+        Log($"[StartKnifeRound] Starting Knife! Executing Knife CFG from {knifeCfgPath}");
+        Server.ExecuteCommand($"exec {knifeCfgPath}");
+        // 先換好隊伍再重啟，玩家才會以新隊伍身分出生
+        Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
+    }
+    else
+    {
+        Log($"[StartKnifeRound] Starting Knife! Knife CFG not found in {absolutePath}, using default CFG!");
+        Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;mp_restartgame 1;mp_warmup_end;");
+    }
+
+    PrintToAllChat($"{ChatColors.Green}======================");
+    PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★{ChatColors.Default}");
+    PrintToAllChat($"{ChatColors.Green}======================");
+}
 
         private void SendSideSelectionMessage()
         {
