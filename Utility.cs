@@ -250,46 +250,46 @@ namespace MatchZy
 
         private void StartKnifeRound()
 {
-    // Kills unready players message timer
+    // 1. 先殺掉準備提示計時器 (與原邏輯一致)
     if (unreadyPlayerMessageTimer != null)
     {
         unreadyPlayerMessageTimer.Kill();
         unreadyPlayerMessageTimer = null;
     }
 
-    // --- 【關鍵修正：在此處主動洗牌】 ---
-    // 必須在 matchStarted 變為 true 且遊戲重啟前執行
+    // 2. 【核心隔離：在狀態變更前洗牌】
+    // 此時 isCountdownActive 應剛結束或被設為 false，洗牌換隊不會觸發「倒數中止」邏輯
     if (isShufflePending) 
     {
-        ExecuteShuffleLogic(); // 呼叫定義在 MatchZy.cs 的洗牌邏輯
+        ExecuteShuffleLogic(); 
     }
 
-    // Setting match phases bools
+    // 3. 設定比賽階段 (與原邏輯一致)
     matchStarted = true;
     isKnifeRound = true;
     readyAvailable = false;
     isWarmup = false;
 
+    // 4. 根據 CFG 存在與否執行指令
     var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath);
-
     if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
     {
         Log($"[StartKnifeRound] Starting Knife! Executing Knife CFG from {knifeCfgPath}");
         Server.ExecuteCommand($"exec {knifeCfgPath}");
-        // 先換好隊伍再重啟，玩家才會以新隊伍身分出生
-        Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
     }
     else
     {
-        Log($"[StartKnifeRound] Starting Knife! Knife CFG not found in {absolutePath}, using default CFG!");
-        Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;mp_restartgame 1;mp_warmup_end;");
+        Log($"[StartKnifeRound] Starting Knife! Knife CFG not found, using default CFG!");
+        Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
     }
+
+    // 5. 【關鍵執行】最後才讓伺服器重啟，確保換隊指令已經先被伺服器受理
+    Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
 
     PrintToAllChat($"{ChatColors.Green}======================");
     PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★{ChatColors.Default}");
     PrintToAllChat($"{ChatColors.Green}======================");
 }
-
         private void SendSideSelectionMessage()
         {
             if (!isSideSelectionPhase) return;
