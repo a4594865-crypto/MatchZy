@@ -639,13 +639,7 @@ if (message == ".r" || message == ".ready") {
             RegisterEventHandler<EventHegrenadeDetonate>(EventHegrenadeDetonateHandler);
             RegisterEventHandler<EventMolotovDetonate>(EventMolotovDetonateHandler);
             RegisterEventHandler<EventDecoyStarted>(EventDecoyDetonateHandler);
-            // ===  A 方案觸發器 ===
-            RegisterEventHandler<EventWarmupEnd>((@event, info) =>
-            {
-                // 當熱身倒數歸零、系統宣告熱身結束時，執行洗牌
-                ExecuteShuffleLogic();
-                return HookResult.Continue;
-            });
+            
             // ============================
             Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/)");
         } // 結束 Load 函數
