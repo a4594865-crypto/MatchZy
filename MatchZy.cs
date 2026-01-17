@@ -690,30 +690,55 @@ if (message == ".r" || message == ".ready") {
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 隨機隊伍分配 」。將維持目前隊伍開賽。");
         }
 
-        public void ExecuteShuffleLogic() {
-            if (!isShufflePending) return;
-            List<CCSPlayerController> activePlayers = new();
-            foreach (var player in Utilities.GetPlayers()) {
-                if (player.IsValid && !player.IsBot && (player.TeamNum == 2 || player.TeamNum == 3)) {
-                    activePlayers.Add(player);
-                }
-            }
-            if (activePlayers.Count < 2) return;
-            Random rng = new();
-            int n = activePlayers.Count;
-            while (n > 1) {
-                n--;
-                int k = rng.Next(n + 1);
-                (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
-            }
-            int half = activePlayers.Count / 2;
-            for (int i = 0; i < activePlayers.Count; i++) {
-                if (i < half) activePlayers[i].ChangeTeam(CsTeam.Terrorist);
-                else activePlayers[i].ChangeTeam(CsTeam.CounterTerrorist);
-            }
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨機分隊完成！隊伍已鎖定。");
-            isShufflePending = false; 
-        } 
+        public void ExecuteShuffleLogic() 
+{
+    // 1. 安全檢查：如果沒有預約洗牌，則直接跳出
+    if (!isShufflePending) return;
+
+    // 2. 獲取當前所有在場上的選手（排除機器人與觀戰者）
+    List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
+        .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+        .ToList();
+
+    // 3. 人數檢查：至少需要 2 人才能洗牌
+    if (activePlayers.Count < 2) 
+    {
+        Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
+        isShufflePending = false; // 失敗也要重置標記，避免狀態殘留
+        return;
+    }
+
+    // 4. Fisher-Yates 洗牌演算法
+    Random rng = new();
+    int n = activePlayers.Count;
+    while (n > 1) 
+    {
+        n--;
+        int k = rng.Next(n + 1);
+        (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
+    }
+
+    // 5. 分配隊伍
+    int half = activePlayers.Count / 2;
+    for (int i = 0; i < activePlayers.Count; i++) 
+    {
+        // 為了確保 ChangeTeam 成功，建議在下一幀或立即執行時確保狀態一致
+        if (i < half) 
+        {
+            activePlayers[i].ChangeTeam(CsTeam.Terrorist);
+        }
+        else 
+        {
+            activePlayers[i].ChangeTeam(CsTeam.CounterTerrorist);
+        }
+    }
+
+    // 6. 輸出訊息與重置標記
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨機分隊完成！隊伍已鎖定。");
+    Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
+    
+    isShufflePending = false;
+}
 
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
