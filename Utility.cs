@@ -153,48 +153,53 @@ namespace MatchZy
         }
 
         private void SendUnreadyPlayersMessage()
+{
+    if (!isWarmup || matchStarted) return;
+    List<string> unreadyPlayers = new();
+
+    foreach (var key in playerReadyStatus.Keys)
+    {
+        // --- 核心修正處 ---
+        // 1. 確保 Key 還在 playerReadyStatus (防止迴圈中途變動)
+        // 2. 確保玩家狀態是 false (未準備)
+        // 3. 確保 playerData 裡真的有這個玩家 (解決 KeyNotFoundException)
+        if (playerReadyStatus.ContainsKey(key) && 
+            playerReadyStatus[key] == false && 
+            playerData.ContainsKey(key))
         {
-            if (!isWarmup || matchStarted) return;
-            List<string> unreadyPlayers = new();
-
-            foreach (var key in playerReadyStatus.Keys)
-            {
-                if (playerReadyStatus[key] == false)
-                {
-                    unreadyPlayers.Add(playerData[key].PlayerName);
-                }
-            }
-            if (unreadyPlayers.Count > 0)
-            {
-                string unreadyPlayerList = string.Join(", ", unreadyPlayers);
-                string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Minimum ready players required: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}]";
-
-                // Server.PrintToChatAll($"{chatPrefix} Unready players: {unreadyPlayerList}. Please type .ready to ready up! {minimumReadyRequiredMessage}");
-                if (isRoundRestorePending)
-                {
-                    PrintToAllChat(Localizer["matchzy.ready.readytotestorebackupinfomessage", unreadyPlayerList, minimumReadyRequiredMessage]);
-                }
-                else
-                {
-                    PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyPlayerList, minimumReadyRequiredMessage]);
-                }
-            }
-            else
-            {
-                int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true);
-                if (isMatchSetup)
-                {
-                    // Server.PrintToChatAll($"{chatPrefix} Current ready players: {ChatColors.Green}{countOfReadyPlayers}{ChatColors.Default}");
-                    PrintToAllChat(Localizer["matchzy.utility.readyplayers", countOfReadyPlayers]);
-                }
-                else
-                {
-                    // Server.PrintToChatAll($"{chatPrefix} Minimum ready players required {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}, current ready players: {ChatColors.Green}{countOfReadyPlayers}{ChatColors.Default}");
-                    PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, countOfReadyPlayers]);
-                }
-            }
+            unreadyPlayers.Add(playerData[key].PlayerName);
         }
+    }
 
+    if (unreadyPlayers.Count > 0)
+    {
+        string unreadyPlayerList = string.Join(", ", unreadyPlayers);
+        string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Minimum ready players required: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}]";
+
+        if (isRoundRestorePending)
+        {
+            PrintToAllChat(Localizer["matchzy.ready.readytotestorebackupinfomessage", unreadyPlayerList, minimumReadyRequiredMessage]);
+        }
+        else
+        {
+            PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyPlayerList, minimumReadyRequiredMessage]);
+        }
+    }
+    else
+    {
+        // 這裡同樣建議加入安全過濾，確保統計已準備人數時不會因為斷線玩家出錯
+        int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true && playerData.ContainsKey(kv.Key));
+        
+        if (isMatchSetup)
+        {
+            PrintToAllChat(Localizer["matchzy.utility.readyplayers", countOfReadyPlayers]);
+        }
+        else
+        {
+            PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, countOfReadyPlayers]);
+        }
+    }
+}
         private void SendPausedStateMessage()
         {
             if (isPaused && matchStarted)
