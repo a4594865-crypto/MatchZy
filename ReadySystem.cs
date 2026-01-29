@@ -111,7 +111,7 @@ namespace MatchZy
             if (matchStartCountdownTimer != null) return;
 
             isCountdownActive = true; 
-            countdownRemaining = 10; // 設定為 5 秒
+            countdownRemaining = 7; // 設定為 5 秒
 
             // 已拿掉：PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！...");
 
@@ -120,7 +120,7 @@ namespace MatchZy
                     if (countdownRemaining > 0)
                     {
                         // 顏色邏輯：3, 2, 1 秒顯示紅色，5, 4 秒顯示綠色
-                        string color = (countdownRemaining <= 5) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
+                        string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                         
                         // 這裡噴出的訊息包含「倒數：」，所以會穿過 MatchZy.cs 與 Utility.cs 的防火牆
                         PrintToAllChat($"倒數：{color}{countdownRemaining}");
