@@ -448,15 +448,17 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
                 // 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
-    // 判斷是否為最後一個準備的人
+    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // ---【核心關鍵：順序對調】---
-        // 必須先將開關設為 true，這樣接下來 OnPlayerReady 觸發的所有系統訊息都會被靜音
-        isCountdownActive = true; 
-        
-        // 然後才執行準備邏輯
+        // 1. 先執行準備邏輯（這會發出「目前 9/10，還差 1 人」的訊息）
+        // 此時 isCountdownActive 還是 false，所以廣播能發出來！
         OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
+        
+        // 2. 稍微延遲 0.2 秒再開啟靜音開關，這樣才不會擋到上面的廣播
+        AddTimer(0.2f, () => {
+            isCountdownActive = true; 
+        });
         
         // 隱藏玩家輸入的 .r
         return HookResult.Handled; 
