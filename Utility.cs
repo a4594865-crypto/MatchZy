@@ -153,53 +153,59 @@ namespace MatchZy
         }
 
         private void SendUnreadyPlayersMessage()
-{
-    if (!isWarmup || matchStarted) return;
-    List<string> unreadyPlayers = new();
+        {
+            if (!isWarmup || matchStarted) return;
+            List<string> unreadyPlayers = new();
 
-    foreach (var key in playerReadyStatus.Keys)
-    {
-        // --- 核心修正處 ---
-        // 1. 確保 Key 還在 playerReadyStatus (防止迴圈中途變動)
-        // 2. 確保玩家狀態是 false (未準備)
-        // 3. 確保 playerData 裡真的有這個玩家 (解決 KeyNotFoundException)
-        if (playerReadyStatus.ContainsKey(key) && 
-            playerReadyStatus[key] == false && 
-            playerData.ContainsKey(key))
-        {
-            unreadyPlayers.Add(playerData[key].PlayerName);
-        }
-    }
+            // 1. 使用 ToList() 鎖定 Key 列表，防止在 10 人換圖或斷線瞬間，名單變動導致循環崩潰
+            foreach (var key in playerReadyStatus.Keys.ToList())
+            {
+                // 2. 核心修正：
+                // A. 確保 key 還在 Ready 狀態名單中
+                // B. 確保玩家狀態是未準備 (false)
+                // C. 確保 playerData 裡有這個 ID
+                // D. 【最重要】確保玩家實體 (Handle) 沒指向 null (透過 IsPlayerValid)
+                if (playerReadyStatus.ContainsKey(key) && 
+                    playerReadyStatus[key] == false && 
+                    playerData.ContainsKey(key) &&
+                    IsPlayerValid(playerData[key])) 
+                {
+                    unreadyPlayers.Add(playerData[key].PlayerName);
+                }
+            }
 
-    if (unreadyPlayers.Count > 0)
-    {
-        string unreadyPlayerList = string.Join(", ", unreadyPlayers);
-        string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Minimum ready players required: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}]";
+            if (unreadyPlayers.Count > 0)
+            {
+                string unreadyPlayerList = string.Join(", ", unreadyPlayers);
+                string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Minimum ready players required: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}]";
 
-        if (isRoundRestorePending)
-        {
-            PrintToAllChat(Localizer["matchzy.ready.readytotestorebackupinfomessage", unreadyPlayerList, minimumReadyRequiredMessage]);
+                if (isRoundRestorePending)
+                {
+                    PrintToAllChat(Localizer["matchzy.ready.readytotestorebackupinfomessage", unreadyPlayerList, minimumReadyRequiredMessage]);
+                }
+                else
+                {
+                    PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyPlayerList, minimumReadyRequiredMessage]);
+                }
+            }
+            else
+            {
+                // 這裡也加入安全過濾，確保統計已準備人數時不會因為「幽靈玩家」而出錯
+                int countOfReadyPlayers = playerReadyStatus.Count(kv => 
+                    kv.Value == true && 
+                    playerData.ContainsKey(kv.Key) && 
+                    IsPlayerValid(playerData[kv.Key])); 
+                
+                if (isMatchSetup)
+                {
+                    PrintToAllChat(Localizer["matchzy.utility.readyplayers", countOfReadyPlayers]);
+                }
+                else
+                {
+                    PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, countOfReadyPlayers]);
+                }
+            }
         }
-        else
-        {
-            PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyPlayerList, minimumReadyRequiredMessage]);
-        }
-    }
-    else
-    {
-        // 這裡同樣建議加入安全過濾，確保統計已準備人數時不會因為斷線玩家出錯
-        int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true && playerData.ContainsKey(kv.Key));
-        
-        if (isMatchSetup)
-        {
-            PrintToAllChat(Localizer["matchzy.utility.readyplayers", countOfReadyPlayers]);
-        }
-        else
-        {
-            PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, countOfReadyPlayers]);
-        }
-    }
-}
         private void SendPausedStateMessage()
         {
             if (isPaused && matchStarted)
