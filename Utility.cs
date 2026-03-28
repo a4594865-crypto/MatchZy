@@ -874,21 +874,21 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // --- [ T W ] 核心修正：解決 10 人換圖閃退，強行鎖定 40 秒選圖時間 ---
-            // 1. 強制設定所需的延遲秒數，不受 tv_delay 0 或 .cfg 覆蓋影響
-            int requiredDelay = 40; 
+            // --- [ T W ] 核心修正：解決 10 人換圖閃退，強行鎖定 45 秒選圖時間 ---
+            // 1. 強制設定為 45 秒，確保 I/O 寫入有極其充足的時間，且不受 tv_delay 0 影響
+            int requiredDelay = 45; 
             var restartDelayCvar = ConVar.Find("mp_match_restart_delay");
             if (restartDelayCvar != null)
             {
                 restartDelayCvar.SetValue(requiredDelay);
-                Log($"[HandleMatchEnd] 已強行鎖定賽後延遲為 {requiredDelay} 秒。");
+                Log($"[HandleMatchEnd] 已強行鎖定賽後延遲為 {requiredDelay} 秒，保障換圖穩定。");
             }
             
             int restartDelay = requiredDelay;
             int currentMapNumber = matchConfig.CurrentMapNumber;
             
-            // 2. 整合 StopTV 插件的功能：在 40 秒倒數期間，「安全」地停止錄影
-            // 我們不在 0.1 秒執行，而是給予 5 秒緩衝，預防 CHLTVServer 瞬時撞車
+            // 2. 整合 StopTV 功能：在 45 秒倒數初期（第 5 秒）即停止錄影
+            // 這樣在第 45 秒正式換圖前，系統有整整 40 秒可以安靜寫入 Demo 檔案
             if (isDemoRecording) 
             {
                 Log($"[HandleMatchEnd] 偵測到錄影進行中，將於 5 秒後執行安全停止程序...");
@@ -951,7 +951,6 @@ namespace MatchZy
                 return;
             }
 
-            // --- 倒數廣播邏輯 ---
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
@@ -967,7 +966,7 @@ namespace MatchZy
             if (isPaused) UnpauseMatch();
             KillPhaseTimers();
 
-            // 確保插件換圖動作發生在 40 秒結束前 4 秒，提供最後轉場緩衝
+            // 在第 41 秒 (45-4) 執行插件換圖邏輯，留最後 4 秒給地圖引擎載入
             AddTimer(restartDelay - 4, () =>
             {
                 if (!isMatchSetup) return;
@@ -979,7 +978,6 @@ namespace MatchZy
                 StartWarmup();
             });
         }
-
         private void ChangeMap(string mapName, float delay)
         {
             Log($"[ChangeMap] Changing map to {mapName} with delay {delay}");
