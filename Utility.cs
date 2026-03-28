@@ -874,8 +874,8 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // --- [ T W ] 終極穩定方案：50秒選圖 + 安全停錄 + 全員踢出 ---
-            // 1. 強行鎖定 UI 倒數為 50 秒，不受 tv_delay 0 影響，確保環境有充足時間清理
+            // --- [ T W ] 終極穩定方案：50秒 UI、5秒停錄、3次預告、46秒全踢、3秒緩衝 ---
+            // 1. 強行鎖定 UI 倒數為 50 秒，不受 tv_delay 0 影響
             int requiredDelay = 50; 
             var restartDelayCvar = ConVar.Find("mp_match_restart_delay");
             if (restartDelayCvar != null)
@@ -887,14 +887,14 @@ namespace MatchZy
             int restartDelay = requiredDelay;
             int currentMapNumber = matchConfig.CurrentMapNumber;
             
-            // 2. 賽後第 5 秒安全停止錄影：避開結算瞬間的 CPU 尖峰，並給予硬碟充分時間寫入
+            // 2. 賽後第 5 秒安全停止錄影 (避開 I/O 尖峰)
             if (isDemoRecording) 
             {
-                Log($"[HandleMatchEnd] 偵測到錄影進行中，將於 5 秒後執行安全停止程序...");
+                Log($"[HandleMatchEnd] 偵測到錄影中，將於 5 秒後執行安全停止程序...");
                 StopDemoRecording(5.0f, activeDemoFile, liveMatchId, currentMapNumber); 
             }
 
-            // 獲取勝方資訊與存檔
+            // 獲取勝方資訊與戰績存檔 (保持 MatchZy 原有內容)
             string winnerName = GetMatchWinnerName();
             (int t1score, int t2score) = GetTeamsScore();
             int team1SeriesScore = matchzyTeam1.seriesScore;
@@ -926,38 +926,38 @@ namespace MatchZy
 
             matchConfig.CurrentMapNumber += 1;
             string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
-
             if (isPaused) UnpauseMatch();
             KillPhaseTimers();
 
-            // 3. 【溫馨預告】在第 40 秒通知玩家即將更換地圖
-            AddTimer(40.0f, () => {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 ＣＳ 同 學 會 】為了確保換圖穩定，6 秒後將自動斷線，請稍後重連！");
-            });
+            // 3. 【 3 次紅字預告】分別在第 40, 42, 44 秒噴出通知
+            for (int msgTime = 40; msgTime <= 44; msgTime += 2) 
+            {
+                AddTimer((float)msgTime, () => {
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 ＣＳ 同 學 會 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！");
+                });
+            }
 
-            // 4. 【核心計時器】在第 46 秒執行「全踢」與「換圖」
-            AddTimer(restartDelay - 4, () =>
+            // 4. 【全踢與換圖邏輯】
+            AddTimer(46.0f, () =>
             {
                 if (!isMatchSetup) return;
 
-                Log("[HandleMatchEnd] 正在執行換圖前清空程序...");
+                Log("[HandleMatchEnd] 正在執行換圖前全踢程序...");
                 
-                // 遍歷所有玩家並踢出，玩家斷線時會看到自訂的中文原因
+                // 遍歷並踢出玩家
                 foreach (var player in Utilities.GetPlayers())
                 {
                     if (player != null && player.IsValid && !player.IsBot && !player.IsHLTV)
                     {
-                        // 執行踢人指令
-                        Server.ExecuteCommand($"kickid {player.UserId} \"【ＣＳ 同 學 會】換圖穩定程序：請在 5 秒後重新連線\"");
+                        Server.ExecuteCommand($"kickid {player.UserId} \"【 ＣＳ 同 學 會 】換圖穩定程序：請在 5 秒後重新連線\"");
                     }
                 }
 
-                // 留 1 秒緩衝讓系統處理連線中斷，隨後執行玩家選出的下一張圖
-                AddTimer(1.0f, () => {
-                    Log($"[HandleMatchEnd] 正在切換至下一張地圖: {nextMap}");
-                    ChangeMap(nextMap, 2.0f);
+                // 5. 【 3 秒深度緩衝】讓網路與記憶體徹底釋放
+                AddTimer(3.0f, () => {
+                    Log($"[HandleMatchEnd] 環境清空完成，正在切換地圖至: {nextMap}");
+                    ChangeMap(nextMap, 1.0f); // 總計約在第 50 秒正式啟動載入
                     
-                    // 重置 MatchZy 狀態
                     matchStarted = false;
                     readyAvailable = true;
                     isPaused = false;
