@@ -874,24 +874,23 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // --- [ T W ] 核心修正：解決 10 人換圖閃退，強行鎖定 45 秒選圖時間 ---
-            // 1. 強制設定為 45 秒，確保 I/O 寫入有極其充足的時間，且不受 tv_delay 0 影響
-            int requiredDelay = 45; 
+            // --- [ T W ] 終極修正：鎖定 50 秒選圖時間，徹底解決 10 人滿員換圖閃退 ---
+            // 1. 強制設定為 50 秒，不受 tv_delay 0 影響，給予 i7-13700 最寬裕的緩衝
+            int requiredDelay = 50; 
             var restartDelayCvar = ConVar.Find("mp_match_restart_delay");
             if (restartDelayCvar != null)
             {
                 restartDelayCvar.SetValue(requiredDelay);
-                Log($"[HandleMatchEnd] 已強行鎖定賽後延遲為 {requiredDelay} 秒，保障換圖穩定。");
+                Log($"[HandleMatchEnd] 已強行鎖定賽後延遲為 {requiredDelay} 秒，確保多服環境穩定。");
             }
             
             int restartDelay = requiredDelay;
             int currentMapNumber = matchConfig.CurrentMapNumber;
             
-            // 2. 整合 StopTV 功能：在 45 秒倒數初期（第 5 秒）即停止錄影
-            // 這樣在第 45 秒正式換圖前，系統有整整 40 秒可以安靜寫入 Demo 檔案
+            // 2. 賽後第 5 秒安全停止錄影
             if (isDemoRecording) 
             {
-                Log($"[HandleMatchEnd] 偵測到錄影進行中，將於 5 秒後執行安全停止程序...");
+                Log($"[HandleMatchEnd] 偵測到錄影中，將於 5 秒後執行停止程序...");
                 StopDemoRecording(5.0f, activeDemoFile, liveMatchId, currentMapNumber); 
             }
             // --- 修正結束 ---
@@ -951,6 +950,7 @@ namespace MatchZy
                 return;
             }
 
+            // 倒數提醒與下一張地圖設定
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
@@ -966,7 +966,7 @@ namespace MatchZy
             if (isPaused) UnpauseMatch();
             KillPhaseTimers();
 
-            // 在第 41 秒 (45-4) 執行插件換圖邏輯，留最後 4 秒給地圖引擎載入
+            // 在第 46 秒 (50-4) 執行換圖指令
             AddTimer(restartDelay - 4, () =>
             {
                 if (!isMatchSetup) return;
