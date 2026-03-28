@@ -153,59 +153,53 @@ namespace MatchZy
         }
 
         private void SendUnreadyPlayersMessage()
+{
+    if (!isWarmup || matchStarted) return;
+    List<string> unreadyPlayers = new();
+
+    foreach (var key in playerReadyStatus.Keys)
+    {
+        // --- 核心修正處 ---
+        // 1. 確保 Key 還在 playerReadyStatus (防止迴圈中途變動)
+        // 2. 確保玩家狀態是 false (未準備)
+        // 3. 確保 playerData 裡真的有這個玩家 (解決 KeyNotFoundException)
+        if (playerReadyStatus.ContainsKey(key) && 
+            playerReadyStatus[key] == false && 
+            playerData.ContainsKey(key))
         {
-            if (!isWarmup || matchStarted) return;
-            List<string> unreadyPlayers = new();
-
-            // 1. 使用 ToList() 鎖定 Key 列表，防止在 10 人換圖或斷線瞬間，名單變動導致循環崩潰
-            foreach (var key in playerReadyStatus.Keys.ToList())
-            {
-                // 2. 核心修正：
-                // A. 確保 key 還在 Ready 狀態名單中
-                // B. 確保玩家狀態是未準備 (false)
-                // C. 確保 playerData 裡有這個 ID
-                // D. 【最重要】確保玩家實體 (Handle) 沒指向 null (透過 IsPlayerValid)
-                if (playerReadyStatus.ContainsKey(key) && 
-                    playerReadyStatus[key] == false && 
-                    playerData.ContainsKey(key) &&
-                    IsPlayerValid(playerData[key])) 
-                {
-                    unreadyPlayers.Add(playerData[key].PlayerName);
-                }
-            }
-
-            if (unreadyPlayers.Count > 0)
-            {
-                string unreadyPlayerList = string.Join(", ", unreadyPlayers);
-                string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Minimum ready players required: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}]";
-
-                if (isRoundRestorePending)
-                {
-                    PrintToAllChat(Localizer["matchzy.ready.readytotestorebackupinfomessage", unreadyPlayerList, minimumReadyRequiredMessage]);
-                }
-                else
-                {
-                    PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyPlayerList, minimumReadyRequiredMessage]);
-                }
-            }
-            else
-            {
-                // 這裡也加入安全過濾，確保統計已準備人數時不會因為「幽靈玩家」而出錯
-                int countOfReadyPlayers = playerReadyStatus.Count(kv => 
-                    kv.Value == true && 
-                    playerData.ContainsKey(kv.Key) && 
-                    IsPlayerValid(playerData[kv.Key])); 
-                
-                if (isMatchSetup)
-                {
-                    PrintToAllChat(Localizer["matchzy.utility.readyplayers", countOfReadyPlayers]);
-                }
-                else
-                {
-                    PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, countOfReadyPlayers]);
-                }
-            }
+            unreadyPlayers.Add(playerData[key].PlayerName);
         }
+    }
+
+    if (unreadyPlayers.Count > 0)
+    {
+        string unreadyPlayerList = string.Join(", ", unreadyPlayers);
+        string minimumReadyRequiredMessage = isMatchSetup ? "" : $"[Minimum ready players required: {ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}]";
+
+        if (isRoundRestorePending)
+        {
+            PrintToAllChat(Localizer["matchzy.ready.readytotestorebackupinfomessage", unreadyPlayerList, minimumReadyRequiredMessage]);
+        }
+        else
+        {
+            PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyPlayerList, minimumReadyRequiredMessage]);
+        }
+    }
+    else
+    {
+        // 這裡同樣建議加入安全過濾，確保統計已準備人數時不會因為斷線玩家出錯
+        int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true && playerData.ContainsKey(kv.Key));
+        
+        if (isMatchSetup)
+        {
+            PrintToAllChat(Localizer["matchzy.utility.readyplayers", countOfReadyPlayers]);
+        }
+        else
+        {
+            PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, countOfReadyPlayers]);
+        }
+    }
+}
         private void SendPausedStateMessage()
         {
             if (isPaused && matchStarted)
@@ -874,21 +868,25 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // --- [ T W ] 僅修改此段：鎖定賽後延遲為 55 秒 ---
-            int restartDelay = 55; 
+            // This ensures that the mp_match_restart_delay is not shorter than what is required for the GOTV recording to finish.
+            // Ref: Get5
+            int restartDelay = ConVar.Find("mp_match_restart_delay")!.GetPrimitiveValue<int>();
             int tvDelay = GetTvDelay();
-            int requiredDelay = 55; // 強制設定為 55
+            int requiredDelay = tvDelay + 15;
             int tvFlushDelay = requiredDelay;
-
-            // 強制更新伺服器 Cvar，讓玩家 UI 顯示 55 秒
-            ConVar.Find("mp_match_restart_delay")!.SetValue(requiredDelay);
-            Log($"[HandleMatchEnd] [ T W ] 已將比賽結束延遲鎖定為 {requiredDelay} 秒。");
-            // --- 修改結束 ---
-
+            if (tvDelay > 0.0)
+            {
+                requiredDelay += 10;
+            }
+            if (requiredDelay > restartDelay)
+            {
+                Log($"Extended mp_match_restart_delay from {restartDelay} to {requiredDelay} to ensure GOTV broadcast can finish.");
+                ConVar.Find("mp_match_restart_delay")!.SetValue(requiredDelay);
+                restartDelay = requiredDelay;
+            }
             int currentMapNumber = matchConfig.CurrentMapNumber;
             Log($"[HandleMatchEnd] MAP ENDED, isMatchSetup: {isMatchSetup} matchid: {liveMatchId} currentMapNumber: {currentMapNumber} tvFlushDelay: {tvFlushDelay}");
 
-            // 官方邏輯：根據 55 秒自動計算停錄時間 (55 - 0.5 = 54.5 秒)
             StopDemoRecording(tvFlushDelay - 0.5f, activeDemoFile, liveMatchId, currentMapNumber);
 
             string winnerName = GetMatchWinnerName();
@@ -914,6 +912,9 @@ namespace MatchZy
                 await database.WritePlayerStatsToCsv(statsPath, liveMatchId, currentMapNumber);
             });
 
+            // If a match is not setup, it was supposed to be a pug/scrim with 1 map
+            // Hence we reset the match once it is over
+            // Todo: Support BO3/BO5 in pugs as well
             if (!isMatchSetup)
             {
                 EndSeries(winnerName, restartDelay - 1, t1score, t2score);
@@ -922,7 +923,6 @@ namespace MatchZy
 
             int remainingMaps = matchConfig.NumMaps - matchzyTeam1.seriesScore - matchzyTeam2.seriesScore;
             Log($"[HandleMatchEnd] MATCH ENDED, remainingMaps: {remainingMaps}, NumMaps: {matchConfig.NumMaps}, Team1SeriesScore: {matchzyTeam1.seriesScore}, Team2SeriesScore: {matchzyTeam2.seriesScore}");
-            
             if (matchzyTeam1.seriesScore == matchzyTeam2.seriesScore && remainingMaps <= 0)
             {
                 EndSeries(null, restartDelay - 1, t1score, t2score);
@@ -930,7 +930,12 @@ namespace MatchZy
             else if (matchConfig.SeriesCanClinch)
             {
                 int mapsToWinSeries = (matchConfig.NumMaps / 2) + 1;
-                if (matchzyTeam1.seriesScore == mapsToWinSeries || matchzyTeam2.seriesScore == mapsToWinSeries)
+                if (matchzyTeam1.seriesScore == mapsToWinSeries)
+                {
+                    EndSeries(winnerName, restartDelay - 1, t1score, t2score);
+                    return;
+                }
+                else if (matchzyTeam2.seriesScore == mapsToWinSeries)
                 {
                     EndSeries(winnerName, restartDelay - 1, t1score, t2score);
                     return;
@@ -941,31 +946,31 @@ namespace MatchZy
                 EndSeries(winnerName, restartDelay - 1, t1score, t2score);
                 return;
             }
-
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
+
             }
             else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
             {
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
+
             }
             else
             {
                 Server.PrintToChatAll($"{chatPrefix} The series is tied at {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
             }
-
             matchConfig.CurrentMapNumber += 1;
             string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
 
-            if (isPaused) UnpauseMatch();
+            if (isPaused)
+                UnpauseMatch();
 
             stopData["ct"] = false;
             stopData["t"] = false;
 
             KillPhaseTimers();
 
-            // 官方換圖計時器：55 - 4 = 51 秒時觸發
             AddTimer(restartDelay - 4, () =>
             {
                 if (!isMatchSetup) return;
