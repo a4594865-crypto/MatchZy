@@ -868,23 +868,22 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // --- [ T W ] 僅修改此段：鎖定賽後延遲為 55 秒 ---
+            // --- [ T W ] 1. 鎖定賽後延遲為 55 秒 ---
             int restartDelay = 55; 
-            int tvDelay = GetTvDelay();
-            int requiredDelay = 55; // 強制設定為 55
+            int requiredDelay = 55; 
             int tvFlushDelay = requiredDelay;
 
-            // 強制更新伺服器 Cvar，讓玩家 UI 顯示 55 秒
+            // 更新伺服器 Cvar，讓玩家 UI 顯示 55 秒倒數
             ConVar.Find("mp_match_restart_delay")!.SetValue(requiredDelay);
-            Log($"[HandleMatchEnd] [ T W ] 已將比賽結束延遲鎖定為 {requiredDelay} 秒。");
-            // --- 修改結束 ---
+            Log($"[HandleMatchEnd] [ T W ] 已將延遲鎖定為 {requiredDelay}s，準備在 3s 後停止錄影。");
 
             int currentMapNumber = matchConfig.CurrentMapNumber;
-            Log($"[HandleMatchEnd] MAP ENDED, isMatchSetup: {isMatchSetup} matchid: {liveMatchId} currentMapNumber: {currentMapNumber} tvFlushDelay: {tvFlushDelay}");
 
-            // 官方邏輯：根據 55 秒自動計算停錄時間 (55 - 0.5 = 54.5 秒)
-            StopDemoRecording(tvFlushDelay - 0.5f, activeDemoFile, liveMatchId, currentMapNumber);
+            // --- [ T W ] 2. 核心修改：結算面板出來後 3 秒就停止錄影 ---
+            // 這樣可以確保錄到結算畫面，且完全避開第 51 秒換圖時的效能高峰，消滅 12.2% 紅字
+            StopDemoRecording(3.0f, activeDemoFile, liveMatchId, currentMapNumber); 
 
+            // --- 以下維持官方邏輯 ---
             string winnerName = GetMatchWinnerName();
             (int t1score, int t2score) = GetTeamsScore();
             int team1SeriesScore = matchzyTeam1.seriesScore;
@@ -915,7 +914,6 @@ namespace MatchZy
             }
 
             int remainingMaps = matchConfig.NumMaps - matchzyTeam1.seriesScore - matchzyTeam2.seriesScore;
-            Log($"[HandleMatchEnd] MATCH ENDED, remainingMaps: {remainingMaps}, NumMaps: {matchConfig.NumMaps}, Team1SeriesScore: {matchzyTeam1.seriesScore}, Team2SeriesScore: {matchzyTeam2.seriesScore}");
             
             if (matchzyTeam1.seriesScore == matchzyTeam2.seriesScore && remainingMaps <= 0)
             {
@@ -944,22 +942,16 @@ namespace MatchZy
             {
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
             }
-            else
-            {
-                Server.PrintToChatAll($"{chatPrefix} The series is tied at {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
-            }
 
             matchConfig.CurrentMapNumber += 1;
             string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
 
             if (isPaused) UnpauseMatch();
-
             stopData["ct"] = false;
             stopData["t"] = false;
-
             KillPhaseTimers();
 
-            // 官方換圖計時器：55 - 4 = 51 秒時觸發
+            // 換圖計時器：55 - 4 = 51 秒時觸發
             AddTimer(restartDelay - 4, () =>
             {
                 if (!isMatchSetup) return;
@@ -967,7 +959,6 @@ namespace MatchZy
                 matchStarted = false;
                 readyAvailable = true;
                 isPaused = false;
-
                 isWarmup = true;
                 isKnifeRound = false;
                 isSideSelectionPhase = false;
@@ -978,7 +969,6 @@ namespace MatchZy
                 SetMapSides();
             });
         }
-
         private void ChangeMap(string mapName, float delay)
         {
             Log($"[ChangeMap] Changing map to {mapName} with delay {delay}");
