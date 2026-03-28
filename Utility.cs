@@ -874,27 +874,27 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // --- [ T W ] 終極修正：鎖定 50 秒選圖時間，徹底解決 10 人滿員換圖閃退 ---
-            // 1. 強制設定為 50 秒，不受 tv_delay 0 影響，給予 i7-13700 最寬裕的緩衝
+            // --- [ T W ] 終極穩定方案：50秒選圖 + 安全停錄 + 全員踢出 ---
+            // 1. 強行鎖定 UI 倒數為 50 秒，不受 tv_delay 0 影響，確保環境有充足時間清理
             int requiredDelay = 50; 
             var restartDelayCvar = ConVar.Find("mp_match_restart_delay");
             if (restartDelayCvar != null)
             {
                 restartDelayCvar.SetValue(requiredDelay);
-                Log($"[HandleMatchEnd] 已強行鎖定賽後延遲為 {requiredDelay} 秒，確保多服環境穩定。");
+                Log($"[HandleMatchEnd] 已鎖定賽後延遲為 {requiredDelay} 秒。");
             }
             
             int restartDelay = requiredDelay;
             int currentMapNumber = matchConfig.CurrentMapNumber;
             
-            // 2. 賽後第 5 秒安全停止錄影
+            // 2. 賽後第 5 秒安全停止錄影：避開結算瞬間的 CPU 尖峰，並給予硬碟充分時間寫入
             if (isDemoRecording) 
             {
-                Log($"[HandleMatchEnd] 偵測到錄影中，將於 5 秒後執行停止程序...");
+                Log($"[HandleMatchEnd] 偵測到錄影進行中，將於 5 秒後執行安全停止程序...");
                 StopDemoRecording(5.0f, activeDemoFile, liveMatchId, currentMapNumber); 
             }
-            // --- 修正結束 ---
 
+            // 獲取勝方資訊與存檔
             string winnerName = GetMatchWinnerName();
             (int t1score, int t2score) = GetTeamsScore();
             int team1SeriesScore = matchzyTeam1.seriesScore;
@@ -924,58 +924,46 @@ namespace MatchZy
                 return;
             }
 
-            int remainingMaps = matchConfig.NumMaps - matchzyTeam1.seriesScore - matchzyTeam2.seriesScore;
-            
-            if (matchzyTeam1.seriesScore == matchzyTeam2.seriesScore && remainingMaps <= 0)
-            {
-                EndSeries(null, restartDelay - 1, t1score, t2score);
-            }
-            else if (matchConfig.SeriesCanClinch)
-            {
-                int mapsToWinSeries = (matchConfig.NumMaps / 2) + 1;
-                if (matchzyTeam1.seriesScore == mapsToWinSeries)
-                {
-                    EndSeries(winnerName, restartDelay - 1, t1score, t2score);
-                    return;
-                }
-                else if (matchzyTeam2.seriesScore == mapsToWinSeries)
-                {
-                    EndSeries(winnerName, restartDelay - 1, t1score, t2score);
-                    return;
-                }
-            }
-            else if (remainingMaps <= 0)
-            {
-                EndSeries(winnerName, restartDelay - 1, t1score, t2score);
-                return;
-            }
-
-            // 倒數提醒與下一張地圖設定
-            if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
-            {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
-            }
-            else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
-            {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
-            }
-
             matchConfig.CurrentMapNumber += 1;
             string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
 
             if (isPaused) UnpauseMatch();
             KillPhaseTimers();
 
-            // 在第 46 秒 (50-4) 執行換圖指令
+            // 3. 【溫馨預告】在第 40 秒通知玩家即將更換地圖
+            AddTimer(40.0f, () => {
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 ＣＳ 同 學 會 】為了確保換圖穩定，6 秒後將自動斷線，請稍後重連！");
+            });
+
+            // 4. 【核心計時器】在第 46 秒執行「全踢」與「換圖」
             AddTimer(restartDelay - 4, () =>
             {
                 if (!isMatchSetup) return;
-                ChangeMap(nextMap, 3.0f);
-                matchStarted = false;
-                readyAvailable = true;
-                isPaused = false;
-                isMatchLive = false;
-                StartWarmup();
+
+                Log("[HandleMatchEnd] 正在執行換圖前清空程序...");
+                
+                // 遍歷所有玩家並踢出，玩家斷線時會看到自訂的中文原因
+                foreach (var player in Utilities.GetPlayers())
+                {
+                    if (player != null && player.IsValid && !player.IsBot && !player.IsHLTV)
+                    {
+                        // 執行踢人指令
+                        Server.ExecuteCommand($"kickid {player.UserId} \"【ＣＳ 同 學 會】換圖穩定程序：請在 5 秒後重新連線\"");
+                    }
+                }
+
+                // 留 1 秒緩衝讓系統處理連線中斷，隨後執行玩家選出的下一張圖
+                AddTimer(1.0f, () => {
+                    Log($"[HandleMatchEnd] 正在切換至下一張地圖: {nextMap}");
+                    ChangeMap(nextMap, 2.0f);
+                    
+                    // 重置 MatchZy 狀態
+                    matchStarted = false;
+                    readyAvailable = true;
+                    isPaused = false;
+                    isMatchLive = false;
+                    StartWarmup();
+                });
             });
         }
         private void ChangeMap(string mapName, float delay)
