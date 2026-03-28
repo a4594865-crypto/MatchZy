@@ -874,26 +874,28 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // This ensures that the mp_match_restart_delay is not shorter than what is required for the GOTV recording to finish.
-            // Ref: Get5
-            int restartDelay = ConVar.Find("mp_match_restart_delay")!.GetPrimitiveValue<int>();
-            int tvDelay = GetTvDelay();
-            int requiredDelay = tvDelay + 15;
-            int tvFlushDelay = requiredDelay;
-            if (tvDelay > 0.0)
+            // --- [ T W ] 核心修正：強制鎖定 40 秒延遲，解決 10 人換圖閃退 ---
+            // 1. 強制設定所需的延遲秒數為 40
+            int requiredDelay = 40; 
+            
+            // 2. 直接尋找並強制設定伺服器 ConVar，確保蓋掉 .cfg 或插件原本的 15 秒邏輯
+            var restartDelayCvar = ConVar.Find("mp_match_restart_delay");
+            if (restartDelayCvar != null)
             {
-                requiredDelay += 10;
+                restartDelayCvar.SetValue(requiredDelay);
+                Log($"[HandleMatchEnd] 已強行將 mp_match_restart_delay 鎖定為 {requiredDelay} 秒，確保 10 人環境下 Demo 寫入穩定。");
             }
-            if (requiredDelay > restartDelay)
-            {
-                Log($"Extended mp_match_restart_delay from {restartDelay} to {requiredDelay} to ensure GOTV broadcast can finish.");
-                ConVar.Find("mp_match_restart_delay")!.SetValue(requiredDelay);
-                restartDelay = requiredDelay;
-            }
+            
+            int restartDelay = requiredDelay;
             int currentMapNumber = matchConfig.CurrentMapNumber;
-            Log($"[HandleMatchEnd] MAP ENDED, isMatchSetup: {isMatchSetup} matchid: {liveMatchId} currentMapNumber: {currentMapNumber} tvFlushDelay: {tvFlushDelay}");
+            
+            // 3. 設定 tvFlushDelay 為相同時間，給予硬碟充足的 I/O 緩衝期
+            int tvFlushDelay = requiredDelay; 
+            Log($"[HandleMatchEnd] MAP ENDED, matchid: {liveMatchId} currentMapNumber: {currentMapNumber} tvFlushDelay: {tvFlushDelay}");
 
+            // 停止錄影並給予緩衝（賽後 39.5 秒才真正停止，確保內容完整）
             StopDemoRecording(tvFlushDelay - 0.5f, activeDemoFile, liveMatchId, currentMapNumber);
+            // --- 修正結束 ---
 
             string winnerName = GetMatchWinnerName();
             (int t1score, int t2score) = GetTeamsScore();
@@ -918,9 +920,6 @@ namespace MatchZy
                 await database.WritePlayerStatsToCsv(statsPath, liveMatchId, currentMapNumber);
             });
 
-            // If a match is not setup, it was supposed to be a pug/scrim with 1 map
-            // Hence we reset the match once it is over
-            // Todo: Support BO3/BO5 in pugs as well
             if (!isMatchSetup)
             {
                 EndSeries(winnerName, restartDelay - 1, t1score, t2score);
@@ -929,6 +928,7 @@ namespace MatchZy
 
             int remainingMaps = matchConfig.NumMaps - matchzyTeam1.seriesScore - matchzyTeam2.seriesScore;
             Log($"[HandleMatchEnd] MATCH ENDED, remainingMaps: {remainingMaps}, NumMaps: {matchConfig.NumMaps}, Team1SeriesScore: {matchzyTeam1.seriesScore}, Team2SeriesScore: {matchzyTeam2.seriesScore}");
+            
             if (matchzyTeam1.seriesScore == matchzyTeam2.seriesScore && remainingMaps <= 0)
             {
                 EndSeries(null, restartDelay - 1, t1score, t2score);
@@ -952,31 +952,31 @@ namespace MatchZy
                 EndSeries(winnerName, restartDelay - 1, t1score, t2score);
                 return;
             }
+
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
-
             }
             else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
             {
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
-
             }
             else
             {
                 Server.PrintToChatAll($"{chatPrefix} The series is tied at {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
             }
+
             matchConfig.CurrentMapNumber += 1;
             string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
 
-            if (isPaused)
-                UnpauseMatch();
+            if (isPaused) UnpauseMatch();
 
             stopData["ct"] = false;
             stopData["t"] = false;
 
             KillPhaseTimers();
 
+            // 使用插件計時器確保換圖發生在 40 秒結束前 4 秒，提供最後轉場時間
             AddTimer(restartDelay - 4, () =>
             {
                 if (!isMatchSetup) return;
