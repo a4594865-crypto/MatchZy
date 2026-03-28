@@ -874,57 +874,31 @@ private void HandleMatchEnd()
         {
             if (!isMatchLive) return;
 
-            // --- [ T W ] 50 秒同步防禦區：修正編譯錯誤與 UI 同步 ---
-            // 1. 直接對引擎下指令，確保選圖 UI 與賽後延遲皆為 50 秒
-            Server.ExecuteCommand("mp_match_restart_delay 50");
-            Server.ExecuteCommand("sv_vote_timer_duration 50"); 
-            Log("[HandleMatchEnd] 已發送強制指令：同步 UI 投票與賽後延遲為 50 秒。");
-
-            // 2. 訊息預告計時器 (第 40, 42, 44 秒噴出)
-            AddTimer(40.0f, () => { Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 T W 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！"); });
-            AddTimer(42.0f, () => { Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 T W 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！"); });
-            AddTimer(44.0f, () => { Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 T W 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！"); });
-
-            // 3. 核心全踢計時器 (第 46.0 秒執行，UI 剩 4 秒)
-            AddTimer(46.0f, () =>
+            // --- [ T W ] 55 秒同步修正：鎖定 UI 選圖時間與賽後延遲 ---
+            // 1. 強制設定為 55 秒，確保 UI 倒數同步，給予 i7-13700 最寬裕的緩衝
+            int requiredDelay = 55; 
+            
+            // 強制讓 UI 投票時間也變成 55 秒
+            Server.ExecuteCommand($"sv_vote_timer_duration {requiredDelay}");
+            
+            var restartDelayCvar = ConVar.Find("mp_match_restart_delay");
+            if (restartDelayCvar != null)
             {
-                Log("[HandleMatchEnd] 正在執行換圖前全踢程序...");
-                
-                foreach (var player in Utilities.GetPlayers())
-                {
-                    if (player != null && player.IsValid && !player.IsBot && !player.IsHLTV)
-                    {
-                        Server.ExecuteCommand($"kickid {player.UserId} \"【 T W 】換圖穩定程序：請在 5 秒後重新連線\"");
-                    }
-                }
-
-                // 4. 留 3 秒深度緩衝，確保環境徹底安靜
-                AddTimer(3.0f, () => {
-                    if (matchConfig.Maplist.Count > matchConfig.CurrentMapNumber) {
-                        string nextMapForTWC = matchConfig.Maplist[matchConfig.CurrentMapNumber];
-                        Log($"[HandleMatchEnd] 環境清空完成，正在切換地圖至: {nextMapForTWC}");
-                        
-                        // --- 修正處：改用原生指令避免編譯錯誤 ---
-                        Server.ExecuteCommand($"map {nextMapForTWC}");
-                    }
-                    
-                    // 重置 MatchZy 狀態
-                    matchStarted = false;
-                    readyAvailable = true;
-                    isPaused = false;
-                    isMatchLive = false;
-                    StartWarmup();
-                });
-            });
-
-            // 5. 賽後第 5 秒安全停止錄影
+                restartDelayCvar.SetValue(requiredDelay);
+                Log($"[HandleMatchEnd] 已強行鎖定賽後延遲與 UI 為 {requiredDelay} 秒，確保多服環境穩定。");
+            }
+            
+            int restartDelay = requiredDelay;
+            int currentMapNumber = matchConfig.CurrentMapNumber;
+            
+            // 2. 賽後第 5 秒安全停止錄影
             if (isDemoRecording) 
             {
-                StopDemoRecording(5.0f, activeDemoFile, liveMatchId, matchConfig.CurrentMapNumber); 
+                Log($"[HandleMatchEnd] 偵測到錄影中，將於 5 秒後執行停止程序...");
+                StopDemoRecording(5.0f, activeDemoFile, liveMatchId, currentMapNumber); 
             }
-            // --- 優先防禦區結束 ---
+            // --- 修正結束 ---
 
-            // 以下保留原本 MatchZy 的存檔與結算邏輯
             string winnerName = GetMatchWinnerName();
             (int t1score, int t2score) = GetTeamsScore();
             int team1SeriesScore = matchzyTeam1.seriesScore;
@@ -935,7 +909,7 @@ private void HandleMatchEnd()
             var mapResultEvent = new MapResultEvent
             {
                 MatchId = liveMatchId,
-                MapNumber = matchConfig.CurrentMapNumber,
+                MapNumber = currentMapNumber,
                 Winner = new Winner(t1score > t2score && reverseTeamSides["CT"] == matchzyTeam1 ? "3" : "2", t1score > t2score ? "team1" : "team2"),
                 StatsTeam1 = new MatchZyStatsTeam(matchzyTeam1.id, matchzyTeam1.teamName, team1SeriesScore, t1score, 0, 0, new List<StatsPlayer>()),
                 StatsTeam2 = new MatchZyStatsTeam(matchzyTeam2.id, matchzyTeam2.teamName, team2SeriesScore, t2score, 0, 0, new List<StatsPlayer>())
@@ -944,15 +918,69 @@ private void HandleMatchEnd()
             Task.Run(async () =>
             {
                 await SendEventAsync(mapResultEvent);
-                await database.SetMapEndData(liveMatchId, matchConfig.CurrentMapNumber, winnerName, t1score, t2score, team1SeriesScore, team2SeriesScore);
-                await database.WritePlayerStatsToCsv(statsPath, liveMatchId, matchConfig.CurrentMapNumber);
+                await database.SetMapEndData(liveMatchId, currentMapNumber, winnerName, t1score, t2score, team1SeriesScore, team2SeriesScore);
+                await database.WritePlayerStatsToCsv(statsPath, liveMatchId, currentMapNumber);
             });
 
             if (!isMatchSetup)
             {
-                EndSeries(winnerName, 49, t1score, t2score); 
+                EndSeries(winnerName, restartDelay - 1, t1score, t2score);
                 return;
             }
+
+            int remainingMaps = matchConfig.NumMaps - matchzyTeam1.seriesScore - matchzyTeam2.seriesScore;
+            
+            if (matchzyTeam1.seriesScore == matchzyTeam2.seriesScore && remainingMaps <= 0)
+            {
+                EndSeries(null, restartDelay - 1, t1score, t2score);
+            }
+            else if (matchConfig.SeriesCanClinch)
+            {
+                int mapsToWinSeries = (matchConfig.NumMaps / 2) + 1;
+                if (matchzyTeam1.seriesScore == mapsToWinSeries)
+                {
+                    EndSeries(winnerName, restartDelay - 1, t1score, t2score);
+                    return;
+                }
+                else if (matchzyTeam2.seriesScore == mapsToWinSeries)
+                {
+                    EndSeries(winnerName, restartDelay - 1, t1score, t2score);
+                    return;
+                }
+            }
+            else if (remainingMaps <= 0)
+            {
+                EndSeries(winnerName, restartDelay - 1, t1score, t2score);
+                return;
+            }
+
+            // 倒數提醒與下一張地圖設定
+            if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
+            {
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
+            }
+            else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
+            {
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
+            }
+
+            matchConfig.CurrentMapNumber += 1;
+            string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
+
+            if (isPaused) UnpauseMatch();
+            KillPhaseTimers();
+
+            // 在第 51 秒 (55-4) 執行換圖指令
+            AddTimer(restartDelay - 4, () =>
+            {
+                if (!isMatchSetup) return;
+                ChangeMap(nextMap, 3.0f);
+                matchStarted = false;
+                readyAvailable = true;
+                isPaused = false;
+                isMatchLive = false;
+                StartWarmup();
+            });
         }
 
         private string GetMatchWinnerName()
