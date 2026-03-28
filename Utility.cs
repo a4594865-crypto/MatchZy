@@ -874,38 +874,40 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // --- [ T W ] 終極防禦區：鎖定 55 秒，不給插件減秒的機會 ---
-            // 1. 強行鎖定伺服器 UI 倒數為 55 秒
-            Server.ExecuteCommand("mp_match_restart_delay 55");
-            Log("[HandleMatchEnd] 已發送強制指令 mp_match_restart_delay 55");
+            // --- [ T W ] 50 秒同步防禦區：強行鎖定 UI 投票倒數與伺服器延遲 ---
+            // 1. 直接對引擎下指令，確保選圖 UI 與賽後計時器皆顯示 50 秒
+            Server.ExecuteCommand("mp_match_restart_delay 50");
+            Server.ExecuteCommand("sv_vote_timer_duration 50"); 
+            Log("[HandleMatchEnd] 已發送強制指令：同步 UI 投票與賽後延遲為 50 秒。");
 
-            // 2. 設定訊息預告計時器 (在最後 10 秒內連續噴發)
-            AddTimer(45.0f, () => { Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 T W 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！"); });
-            AddTimer(47.0f, () => { Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 T W 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！"); });
-            AddTimer(49.0f, () => { Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 T W 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！"); });
+            // 2. 訊息預告計時器：分別在第 40, 42, 44 秒噴出紅字訊息 (此時 UI 剩 10, 8, 6 秒)
+            AddTimer(40.0f, () => { Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 T W 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！"); });
+            AddTimer(42.0f, () => { Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 T W 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！"); });
+            AddTimer(44.0f, () => { Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}【 T W 】穩定換圖程序：即將自動斷線清理環境，請稍後重新連線！"); });
 
-            // 3. 核心全踢計時器 (固定在 51 秒，保留 4 秒緩衝換圖)
-            AddTimer(51.0f, () =>
+            // 3. 核心全踢計時器：在第 46.0 秒執行 (此時 UI 剛好剩餘 4 秒)
+            AddTimer(46.0f, () =>
             {
-                Log("[HandleMatchEnd] 執行全踢程序以釋放 i7-13700 壓力...");
+                Log("[HandleMatchEnd] 正在執行換圖前全踢程序以釋放 i7-13700 壓力...");
+                
+                // 遍歷所有玩家並踢出，附帶中文訊息
                 foreach (var player in Utilities.GetPlayers())
                 {
                     if (player != null && player.IsValid && !player.IsBot && !player.IsHLTV)
                     {
-                        // 玩家斷線時看到的中文提示
                         Server.ExecuteCommand($"kickid {player.UserId} \"【 T W 】換圖穩定程序：請在 5 秒後重新連線\"");
                     }
                 }
 
-                // 4. 留 3 秒深度緩衝，確保在第 54 秒發動換圖，剛好對上 55 秒結尾
+                // 4. 留 3 秒深度緩衝：確保環境徹底安靜後再換圖
                 AddTimer(3.0f, () => {
                     if (matchConfig.Maplist.Count > matchConfig.CurrentMapNumber) {
                         string nextMapForTWC = matchConfig.Maplist[matchConfig.CurrentMapNumber];
-                        Log($"[HandleMatchEnd] 環境清空完成，正在切換至下一張圖: {nextMapForTWC}");
-                        ChangeMap(nextMapForTWC, 1.0f);
+                        Log($"[HandleMatchEnd] 環境清空完成，正在切換地圖至: {nextMapForTWC}");
+                        ChangeMap(nextMapForTWC, 1.0f); // 最終約在第 50 秒完成載入
                     }
                     
-                    // 重置 MatchZy 內部狀態
+                    // 重置 MatchZy 狀態
                     matchStarted = false;
                     readyAvailable = true;
                     isPaused = false;
@@ -914,21 +916,22 @@ namespace MatchZy
                 });
             });
 
-            // 5. 賽後第 5 秒停止錄影 (15秒寫入緩衝會在背景執行)
+            // 5. 賽後第 5 秒安全停止錄影 (15秒寫入緩衝會在 DemoManagement 內部跑)
             if (isDemoRecording) 
             {
-                Log($"[HandleMatchEnd] 偵測到錄影中，將於 5 秒後執行安全停止程序...");
+                Log($"[HandleMatchEnd] 偵測到錄影進行中，將於 5 秒後執行停止程序...");
                 StopDemoRecording(5.0f, activeDemoFile, liveMatchId, matchConfig.CurrentMapNumber); 
             }
             // --- 優先防禦區結束 ---
 
-            // 以下保留原本 MatchZy 的存檔與系列賽邏輯
+            // 以下保留原本 MatchZy 的戰績存檔與系列賽結算邏輯
             string winnerName = GetMatchWinnerName();
             (int t1score, int t2score) = GetTeamsScore();
             int team1SeriesScore = matchzyTeam1.seriesScore;
             int team2SeriesScore = matchzyTeam2.seriesScore;
 
             string statsPath = Server.GameDirectory + "/csgo/MatchZy_Stats/" + liveMatchId.ToString();
+
             var mapResultEvent = new MapResultEvent
             {
                 MatchId = liveMatchId,
@@ -947,26 +950,9 @@ namespace MatchZy
 
             if (!isMatchSetup)
             {
-                EndSeries(winnerName, 54, t1score, t2score); // 同步改為 54 秒後結算
+                EndSeries(winnerName, 49, t1score, t2score); 
                 return;
             }
-        }
-        private void ChangeMap(string mapName, float delay)
-        {
-            Log($"[ChangeMap] Changing map to {mapName} with delay {delay}");
-            AddTimer(delay, () =>
-            {
-                if (long.TryParse(mapName, out _))
-                {
-                    Server.ExecuteCommand($"bot_kick");
-                    Server.ExecuteCommand($"host_workshop_map \"{mapName}\"");
-                }
-                else if (Server.IsMapValid(mapName))
-                {
-                    Server.ExecuteCommand($"bot_kick");
-                    Server.ExecuteCommand($"changelevel \"{mapName}\"");
-                }
-            });
         }
 
         private string GetMatchWinnerName()
