@@ -870,22 +870,18 @@ namespace MatchZy
             }
         }
 
-private void HandleMatchEnd()
+        private void HandleMatchEnd()
         {
             if (!isMatchLive) return;
 
-            // --- [ T W ] 55 秒同步修正：鎖定 UI 選圖時間與賽後延遲 ---
-            // 1. 強制設定為 55 秒，確保 UI 倒數同步，給予 i7-13700 最寬裕的緩衝
+            // --- [ T W ] 終極修正：鎖定 50 秒選圖時間，徹底解決 10 人滿員換圖閃退 ---
+            // 1. 強制設定為 50 秒，不受 tv_delay 0 影響，給予 i7-13700 最寬裕的緩衝
             int requiredDelay = 55; 
-            
-            // 強制讓 UI 投票時間也變成 55 秒
-            Server.ExecuteCommand($"sv_vote_timer_duration {requiredDelay}");
-            
             var restartDelayCvar = ConVar.Find("mp_match_restart_delay");
             if (restartDelayCvar != null)
             {
                 restartDelayCvar.SetValue(requiredDelay);
-                Log($"[HandleMatchEnd] 已強行鎖定賽後延遲與 UI 為 {requiredDelay} 秒，確保多服環境穩定。");
+                Log($"[HandleMatchEnd] 已強行鎖定賽後延遲為 {requiredDelay} 秒，確保多服環境穩定。");
             }
             
             int restartDelay = requiredDelay;
@@ -970,7 +966,7 @@ private void HandleMatchEnd()
             if (isPaused) UnpauseMatch();
             KillPhaseTimers();
 
-            // 在第 51 秒 (55-4) 執行換圖指令
+            // 在第 46 秒 (50-4) 執行換圖指令
             AddTimer(restartDelay - 4, () =>
             {
                 if (!isMatchSetup) return;
@@ -980,6 +976,24 @@ private void HandleMatchEnd()
                 isPaused = false;
                 isMatchLive = false;
                 StartWarmup();
+            });
+        }
+
+        private void ChangeMap(string mapName, float delay)
+        {
+            Log($"[ChangeMap] Changing map to {mapName} with delay {delay}");
+            AddTimer(delay, () =>
+            {
+                if (long.TryParse(mapName, out _))
+                {
+                    Server.ExecuteCommand($"bot_kick");
+                    Server.ExecuteCommand($"host_workshop_map \"{mapName}\"");
+                }
+                else if (Server.IsMapValid(mapName))
+                {
+                    Server.ExecuteCommand($"bot_kick");
+                    Server.ExecuteCommand($"changelevel \"{mapName}\"");
+                }
             });
         }
 
