@@ -477,7 +477,6 @@ if (message == ".r" || message == ".ready") {
                 }
                 // --- [第一步結束] ---
 
-                // 以下是您原本的所有代碼，保持完全不動
                 int currentVersion = Api.GetVersion();
                 int index = @event.Userid + 1;
                 var playerUserId = NativeAPI.GetUseridFromIndex(index);
@@ -682,14 +681,14 @@ if (message == ".r" || message == ".ready") {
                 return;
             }
             isShufflePending = true;
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 隨機隊伍分配 」。開賽時將自動洗牌！");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」。開賽時將自動洗牌！");
         }
 
         [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
         public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command) {
             if (!IsPlayerAdmin(player)) return;
             isShufflePending = false;
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 隨機隊伍分配 」。將維持目前隊伍開賽。");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。將維持目前隊伍開賽。");
         }
 
         public void ExecuteShuffleLogic() 
@@ -736,7 +735,7 @@ if (message == ".r" || message == ".ready") {
     }
 
     // 6. 輸出訊息與重置標記
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨機分隊完成！隊伍已鎖定。");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊伍已鎖定。");
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
     
     isShufflePending = false;
