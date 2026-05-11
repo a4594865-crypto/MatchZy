@@ -693,7 +693,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     
     // 3. 確保黑視窗有回饋
     if (player == null) {
-        Console.WriteLine("[MatchZy] Shuffle command RECEIVED and ENABLED.");
+        Console.WriteLine("[MatchZy] 已 開 啟 隨 機 隊 伍 分 配");
     }
 }
 
@@ -708,7 +708,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。將維持目前隊伍開賽。");
     
     if (player == null) {
-        Console.WriteLine("[MatchZy] Shuffle command RECEIVED and DISABLED.");
+        Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
         public void ExecuteShuffleLogic() 
