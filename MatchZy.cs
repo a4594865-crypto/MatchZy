@@ -674,9 +674,12 @@ if (message == ".r" || message == ".ready") {
     return count;
 }
 [ConsoleCommand("css_shuffle", "預約隨機分隊")]
-public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) {
-    // 修正：如果是黑視窗 (player == null) 就跳過權限檢查
-    if (player != null && !IsPlayerAdmin(player)) return;
+[CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)] // 強制宣告客戶端與伺服器皆可執行
+public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
+    // 1. 權限檢查：如果是玩家發出的，檢查管理員權限；如果是伺服器 (player == null)，直接通過
+    if (player != null && !IsPlayerAdmin(player)) {
+        return;
+    }
 
     if (isMatchSetup) { 
         ReplyToUserCommand(player, "正式比賽模式禁用隨機分隊！");
@@ -684,18 +687,30 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) 
     }
 
     isShufflePending = true;
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」。將自動洗牌！");
+    
+    // 2. 執行廣播
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」。開賽時將自動洗牌！");
+    
+    // 3. 確保黑視窗有回饋
+    if (player == null) {
+        Console.WriteLine("[MatchZy] Shuffle command RECEIVED and ENABLED.");
+    }
 }
 
 [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
-public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command) {
-    // 修正：同樣讓黑視窗 (player == null) 也能通過
-    if (player != null && !IsPlayerAdmin(player)) return;
+[CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command) {
+    if (player != null && !IsPlayerAdmin(player)) {
+        return;
+    }
 
     isShufflePending = false;
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。維持目前隊伍。");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。將維持目前隊伍開賽。");
+    
+    if (player == null) {
+        Console.WriteLine("[MatchZy] Shuffle command RECEIVED and DISABLED.");
+    }
 }
-
         public void ExecuteShuffleLogic() 
 {
     // 1. 安全檢查：如果沒有預約洗牌，則直接跳出
