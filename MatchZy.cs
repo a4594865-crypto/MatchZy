@@ -673,23 +673,28 @@ if (message == ".r" || message == ".ready") {
     }
     return count;
 }
-        [ConsoleCommand("css_shuffle", "預約隨機分隊")]
-        public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) {
-            if (!IsPlayerAdmin(player)) return;
-            if (isMatchSetup) { 
-                ReplyToUserCommand(player, "正式比賽模式禁用隨機分隊！");
-                return;
-            }
-            isShufflePending = true;
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」。開賽時將自動洗牌！");
-        }
+[ConsoleCommand("css_shuffle", "預約隨機分隊")]
+public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) {
+    // 修正：如果是黑視窗 (player == null) 就跳過權限檢查
+    if (player != null && !IsPlayerAdmin(player)) return;
 
-        [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
-        public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command) {
-            if (!IsPlayerAdmin(player)) return;
-            isShufflePending = false;
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。將維持目前隊伍開賽。");
-        }
+    if (isMatchSetup) { 
+        ReplyToUserCommand(player, "正式比賽模式禁用隨機分隊！");
+        return;
+    }
+
+    isShufflePending = true;
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」。將自動洗牌！");
+}
+
+[ConsoleCommand("css_unshuffle", "取消隨機分隊")]
+public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command) {
+    // 修正：同樣讓黑視窗 (player == null) 也能通過
+    if (player != null && !IsPlayerAdmin(player)) return;
+
+    isShufflePending = false;
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。維持目前隊伍。");
+}
 
         public void ExecuteShuffleLogic() 
 {
