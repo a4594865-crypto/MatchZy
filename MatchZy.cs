@@ -725,7 +725,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     if (activePlayers.Count < 2) 
     {
         Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
-        isShufflePending = false; // 失敗也要重置標記，避免狀態殘留
+        isShufflePending = false; 
         return;
     }
 
@@ -739,23 +739,27 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
     }
 
-    // 5. 分配隊伍
+    // --- 這裡開始是修改過的第 5 點 ---
+    // 5. 分配隊伍 (優化版：增加狀態判定減少伺服器負擔)
     int half = activePlayers.Count / 2;
     for (int i = 0; i < activePlayers.Count; i++) 
     {
-        // 為了確保 ChangeTeam 成功，建議在下一幀或立即執行時確保狀態一致
-        if (i < half) 
+        // 判定目標隊伍
+        CsTeam targetTeam = (i < half) ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
+        
+        // 【優化點】檢查玩家是否已經在該隊，避免重複發送 ChangeTeam 指令造成伺服器卡頓
+        if (activePlayers[i].TeamNum != (byte)targetTeam) 
         {
-            activePlayers[i].ChangeTeam(CsTeam.Terrorist);
-        }
-        else 
-        {
-            activePlayers[i].ChangeTeam(CsTeam.CounterTerrorist);
+            activePlayers[i].ChangeTeam(targetTeam);
         }
     }
 
-    // 6. 輸出訊息與重置標記
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊伍已鎖定。");
+    // 6. 【關鍵修正】在分配完後，強制呼叫 UpdatePlayersMap 
+    // 這樣 MatchZy 內部的 playerData 字典才會立即更新玩家的新隊伍狀態
+    UpdatePlayersMap();
+
+    // 7. 輸出訊息與重置標記
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
     
     isShufflePending = false;
