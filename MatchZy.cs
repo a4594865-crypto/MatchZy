@@ -270,56 +270,44 @@ namespace MatchZy
 
            // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
             AddCommandListener("jointeam", (player, info) =>
-{
-    if (player == null || player.IsBot || isSleep) return HookResult.Continue;
+            {
+                // 基本檢查：如果是機器人或睡眠模式，直接跳過不做處理
+                if (player == null || player.IsBot || isSleep) return HookResult.Continue;
 
-    string targetTeam = info.ArgByIndex(1); // 玩家想去的隊伍 (1:觀戰, 2:T, 3:CT)
-    int userId = (int)(player.UserId ?? -1);
-    byte currentTeam = player.TeamNum; // 玩家目前的隊伍
+                // --- 關鍵修正 A：中止倒數邏輯放在最前面，且不被 isWarmup 攔截 ---
+                if (matchStartCountdownTimer != null)
+                {
+                    CancelMatchCountdown($"玩家 {player.PlayerName} 變動隊伍，倒數中止。");
+                }
 
-    // --- 1. 優先處理「退往觀戰」的邏輯 ---
-    if (targetTeam == "1") 
-    {
-        // 如果正在倒數時有人跳往觀戰，執行中止邏輯
-        if (matchStartCountdownTimer != null || isCountdownActive)
-        {
-            CancelMatchCountdown($"玩家 {player.PlayerName} 退回觀戰位，倒數中止。");
-        }
+                // --- 關鍵修正 B：中止完倒數後，如果是熱身階段，則放行所有換隊行為 ---
+                if (isWarmup) return HookResult.Continue;
 
-        // 執行原本的準備狀態重置
-        if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
-        {
-            playerReadyStatus[userId] = false; 
-        }
-        return HookResult.Continue; // 放行換往觀戰
-    }
+                // 以下是你原本的比賽中禁止換隊邏輯，不會被動到
+                string targetTeam = info.ArgByIndex(1); 
+                int userId = (int)(player.UserId ?? -1);
+                byte currentTeam = player.TeamNum; 
 
-    // --- 2. 核心修改：倒數期間禁止「換入」T 或 CT (禁止互換) ---
-    if (matchStartCountdownTimer != null || isCountdownActive)
-    {
-        // 只有當玩家嘗試換到 2(T) 或 3(CT) 時才攔截
-        if (targetTeam == "2" || targetTeam == "3")
-        {
-            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}倒數期間禁止更換隊伍！");
-            return HookResult.Stop; // 攔截指令，不中斷倒數
-        }
-    }
+                // 1. 永遠放行觀戰，並重置其準備狀態
+                if (targetTeam == "1") 
+                {
+                    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
+                    return HookResult.Continue;
+                }
 
-    // --- 3. 熱身階段放行其餘行為 ---
-    if (isWarmup) return HookResult.Continue;
+                // 2. 比賽正式開始後 (matchStarted) 的換隊限制
+                if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
+                {
+                    if (currentTeam == 2 || currentTeam == 3)
+                    {
+                        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已正式開始，禁止互換隊伍！");
+                        return HookResult.Stop; 
+                    }
+                    return HookResult.Continue;
+                }
 
-    // --- 4. 比賽正式開始後的換隊限制 (matchStarted) ---
-    if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
-    {
-        if (currentTeam == 2 || currentTeam == 3)
-        {
-            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已正式開始，禁止互換隊伍！");
-            return HookResult.Stop; 
-        }
-    }
-
-    return HookResult.Continue;
-});
+                return HookResult.Continue;
+            });
 
             // --- 修正版：攔截倒數期間的所有隊伍變動廣播 ---
             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
@@ -737,7 +725,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     if (activePlayers.Count < 2) 
     {
         Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
-        isShufflePending = false; 
+        isShufflePending = false; // 失敗也要重置標記，避免狀態殘留
         return;
     }
 
@@ -751,27 +739,23 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
     }
 
-    // --- 這裡開始是修改過的第 5 點 ---
-    // 5. 分配隊伍 (優化版：增加狀態判定減少伺服器負擔)
+    // 5. 分配隊伍
     int half = activePlayers.Count / 2;
     for (int i = 0; i < activePlayers.Count; i++) 
     {
-        // 判定目標隊伍
-        CsTeam targetTeam = (i < half) ? CsTeam.Terrorist : CsTeam.CounterTerrorist;
-        
-        // 【優化點】檢查玩家是否已經在該隊，避免重複發送 ChangeTeam 指令造成伺服器卡頓
-        if (activePlayers[i].TeamNum != (byte)targetTeam) 
+        // 為了確保 ChangeTeam 成功，建議在下一幀或立即執行時確保狀態一致
+        if (i < half) 
         {
-            activePlayers[i].ChangeTeam(targetTeam);
+            activePlayers[i].ChangeTeam(CsTeam.Terrorist);
+        }
+        else 
+        {
+            activePlayers[i].ChangeTeam(CsTeam.CounterTerrorist);
         }
     }
 
-    // 6. 【關鍵修正】在分配完後，強制呼叫 UpdatePlayersMap 
-    // 這樣 MatchZy 內部的 playerData 字典才會立即更新玩家的新隊伍狀態
-    UpdatePlayersMap();
-
-    // 7. 輸出訊息與重置標記
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+    // 6. 輸出訊息與重置標記
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊伍已鎖定。");
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
     
     isShufflePending = false;
