@@ -256,7 +256,7 @@ namespace MatchZy
 if (matchStartCountdownTimer != null)
 {
     // 1. 中止計時並發送公告（包含你要的 R 準備提示）
-    CancelMatchCountdown($"{chatPrefix}玩家{ChatColors.Green} {player.PlayerName} {ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+    CancelMatchCountdown($"{chatPrefix} {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
     
     // 2. 清空準備狀態，確保剩下的 9 人必須重打指令
     playerReadyStatus.Clear(); 
@@ -305,7 +305,7 @@ AddCommandListener("jointeam", (player, info) =>
     if (matchStartCountdownTimer != null || isCountdownActive)
     {
         // 顯示警告訊息給該玩家
-        player.PrintToChat($"{chatPrefix}{ChatColors.LightRed}【警 告】{ChatColors.Default}倒數期間禁止切換隊伍或觀戰！");
+        player.PrintToChat($"{chatPrefix} {ChatColors.Default}倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
         
         // 返回 HookResult.Stop 就能直接吃掉這個指令，讓玩家留在原地
         return HookResult.Stop; 
@@ -326,7 +326,7 @@ AddCommandListener("jointeam", (player, info) =>
         byte currentTeam = player.TeamNum;
         if ((targetTeam == "2" || targetTeam == "3") && (currentTeam == 2 || currentTeam == 3))
         {
-            player.PrintToChat($"{chatPrefix}{ChatColors.LightRed}【警 告】{ChatColors.Default}比賽已開始，禁止互換隊伍");
+            player.PrintToChat($"{chatPrefix} {ChatColors.Default}比 賽 已 開 始，禁 止 互 換 隊 伍");
             return HookResult.Stop; 
         }
     }
@@ -529,7 +529,7 @@ if (message == ".r" || message == ".ready") {
                 {
                     if (isMatchSetup)
                     {
-                        Server.PrintToChatAll($"{chatPrefix} 玩家 {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
+                        Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
                         return HookResult.Continue;
                     }
                     HandleMapChangeCommand(player, messageCommandArg);
