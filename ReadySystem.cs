@@ -165,7 +165,7 @@ namespace MatchZy
                     .Replace(" 移至觀戰", $"{ChatColors.Default} 移至觀戰");
 
                 // 4. 輸出最終訊息
-                Server.PrintToChatAll($"{chatPrefix} {reason}，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+                Server.PrintToChatAll($"{chatPrefix}倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備");
                 
                 // 5. 立即顯示當前還缺多少人的提示
                 PrintUnreadyPlayers();
