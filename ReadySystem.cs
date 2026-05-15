@@ -157,8 +157,7 @@ namespace MatchZy
         string name = (player != null) ? player.PlayerName : "系統";
 
         // 這裡同樣使用 Server.PrintToChatAll 確保訊息純淨
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{name} {ChatColors.White}{reason}，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
-        
+        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{name} {ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
         PrintUnreadyPlayers();
     }
 }
