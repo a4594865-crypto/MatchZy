@@ -165,7 +165,7 @@ namespace MatchZy
                     .Replace(" 移至觀戰", $"{ChatColors.Default} 移至觀戰");
 
                 // 4. 輸出最終訊息
-               PrintToAllChat($" {ChatColors.Green}有玩家{ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+                PrintToAllChat($"{ChatColors.Default}倒數中止：{coloredReason}");
                 
                 // 5. 立即顯示當前還缺多少人的提示
                 PrintUnreadyPlayers();
