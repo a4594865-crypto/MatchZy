@@ -158,7 +158,7 @@ namespace MatchZy
         // 1. 使用 Server.PrintToChatAll (這不會自動加前綴)
         // 2. 這裡我們手動寫「一個」 {chatPrefix} 
         // 3. 後面的 {reason} 就包含了剛才傳過來的「綠色名字 + 斷開連線」
-        Server.PrintToChatAll($"{chatPrefix} {reason}，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{reason} {ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
         
         PrintUnreadyPlayers();
     }
