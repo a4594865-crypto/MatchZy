@@ -1,4 +1,4 @@
-using System;                                           
+using System;                                       
 using System.Collections.Generic;                       
 using System.Linq;                                      
 using CounterStrikeSharp.API;
@@ -23,7 +23,7 @@ namespace MatchZy
         public override string ModuleAuthor => "WD- (https://github.com/shobhit-pathak/)";
 
         public override string ModuleDescription => "A plugin for running and managing CS2 practice/pugs/scrims/matches!";
-		public CounterStrikeSharp.API.Modules.Timers.Timer? matchStartCountdownTimer = null;
+        public CounterStrikeSharp.API.Modules.Timers.Timer? matchStartCountdownTimer = null;
         public int countdownRemaining = 7;
 
         public string chatPrefix = $"[{ChatColors.Green}MatchZy{ChatColors.Default}]";
@@ -35,8 +35,8 @@ namespace MatchZy
         public bool readyAvailable = false;
         public bool matchStarted = false;
         public bool isWarmup = false;
-		public bool isCountdownActive = false; // 加入這一行，宣告全域開關
-		public bool isShufflePending = false; // A方案：預約隨機分隊標記
+        public bool isCountdownActive = false; // 加入這一行，宣告全域開關
+        public bool isShufflePending = false; // A方案：預約隨機分隊標記
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
         public bool isMatchLive = false;
@@ -205,7 +205,7 @@ namespace MatchZy
                 { ".besttspawn", OnBestTSpawnCommand },
                 { ".worsttspawn", OnWorstTSpawnCommand },
                 { ".savepos", OnSavePosCommand},
-				{ ".shuffle", OnShuffleCommand },
+                { ".shuffle", OnShuffleCommand },
                 { ".unshuffle", OnUnshuffleCommand },
                 { ".loadpos", OnLoadPosCommand}
             };
@@ -246,14 +246,31 @@ namespace MatchZy
                 return EventPlayerConnectFullHandler(@event, info);
             });
             
-            // 1. 斷線事件處理：原有的處理程序 + 額外的新增中止邏輯
+            // 1. 斷線事件處理：整合「倒數中止」與「刀場斷線自動移除名單」
             RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
                 var player = @event.Userid;
+                if (player == null) return HookResult.Continue;
+                int userId = (int)(player.UserId ?? -1);
 
-                // --- 新增：倒數期間有人斷線就中止 ---
-                if (player != null && matchStartCountdownTimer != null)
+                // --- A. 倒數期間斷線：中止倒數 ---
+                if (matchStartCountdownTimer != null)
                 {
                     CancelMatchCountdown($"玩家 {player.PlayerName} 斷開連線，倒數中止。");
+                }
+
+                // --- B. 關鍵補強：刀場/選邊期間斷線，自動從名單移除以防止卡死 ---
+                if (!isWarmup && !matchStarted && !isPractice)
+                {
+                    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
+                    {
+                        playerReadyStatus.Remove(userId);
+                        Log($"[MatchZy] 刀場期間玩家 {player.PlayerName} 斷線，已從名單移除以防止選邊卡死。");
+                    }
+
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}玩家 {player.PlayerName} 離開了。");
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}名單已自動更新，剩餘玩家可繼續執行選邊指令。");
+                    
+                    UpdatePlayersMap();
                 }
 
                 // 呼叫原本可能定義在其他檔案的處理程序 (保持原架構相容)
@@ -320,7 +337,7 @@ namespace MatchZy
                 }
                 return HookResult.Continue;
             }, HookMode.Pre);
-			
+            
             // 徹底禁用 ESC 投票系統
             AddCommandListener("callvote", (player, info) =>
             {
@@ -414,8 +431,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
             
             RegisterEventHandler<EventPlayerHurt>((@event, info) =>
-			{
-				CCSPlayerController? attacker = @event.Attacker;
+            {
+                CCSPlayerController? attacker = @event.Attacker;
                 CCSPlayerController? victim = @event.Userid;
 
                 if (!IsPlayerValid(attacker) || !IsPlayerValid(victim)) return HookResult.Continue;
@@ -428,8 +445,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     return HookResult.Continue;
                 }
 
-				if (!attacker!.IsValid || attacker.IsBot && !(@event.DmgHealth > 0 || @event.DmgArmor > 0))
-					return HookResult.Continue;
+                if (!attacker!.IsValid || attacker.IsBot && !(@event.DmgHealth > 0 || @event.DmgArmor > 0))
+                    return HookResult.Continue;
                 if (matchStarted && victim!.TeamNum != attacker.TeamNum) 
                 {
                     int targetId = (int)victim.UserId!;
@@ -437,8 +454,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     if (attacker != victim) playerHasTakenDamage = true;
                 }
 
-				return HookResult.Continue;
-			});
+                return HookResult.Continue;
+            });
 
             RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
