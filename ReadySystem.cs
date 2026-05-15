@@ -146,7 +146,7 @@ namespace MatchZy
             }, TimerFlags.REPEAT);
         }
 
-        public void CancelMatchCountdown(string reason)
+        public void CancelMatchCountdown(CCSPlayerController? player, string reason)
 {
     if (matchStartCountdownTimer != null)
     {
@@ -154,16 +154,14 @@ namespace MatchZy
         matchStartCountdownTimer = null;
         isCountdownActive = false; 
 
-        // 【解決重複的關鍵】
-        // 1. 使用 Server.PrintToChatAll (這不會自動加前綴)
-        // 2. 這裡我們手動寫「一個」 {chatPrefix} 
-        // 3. 後面的 {reason} 就包含了剛才傳過來的「綠色名字 + 斷開連線」
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{reason} {ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+        string name = (player != null) ? player.PlayerName : "系統";
+
+        // 這裡同樣使用 Server.PrintToChatAll 確保訊息純淨
+        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{name} {ChatColors.White}{reason}，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
         
         PrintUnreadyPlayers();
     }
 }
-
      public void PrintUnreadyPlayers()
         {
             // 只要在倒數，就攔截所有準備訊息
