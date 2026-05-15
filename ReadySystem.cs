@@ -147,30 +147,22 @@ namespace MatchZy
         }
 
         public void CancelMatchCountdown(string reason)
-        {
-            if (matchStartCountdownTimer != null)
-            {
-                // 1. 停止計時器並清理
-                matchStartCountdownTimer.Kill();
-                matchStartCountdownTimer = null;
-                
-                // 2. 先關閉攔截開關
-                isCountdownActive = false; 
+{
+    if (matchStartCountdownTimer != null)
+    {
+        matchStartCountdownTimer.Kill();
+        matchStartCountdownTimer = null;
+        isCountdownActive = false; 
 
-                // 3. 自動對名字上色
-                string coloredReason = reason
-                    .Replace("玩家 ", $"玩家 {ChatColors.Red}")
-                    .Replace(" 變動隊伍", $"{ChatColors.Default} 變動隊伍")
-                    .Replace(" 斷開連線", $"{ChatColors.Default} 斷開連線")
-                    .Replace(" 移至觀戰", $"{ChatColors.Default} 移至觀戰");
-
-                // 4. 輸出最終訊息
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}玩家{ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
-                
-                // 5. 立即顯示當前還缺多少人的提示
-                PrintUnreadyPlayers();
-            }
-        }
+        // 【解決重複的關鍵】
+        // 1. 使用 Server.PrintToChatAll (這不會自動加前綴)
+        // 2. 這裡我們手動寫「一個」 {chatPrefix} 
+        // 3. 後面的 {reason} 就包含了剛才傳過來的「綠色名字 + 斷開連線」
+        Server.PrintToChatAll($"{chatPrefix} {reason}，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+        
+        PrintUnreadyPlayers();
+    }
+}
 
      public void PrintUnreadyPlayers()
         {
