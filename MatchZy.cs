@@ -255,13 +255,21 @@ namespace MatchZy
                 // --- A. 倒數期間斷線：中止倒數 ---
 if (matchStartCountdownTimer != null)
 {
-    // 1. 中止計時並發送公告（包含你要的 R 準備提示）
-    CancelMatchCountdown($"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線，倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備");
+    // 1. 定義要發送的訊息內容 (包含前綴、顏色與提示)
+    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線，倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+
+    // 2. 立即發送第一次公告
+    CancelMatchCountdown(disconnectMsg);
     
-    // 2. 清空準備狀態，確保剩下的 9 人必須重打指令
+    // 3. 設定 3 秒後再發送一次相同的公告
+    AddTimer(4.0f, () => {
+        // 這裡直接呼叫 Server.PrintToChatAll 或是再次呼叫 CancelMatchCountdown
+        // 為了不觸發額外的邏輯，直接印出字串即可
+        Server.PrintToChatAll(disconnectMsg);
+    });
+
+    // 4. 清空狀態與計時器
     playerReadyStatus.Clear(); 
-    
-    // 3. 關鍵：重置計時器變數與靜音開關，避免對話框持續被封鎖
     matchStartCountdownTimer = null;
     isCountdownActive = false; 
 }
