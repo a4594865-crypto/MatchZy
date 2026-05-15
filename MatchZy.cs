@@ -253,22 +253,26 @@ namespace MatchZy
                 int userId = (int)(player.UserId ?? -1);
 
                 // --- A. 倒數期間斷線：中止倒數 ---
+// --- A. 倒數期間斷線：中止倒數 ---
 if (matchStartCountdownTimer != null)
 {
-    // 1. 定義要發送的訊息內容 (包含前綴、顏色與提示)
+    // 1. 定義要發送的訊息內容
     string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線，倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
-    // 2. 立即發送第一次公告
+    // 2. 立即發送 (第 1 次)
     CancelMatchCountdown(disconnectMsg);
     
-    // 3. 設定 3 秒後再發送一次相同的公告
+    // 3. 延遲 3 秒發送 (第 2 次)
     AddTimer(4.0f, () => {
-        // 這裡直接呼叫 Server.PrintToChatAll 或是再次呼叫 CancelMatchCountdown
-        // 為了不觸發額外的邏輯，直接印出字串即可
         Server.PrintToChatAll(disconnectMsg);
     });
 
-    // 4. 清空狀態與計時器
+    // 4. 延遲 6 秒發送 (第 3 次)
+    AddTimer(8.0f, () => {
+        Server.PrintToChatAll(disconnectMsg);
+    });
+
+    // 5. 清空狀態與計時器邏輯
     playerReadyStatus.Clear(); 
     matchStartCountdownTimer = null;
     isCountdownActive = false; 
