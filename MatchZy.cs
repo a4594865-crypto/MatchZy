@@ -259,21 +259,18 @@ namespace MatchZy
                 }
 
                 // --- B. 關鍵補強：刀場/選邊期間斷線，自動從名單移除以防止卡死 ---
-                if (!isWarmup && !matchStarted && !isPractice)
+if (!isWarmup && !matchStarted && !isPractice)
 {
     if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
     {
+        // 後台默默移除，解決鎖死問題
         playerReadyStatus.Remove(userId);
+        
+        // 僅在伺服器後台 Log 記錄，玩家看不到
         Log($"[MatchZy] 玩家 {player.PlayerName} 斷線，已從名單移除。");
     }
 
-    // 只有在「選邊階段」才噴這行訊息
-    if (isSideSelectionPhase) 
-    {
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}玩家 {player.PlayerName} 離開了。");
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}名單已自動更新，剩餘玩家可繼續執行選邊指令。");
-    }
-    
+    // 更新地圖玩家緩存，確保剩下的 9 人指令生效
     UpdatePlayersMap();
 }
 
