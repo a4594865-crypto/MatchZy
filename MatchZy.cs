@@ -298,7 +298,7 @@ AddCommandListener("jointeam", (player, info) =>
     {
         if (!isWarmup) // 確保不誤傷一般的練習模式
         {
-            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}禁止切換隊伍或跳去觀戰！");
+            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}禁 止 切 換 隊 伍 或 跳 去 觀 戰");
             return HookResult.Stop; 
         }
     }
@@ -320,7 +320,7 @@ AddCommandListener("jointeam", (player, info) =>
         byte currentTeam = player.TeamNum;
         if ((targetTeam == "2" || targetTeam == "3") && (currentTeam == 2 || currentTeam == 3))
         {
-            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已開始，禁止互換隊伍！");
+            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比 賽 已 開 始，禁 止 互 換 隊 伍");
             return HookResult.Stop; 
         }
     }
