@@ -253,10 +253,18 @@ namespace MatchZy
                 int userId = (int)(player.UserId ?? -1);
 
                 // --- A. 倒數期間斷線：中止倒數 ---
-                if (matchStartCountdownTimer != null)
-                {
-                    CancelMatchCountdown($"玩家 {player.PlayerName} 斷開連線，倒數中止。");
-                }
+if (matchStartCountdownTimer != null)
+{
+    // 1. 中止計時並發送公告（包含你要的 R 準備提示）
+    CancelMatchCountdown($"{chatPrefix} 玩家{ChatColors.LightRed} {player.PlayerName} {ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+    
+    // 2. 清空準備狀態，確保剩下的 9 人必須重打指令
+    playerReadyStatus.Clear(); 
+    
+    // 3. 關鍵：重置計時器變數與靜音開關，避免對話框持續被封鎖
+    matchStartCountdownTimer = null;
+    isCountdownActive = false; 
+}
 
 // --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
 if (!isWarmup && !matchStarted && !isPractice)
