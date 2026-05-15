@@ -146,7 +146,7 @@ namespace MatchZy
             }, TimerFlags.REPEAT);
         }
 
-        public void CancelMatchCountdown(CCSPlayerController? player, string reason)
+        public void CancelMatchCountdown(string reason)
 {
     if (matchStartCountdownTimer != null)
     {
@@ -154,10 +154,10 @@ namespace MatchZy
         matchStartCountdownTimer = null;
         isCountdownActive = false; 
 
-        string name = (player != null) ? player.PlayerName : "系統";
-
-        // 這裡同樣使用 Server.PrintToChatAll 確保訊息純淨
+        // 【重點】使用 Server.PrintToChatAll (純淨模式)
+        // 手動只寫一個 {chatPrefix}，後面接傳進來的「名字+理由」
         Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{reason} {ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+        
         PrintUnreadyPlayers();
     }
 }
