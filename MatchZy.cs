@@ -293,6 +293,7 @@ if (!isWarmup && !matchStarted && !isPractice)
 
            // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
 // 修正版：處理換隊、觀戰以及倒數中止邏輯
+// 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
 AddCommandListener("jointeam", (player, info) =>
 {
     if (player == null || player.IsBot || isSleep) return HookResult.Continue;
@@ -300,35 +301,32 @@ AddCommandListener("jointeam", (player, info) =>
     string targetTeam = info.ArgByIndex(1); 
     int userId = (int)(player.UserId ?? -1);
 
-    // --- 1. 禁止區：倒數中、刀戰中、選邊階段 ---
-    // 這些階段不准換隊，也不准跳觀戰
-    if (matchStartCountdownTimer != null || isKnifeRound || isSideSelectionPhase)
+    // --- 核心邏輯：只要正在倒數中，管你在不在熱身，通通不准換隊 ---
+    if (matchStartCountdownTimer != null || isCountdownActive)
     {
-        if (!isWarmup) // 確保不誤傷一般的練習模式
-        {
-            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}禁 止 切 換 隊 伍 或 跳 去 觀 戰");
-            return HookResult.Stop; 
-        }
+        // 顯示警告訊息給該玩家
+        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}【警告】倒數期間禁止切換隊伍或跳去觀戰！");
+        
+        // 返回 HookResult.Stop 就能直接吃掉這個指令，讓玩家留在原地
+        return HookResult.Stop; 
     }
 
-    // --- 2. 寬鬆區：熱身階段 ---
+    // --- 以下為非倒數期間的正常比賽邏輯 ---
+    
+    // 如果是熱身階段（且沒在倒數），允許自由換隊
     if (isWarmup) return HookResult.Continue;
 
-    // --- 3. 比賽正式開始後 (matchStarted) ---
+    // 比賽正式開始後
     if (matchStarted)
     {
-        // A. 允許去觀戰 (處理私事/設備問題)
-        if (targetTeam == "1") 
-        {
-            if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
-            return HookResult.Continue;
-        }
+        // 允許去觀戰 (targetTeam "1" 是觀戰)
+        if (targetTeam == "1") return HookResult.Continue;
 
-        // B. 禁止互換隊伍 (CT 換 T 或 T 換 CT)
+        // 禁止 CT/T 互換 (targetTeam "2" 是 T, "3" 是 CT)
         byte currentTeam = player.TeamNum;
         if ((targetTeam == "2" || targetTeam == "3") && (currentTeam == 2 || currentTeam == 3))
         {
-            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比 賽 已 開 始，禁 止 互 換 隊 伍");
+            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已開始，禁止互換隊伍！");
             return HookResult.Stop; 
         }
     }
