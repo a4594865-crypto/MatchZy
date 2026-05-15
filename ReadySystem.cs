@@ -146,31 +146,28 @@ namespace MatchZy
             }, TimerFlags.REPEAT);
         }
 
-        public void CancelMatchCountdown(string reason)
-        {
-            if (matchStartCountdownTimer != null)
-            {
-                // 1. 停止計時器並清理
-                matchStartCountdownTimer.Kill();
-                matchStartCountdownTimer = null;
-                
-                // 2. 先關閉攔截開關
-                isCountdownActive = false; 
+       public void CancelMatchCountdown(CCSPlayerController? player, string reason)
+{
+    if (matchStartCountdownTimer != null)
+    {
+        // 1. 停止計時器並清理
+        matchStartCountdownTimer.Kill();
+        matchStartCountdownTimer = null;
+        
+        // 2. 關閉攔截開關
+        isCountdownActive = false; 
 
-                // 3. 自動對名字上色
-                string coloredReason = reason
-                    .Replace("玩家 ", $"玩家 {ChatColors.Red}")
-                    .Replace(" 變動隊伍", $"{ChatColors.Default} 變動隊伍")
-                    .Replace(" 斷開連線", $"{ChatColors.Default} 斷開連線")
-                    .Replace(" 移至觀戰", $"{ChatColors.Default} 移至觀戰");
+        // 3. 獲取斷線玩家名字 (如果沒有玩家則顯示系統)
+        string playerName = (player != null) ? player.PlayerName : "系統";
 
-                // 4. 輸出最終訊息
-                 PrintToAllChat($"{ChatColors.Default}：{coloredReason}");
-                
-                // 5. 立即顯示當前還缺多少人的提示
-                PrintUnreadyPlayers();
-            }
-        }
+        // 4. 【核心修正】改用 Server.PrintToChatAll 繞過 PrintToAllChat 的自動前綴
+        // 這樣就不會再出現重複的 [系統訊息]
+        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{playerName} {ChatColors.White}{reason}，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+        
+        // 5. 顯示當前還缺多少人的提示
+        PrintUnreadyPlayers();
+    }
+}
 
      public void PrintUnreadyPlayers()
         {
