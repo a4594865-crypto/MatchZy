@@ -258,19 +258,16 @@ namespace MatchZy
                     CancelMatchCountdown($"玩家 {player.PlayerName} 斷開連線，倒數中止。");
                 }
 
-                // --- B. 關鍵補強：刀場/選邊期間斷線，自動從名單移除以防止卡死 ---
+// --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
 if (!isWarmup && !matchStarted && !isPractice)
 {
     if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
     {
-        // 後台默默移除，解決鎖死問題
+        // 僅進行數值移除，不發送任何訊息或 Log
         playerReadyStatus.Remove(userId);
-        
-        // 僅在伺服器後台 Log 記錄，玩家看不到
-        Log($"[MatchZy] 玩家 {player.PlayerName} 斷線，已從名單移除。");
     }
 
-    // 更新地圖玩家緩存，確保剩下的 9 人指令生效
+    // 更新地圖玩家緩存，確保剩下的玩家指令（如 .stay / .switch）能被正確計算
     UpdatePlayersMap();
 }
 
