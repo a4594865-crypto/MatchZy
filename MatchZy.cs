@@ -284,39 +284,44 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
            // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
+// 修正版：處理換隊、觀戰以及倒數中止邏輯
 AddCommandListener("jointeam", (player, info) =>
 {
     if (player == null || player.IsBot || isSleep) return HookResult.Continue;
 
-    string targetTeam = info.ArgByIndex(1);
-    
-    // --- 1. 核心禁止區：倒數中、刀戰中、選邊中 ---
-    // 這三個階段只要玩家想跳觀戰 (targetTeam == "1") 或換隊，一律攔截
+    string targetTeam = info.ArgByIndex(1); 
+    int userId = (int)(player.UserId ?? -1);
+
+    // --- 1. 禁止區：倒數中、刀戰中、選邊階段 ---
+    // 這些階段不准換隊，也不准跳觀戰
     if (matchStartCountdownTimer != null || isKnifeRound || isSideSelectionPhase)
     {
-        // 只有在「非熱身」的情況下才攔截 (確保不影響一般練習)
-        if (!isWarmup) 
+        if (!isWarmup) // 確保不誤傷一般的練習模式
         {
             player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}禁止切換隊伍或跳去觀戰！");
-            return HookResult.Stop;
+            return HookResult.Stop; 
         }
     }
 
-    // --- 2. 熱身區：完全放行 ---
+    // --- 2. 寬鬆區：熱身階段 ---
     if (isWarmup) return HookResult.Continue;
 
-    // --- 3. 正式比賽區 (matchStarted)：限制互換隊伍，但允許去觀戰 ---
+    // --- 3. 比賽正式開始後 (matchStarted) ---
     if (matchStarted)
     {
-        // 如果是想去觀戰，放行
-        if (targetTeam == "1") return HookResult.Continue;
+        // A. 允許去觀戰 (處理私事/設備問題)
+        if (targetTeam == "1") 
+        {
+            if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
+            return HookResult.Continue;
+        }
 
-        // 如果是想在 CT/T 之間互換，攔截
-        int currentTeam = player.TeamNum;
+        // B. 禁止互換隊伍 (CT 換 T 或 T 換 CT)
+        byte currentTeam = player.TeamNum;
         if ((targetTeam == "2" || targetTeam == "3") && (currentTeam == 2 || currentTeam == 3))
         {
             player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已開始，禁止互換隊伍！");
-            return HookResult.Stop;
+            return HookResult.Stop; 
         }
     }
 
