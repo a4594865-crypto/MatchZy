@@ -287,45 +287,48 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
            // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
-            AddCommandListener("jointeam", (player, info) =>
-            {
-                // 基本檢查：如果是機器人或睡眠模式，直接跳過不做處理
-                if (player == null || player.IsBot || isSleep) return HookResult.Continue;
+AddCommandListener("jointeam", (player, info) =>
+{
+    // 基本檢查：如果是機器人或睡眠模式，直接跳過不做處理
+    if (player == null || player.IsBot || isSleep) return HookResult.Continue;
 
-                // --- 關鍵修正 A：中止倒數邏輯放在最前面，且不被 isWarmup 攔截 ---
-                if (matchStartCountdownTimer != null)
-                {
-                    CancelMatchCountdown($"玩家 {player.PlayerName} 變動隊伍，倒數中止。");
-                }
+    string targetTeam = info.ArgByIndex(1); 
+    int userId = (int)(player.UserId ?? -1);
+    byte currentTeam = player.TeamNum; 
 
-                // --- 關鍵修正 B：中止完倒數後，如果是熱身階段，則放行所有換隊行為 ---
-                if (isWarmup) return HookResult.Continue;
+    // --- 關鍵修正 A：倒數期間禁止任何隊伍變動 (包含跳去觀戰) ---
+    if (matchStartCountdownTimer != null)
+    {
+        // 如果玩家嘗試在倒數時換隊或跳觀戰
+        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}倒數期間禁止切換隊伍或跳去觀戰！");
+        return HookResult.Stop; // 直接攔截指令，不讓倒數被中止，也不讓玩家移動
+    }
 
-                // 以下是你原本的比賽中禁止換隊邏輯，不會被動到
-                string targetTeam = info.ArgByIndex(1); 
-                int userId = (int)(player.UserId ?? -1);
-                byte currentTeam = player.TeamNum; 
+    // --- 關鍵修正 B：如果是熱身階段，且沒在倒數，則放行所有換隊行為 ---
+    if (isWarmup) return HookResult.Continue;
 
-                // 1. 永遠放行觀戰，並重置其準備狀態
-                if (targetTeam == "1") 
-                {
-                    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
-                    return HookResult.Continue;
-                }
+    // --- 關鍵修正 C：非倒數、非熱身期間 (例如刀場或比賽中) 的邏輯 ---
+    
+    // 1. 正常期間放行觀戰 (targetTeam "1" 是觀戰)
+    if (targetTeam == "1") 
+    {
+        if (userId != -1 && playerReadyStatus.ContainsKey(userId)) playerReadyStatus[userId] = false; 
+        return HookResult.Continue;
+    }
 
-                // 2. 比賽正式開始後 (matchStarted) 的換隊限制
-                if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
-                {
-                    if (currentTeam == 2 || currentTeam == 3)
-                    {
-                        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已正式開始，禁止互換隊伍！");
-                        return HookResult.Stop; 
-                    }
-                    return HookResult.Continue;
-                }
+    // 2. 比賽正式開始後 (matchStarted) 的換隊限制 (禁止 CT/T 互換)
+    if (matchStarted && (targetTeam == "2" || targetTeam == "3"))
+    {
+        if (currentTeam == 2 || currentTeam == 3)
+        {
+            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比賽已正式開始，禁止互換隊伍！");
+            return HookResult.Stop; 
+        }
+        return HookResult.Continue;
+    }
 
-                return HookResult.Continue;
-            });
+    return HookResult.Continue;
+});
 
             // --- 修正版：攔截倒數期間的所有隊伍變動廣播 ---
             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
