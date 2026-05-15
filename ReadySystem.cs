@@ -147,20 +147,31 @@ namespace MatchZy
         }
 
         public void CancelMatchCountdown(string reason)
-{
-    if (matchStartCountdownTimer != null)
-    {
-        matchStartCountdownTimer.Kill();
-        matchStartCountdownTimer = null;
-        isCountdownActive = false; 
+        {
+            if (matchStartCountdownTimer != null)
+            {
+                // 1. 停止計時器並清理
+                matchStartCountdownTimer.Kill();
+                matchStartCountdownTimer = null;
+                
+                // 2. 先關閉攔截開關
+                isCountdownActive = false; 
 
-        // 【重點】使用 Server.PrintToChatAll (純淨模式)
-        // 手動只寫一個 {chatPrefix}，後面接傳進來的「名字+理由」
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{reason} {ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
-        
-        PrintUnreadyPlayers();
-    }
-}
+                // 3. 自動對名字上色
+                string coloredReason = reason
+                    .Replace("玩家 ", $"玩家 {ChatColors.Red}")
+                    .Replace(" 變動隊伍", $"{ChatColors.Default} 變動隊伍")
+                    .Replace(" 斷開連線", $"{ChatColors.Default} 斷開連線")
+                    .Replace(" 移至觀戰", $"{ChatColors.Default} 移至觀戰");
+
+                // 4. 輸出最終訊息
+                Server.PrintToChatAll($"{chatPrefix} {reason}，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+                
+                // 5. 立即顯示當前還缺多少人的提示
+                PrintUnreadyPlayers();
+            }
+        }
+
      public void PrintUnreadyPlayers()
         {
             // 只要在倒數，就攔截所有準備訊息
