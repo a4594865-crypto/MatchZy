@@ -256,7 +256,7 @@ namespace MatchZy
 if (matchStartCountdownTimer != null)
 {
     // 1. 中止計時並發送公告（包含你要的 R 準備提示）
-    CancelMatchCountdown($"{chatPrefix} {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷開連線，倒數中止請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備");
+    CancelMatchCountdown($"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線，倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備");
     
     // 2. 清空準備狀態，確保剩下的 9 人必須重打指令
     playerReadyStatus.Clear(); 
