@@ -33,7 +33,10 @@ jobs:
 
       - name: Build and Release Artifacts
         run: |
-          # 1. 鐵腕提取乾淨的 CSS 版本號（去除所有引號、冒號、逗號、空格）
+          # 1. 重新在目前步驟宣告變數，防止 $GITHUB_ENV 延遲生效導致版號空白
+          MATCHZY_VERSION=$(grep -oP 'ModuleVersion\s*=>\s*"\K[^"]*' MatchZy.cs)
+          
+          # 2. 提取乾淨的 CSS 版本號（去除所有引號、冒號、逗號、空格雜質）
           RAW_VERSION=$(grep 'CounterStrikeSharp.API' MatchZy.csproj || echo "1.0.367")
           CSSHARP_VERSION=$(echo "$RAW_VERSION" | sed 's/[^0-9.]//g')
           
@@ -44,17 +47,17 @@ jobs:
           
           echo "========================================="
           echo "解析出來的 CSS 版本號: [$CSSHARP_VERSION]"
-          echo "當前插件 MatchZy 版本號: [${{ env.MATCHZY_VERSION }}]"
+          echo "當前插件 MatchZy 版本號: [$MATCHZY_VERSION]"
           echo "========================================="
 
           # 清理 NuGet 快取並編譯基礎包
           dotnet restore
-          echo "Creating MatchZy base package with version: ${{ env.MATCHZY_VERSION }}"
+          echo "Creating MatchZy base package with version: $MATCHZY_VERSION"
           dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
           cp -r cfg package 
-          cd package && zip -q -r ../MatchZy-${{ env.MATCHZY_VERSION }}.zip * && cd ..
+          cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION.zip * && cd ..
      
-          # 2. 開始打包 Linux 整合版
+          # 3. 開始打包 Linux 整合版
           echo "Creating package with CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION for Linux"
           cd package/
           echo "Installing CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION"
@@ -70,12 +73,12 @@ jobs:
           cd ../
 
           dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
-          cd package && zip -q -r ../MatchZy-${{ env.MATCHZY_VERSION }}-with-cssharp-linux.zip * && cd ..
+          cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION-with-cssharp-linux.zip * && cd ..
 
           # 清空 package 資料夾準備處理 Windows
           rm -r package/*
 
-          # 3. 開始打包 Windows 整合版
+          # 4. 開始打包 Windows 整合版
           echo "Creating package with CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION for Windows"
           cp -r cfg package
           cd package/
@@ -92,7 +95,7 @@ jobs:
           cd ../
 
           dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
-          cd package && zip -q -r ../MatchZy-${{ env.MATCHZY_VERSION }}-with-cssharp-windows.zip * && cd ..
+          cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION-with-cssharp-windows.zip * && cd ..
 
       - name: Create Release
         id: create_release
