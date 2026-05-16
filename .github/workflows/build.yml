@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     paths-ignore:
-        - "documentation/**"
+      - "documentation/**"
     branches:
       - main
   workflow_dispatch:
@@ -11,11 +11,11 @@ on:
 jobs:
   build:
     permissions:
-        contents: write
+      contents: write
     name: Build and Release
     runs-on: ubuntu-latest
     outputs:
-        MATCHZY_VERSION: ${{ steps.MATCHZY_VERSION.outputs.MATCHZY_VERSION }}
+      MATCHZY_VERSION: ${{ env.MATCHZY_VERSION }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -28,54 +28,71 @@ jobs:
       - name: Get MatchZy Version
         id: MATCHZY_VERSION
         run: |
-            MATCHZY_VERSION=$(grep -oP 'ModuleVersion\s*=>\s*"\K[^"]*' MatchZy.cs)
-            echo "MATCHZY_VERSION=$MATCHZY_VERSION" >> $GITHUB_ENV
+          MATCHZY_VERSION=$(grep -oP 'ModuleVersion\s*=>\s*"\K[^"]*' MatchZy.cs)
+          echo "MATCHZY_VERSION=$MATCHZY_VERSION" >> $GITHUB_ENV
+
       - name: Build and Release Artifacts
         run: |
-          CSSHARP_VERSION=$(grep -Po '<PackageReference Include="CounterStrikeSharp.API" Version="\K\d+(\.\d+)*' MatchZy.csproj)
-          echo "Creating MatchZy base package with version: $MATCHZY_VERSION"
+          # 1. 鐵腕提取乾淨的 CSS 版本號（去除所有引號、冒號、逗號、空格）
+          RAW_VERSION=$(grep 'CounterStrikeSharp.API' MatchZy.csproj || echo "1.0.367")
+          CSSHARP_VERSION=$(echo "$RAW_VERSION" | sed 's/[^0-9.]//g')
+          
+          # 安全保底：如果萬一真的抓不到數字，直接強制指定最新的 1.0.367
+          if [ -z "$CSSHARP_VERSION" ]; then
+            CSSHARP_VERSION="1.0.367"
+          fi
+          
+          echo "========================================="
+          echo "解析出來的 CSS 版本號: [$CSSHARP_VERSION]"
+          echo "當前插件 MatchZy 版本號: [${{ env.MATCHZY_VERSION }}]"
+          echo "========================================="
+
+          # 清理 NuGet 快取並編譯基礎包
+          dotnet restore
+          echo "Creating MatchZy base package with version: ${{ env.MATCHZY_VERSION }}"
           dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
           cp -r cfg package 
-          cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION.zip * && cd ..
-    
+          cd package && zip -q -r ../MatchZy-${{ env.MATCHZY_VERSION }}.zip * && cd ..
+     
+          # 2. 開始打包 Linux 整合版
           echo "Creating package with CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION for Linux"
           cd package/
           echo "Installing CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION"
           [ -e addons/counterstrikesharp ] && rm -rf addons/counterstrikesharp && echo "CounterStrikeSharp removed" || echo "old CounterStrikeSharp not found"
+          
           curl -s https://api.github.com/repos/roflmuffin/CounterStrikeSharp/releases/tags/v$CSSHARP_VERSION |
-              grep "/counterstrikesharp-with-runtime-linux-$CSSHARP_VERSION" |
-              cut -d : -f 2,3 |
-              tr -d \" |
+              grep -oP '"browser_download_url": "\K[^"]*counterstrikesharp-with-runtime-linux-[^"]*' |
               head -n 1 |
               wget -O cssharp-linux.zip -qi -
+              
           unzip -o cssharp-linux.zip -d .
           rm cssharp-linux.zip
           cd ../
 
           dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
+          cd package && zip -q -r ../MatchZy-${{ env.MATCHZY_VERSION }}-with-cssharp-linux.zip * && cd ..
 
-          cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION-with-cssharp-linux.zip * && cd ..
-
+          # 清空 package 資料夾準備處理 Windows
           rm -r package/*
 
+          # 3. 開始打包 Windows 整合版
           echo "Creating package with CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION for Windows"
           cp -r cfg package
           cd package/
           echo "Installing CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION"
           [ -e addons/counterstrikesharp ] && rm -rf addons/counterstrikesharp && echo "CounterStrikeSharp removed" || echo "old CounterStrikeSharp not found"
+          
           curl -s https://api.github.com/repos/roflmuffin/CounterStrikeSharp/releases/tags/v$CSSHARP_VERSION |
-              grep "/counterstrikesharp-with-runtime-windows-$CSSHARP_VERSION" |
-              cut -d : -f 2,3 |
-              tr -d \" |
+              grep -oP '"browser_download_url": "\K[^"]*counterstrikesharp-with-runtime-windows-[^"]*' |
               head -n 1 |
               wget -O cssharp-windows.zip -qi -
+              
           unzip -o cssharp-windows.zip -d .
           rm cssharp-windows.zip
           cd ../
 
           dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
-
-          cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION-with-cssharp-windows.zip * && cd ..
+          cd package && zip -q -r ../MatchZy-${{ env.MATCHZY_VERSION }}-with-cssharp-windows.zip * && cd ..
 
       - name: Create Release
         id: create_release
