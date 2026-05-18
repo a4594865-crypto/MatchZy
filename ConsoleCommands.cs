@@ -229,10 +229,19 @@ namespace MatchZy
             ForceUnpauseMatch(player, command);
         }
 
-        [ConsoleCommand("css_unpause", "Unpause the match")]
+       [ConsoleCommand("css_unpause", "Unpause the match")]
+        [ConsoleCommand("css_up", "Unpause the match")]
         public void OnUnpauseCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (isMatchLive && isPaused)
+            if (!isMatchLive) return;
+
+            // 🎯【核心大防線修正】：
+            // 只要 MatchZy 處於暫停 (isPaused) 或者是 V 社原生戰術暫停正在跑 (TimeOutActive)
+            // 就代表目前是暫停狀態，允許執行點 .up 的雙方投票邏輯！
+            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
+            bool isAnyPauseActive = isPaused || gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive;
+
+            if (isAnyPauseActive)
             {
                 var pauseTeamName = unpauseData["pauseTeam"];
                 if ((string)pauseTeamName == "Admin" && player != null)
@@ -251,7 +260,6 @@ namespace MatchZy
                     {
                         unpauseData["t"] = true;
                     }
-
                 }
                 else if (player?.TeamNum == 3)
                 {
@@ -266,26 +274,36 @@ namespace MatchZy
                 {
                     return;
                 }
+
+                // 🎯【成功判定】：當 T 隊和 CT 隊雙方都打了 .up 同意
                 if ((bool)unpauseData["t"] && (bool)unpauseData["ct"])
                 {
                     PrintToAllChat(Localizer["matchzy.pause.teamsunpausedthematch"]);
+                    
+                    // 同時對伺服器發送兩種解除指令，不管哪個暫停在跑都直接解除
                     Server.ExecuteCommand("mp_unpause_match;");
+                    Server.ExecuteCommand("mp_unpause_game"); 
+
                     isPaused = false;
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
                 }
+                // 🎯【成功判定】：如果是管理員手動輸入 .up 強制解除
                 else if (unpauseTeamName == "Admin")
                 {
                     PrintToAllChat(Localizer["matchzy.pause.adminunpausedthematch"]);
+                    
                     Server.ExecuteCommand("mp_unpause_match;");
+                    Server.ExecuteCommand("mp_unpause_game"); 
+
                     isPaused = false;
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
                 }
                 else
                 {
+                    // 只有單方面一隊打 .up 時，跳出聊天欄提示，完美卡住暫停
                     PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", unpauseTeamName, remainingUnpauseTeam]);
-                    // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{unpauseTeamName}{ChatColors.Default} wants to unpause the match. {ChatColors.Green}{remainingUnpauseTeam}{ChatColors.Default}, please write !unpause to confirm.");
                 }
                 if (!isPaused && pausedStateTimer != null)
                 {
