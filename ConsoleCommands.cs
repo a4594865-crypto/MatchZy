@@ -232,6 +232,66 @@ namespace MatchZy
         [ConsoleCommand("css_unpause", "Unpause the match")]
         public void OnUnpauseCommand(CCSPlayerController? player, CommandInfo? command)
         {
+            // --- 新增：優先處理解除技術暫停（.tech）的投票邏輯 ---
+            if (isTechPause && isPaused)
+            {
+                if (player == null) return;
+
+                string playerTeamName = "Admin";
+                string remainingTeamName = "Admin";
+
+                if (player.TeamNum == 2)
+                {
+                    playerTeamName = "TERRORIST";
+                    remainingTeamName = "CT";
+                }
+                else if (player.TeamNum == 3)
+                {
+                    playerTeamName = "CT";
+                    remainingTeamName = "TERRORIST";
+                }
+                else
+                {
+                    // 觀察者或無隊伍不予理會
+                    return;
+                }
+
+                // 如果這支隊伍在這次暫停中還沒投票，就記錄下來
+                if (!techUnpauseVotes.Contains(playerTeamName))
+                {
+                    techUnpauseVotes.Add(playerTeamName);
+                    
+                    string localizedCurrentTeam = (playerTeamName == "CT") ? reverseTeamSides["CT"].teamName : reverseTeamSides["TERRORIST"].teamName;
+                    string localizedRemainingTeam = (remainingTeamName == "CT") ? reverseTeamSides["CT"].teamName : reverseTeamSides["TERRORIST"].teamName;
+                    
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 代表 {ChatColors.Orange}{localizedCurrentTeam}{ChatColors.Default} 同意解除技術暫停。");
+
+                    // 檢查是否兩邊隊伍都同意了（T 和 CT 都打了 .up）
+                    if (techUnpauseVotes.Contains("TERRORIST") && techUnpauseVotes.Contains("CT"))
+                    {
+                        Server.PrintToChatAll($"{chatPrefix} 雙方隊伍皆同意解除暫停，正在恢復比賽！");
+                        
+                        // 移除自動倒數計時器
+                        if (techPauseTimer != null) {
+                            techPauseTimer.Kill();
+                            techPauseTimer = null;
+                        }
+
+                        isTechPause = false;
+                        isPaused = false;
+                        techUnpauseVotes.Clear();
+                        
+                        Server.ExecuteCommand("mp_unpause_match;");
+                    }
+                    else
+                    {
+                        Server.PrintToChatAll($"{chatPrefix} 還需要 {ChatColors.Orange}{localizedRemainingTeam}{ChatColors.Default} 隊伍輸入 {ChatColors.Green}.up{ChatColors.Default} 才能恢復比賽。");
+                    }
+                }
+                return; // 執行完畢直接退出，不影響底下的普通暫停邏輯
+            }
+
+            // --- 以下是 MatchZy 原本處理普通暫停的程式碼（完全保留沒有變動） ---
             if (isMatchLive && isPaused)
             {
                 var pauseTeamName = unpauseData["pauseTeam"];
@@ -285,7 +345,6 @@ namespace MatchZy
                 else
                 {
                     PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", unpauseTeamName, remainingUnpauseTeam]);
-                    // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{unpauseTeamName}{ChatColors.Default} wants to unpause the match. {ChatColors.Green}{remainingUnpauseTeam}{ChatColors.Default}, please write !unpause to confirm.");
                 }
                 if (!isPaused && pausedStateTimer != null)
                 {
