@@ -7,8 +7,8 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 修正：使用字串 "teamA" 與 "teamB" 作為字典 Key，這兩個名字可以完美對應 MatchZy 內部的物件屬性
-    public Dictionary<string, int> techPausesLeft = new() { { "teamA", 1 }, { "teamB", 1 } };
+    // 配合您的 MatchZy 版本，使用字串 "matchzyTeam1" 與 "matchzyTeam2" 作為字典 Key
+    public Dictionary<string, int> techPausesLeft = new() { { "matchzyTeam1", 1 }, { "matchzyTeam2", 1 } };
 
     // 用來控制 300 秒自動解除暫停的計時器變數
     public CounterStrikeSharp.API.Modules.Timers.Timer? techPauseAutoUnpauseTimer = null;
@@ -48,7 +48,7 @@ public partial class MatchZy
         // 4. 檢查玩家是否在有效隊伍 (CsTeam.Terrorist 或 CsTeam.CounterTerrorist)
         if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
 
-        // 5. 【架構修正】利用 MatchZy 的 reverseTeamSides 字典，精確將當前陣營映射到真實隊伍物件
+        // 5. 利用 MatchZy 的 reverseTeamSides 字典，精確將當前陣營映射到真實隊伍物件
         Team playerMatchTeam;
         if (player.Team == CsTeam.CounterTerrorist)
         {
@@ -62,14 +62,14 @@ public partial class MatchZy
         string teamKey = "";
         string currentTeamName = playerMatchTeam.teamName;
 
-        // 透過 MatchZy 正確的成員變上名稱「teamA」與「teamB」進行比對
-        if (playerMatchTeam == teamA)
+        // 配合您的專案變數名稱「matchzyTeam1」與「matchzyTeam2」進行真實隊伍比對
+        if (playerMatchTeam == matchzyTeam1)
         {
-            teamKey = "teamA";
+            teamKey = "matchzyTeam1";
         }
-        else if (playerMatchTeam == teamB)
+        else if (playerMatchTeam == matchzyTeam2)
         {
-            teamKey = "teamB";
+            teamKey = "matchzyTeam2";
         }
         else
         {
@@ -94,13 +94,13 @@ public partial class MatchZy
         unpauseData["pauseTeam"] = currentTeamName; 
 
         PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{techPausesLeft[teamKey]} 次。");
-        PrintToAllChat($" 暫停將在 \u0004300秒\u0001 後自動解除，或雙方輸入 \u0004.up\u0001 解除。");
+        PrintToAllChat($" 暫停將在 \u0004300秒\u0001 後自動解除，或雙方輸入 \u0004.unpause\u0001 解除。");
 
         // 8. 安全防護：如果原本有計時器在跑，先砍掉
         techPauseAutoUnpauseTimer?.Kill();
 
-        // 9. 建立一個 300 秒後觸發的自動解除計時器
-        techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
+        // 9. 建立一個 300 秒後觸發的自動解除計時器（已將 30.0f 修正為 300.0f）
+        techPauseAutoUnpauseTimer = AddTimer(300.0f, () =>
         {
             if (isPaused)
             {
@@ -114,12 +114,12 @@ public partial class MatchZy
         });
     }
 
-    // 這裡修正：建立一個統一重設次數的方法
+    // 建立一個統一重設次數的方法
     public void ResetTechPauseCount()
     {
-        // 對應修正後的真實隊伍 Key
-        techPausesLeft["teamA"] = 1;
-        techPausesLeft["teamB"] = 1;
+        // 同步修正為您的專案專屬變數名稱 key
+        techPausesLeft["matchzyTeam1"] = 1;
+        techPausesLeft["matchzyTeam2"] = 1;
         techPauseAutoUnpauseTimer?.Kill();
         techPauseAutoUnpauseTimer = null;
     }
