@@ -1,3 +1,4 @@
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
@@ -10,14 +11,13 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 🌟【終極修復】：拋棄不可靠的 Assembly 抓取，直接用 ModuleDirectory 鎖定 MatchZy 正牌資料夾！
+    // 拋棄不可靠的 Assembly 抓取，直接用 ModuleDirectory 鎖定 MatchZy 正牌資料夾！
     private string GetLockFilePath(string teamId)
     {
         return Path.Combine(ModuleDirectory, $"tech_lock_{teamId}.txt");
     }
 
-    // 🌟【開機/換圖保險】：構造函數，因為實例化前拿不到 ModuleDirectory，
-    // 我們讓它在伺服器剛開機、插件剛啟動（OnLoad）時，再去確保舊檔案被擦乾淨。
+    // 確保舊檔案被擦乾淨。
     public override void Load(bool hotReload)
     {
         base.Load(hotReload);
@@ -46,7 +46,6 @@ public partial class MatchZy
         }
         if (IsPostGamePhase())
         {
-            // 比賽結束換地圖時，執行擦除
             InstanceResetTechPauseFiles();
             ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]);
             return;
@@ -80,7 +79,7 @@ public partial class MatchZy
         // 檢查硬碟鎖（隊伍鎖死，換邊一樣成功攔截！）
         if (File.Exists(lockFilePath))
         {
-            PrintToPlayerChat(player, $" \u0006你們隊伍本場比賽的技術暫停次數（\u0007 1 次\u0006 ）已經用盡");
+            PrintToPlayerChat(player, $" \u0006你們隊伍本場比賽的技術暫停次數（\u0010 1 次\u0006 ）已經用盡");
             return;
         }
 
@@ -94,10 +93,27 @@ public partial class MatchZy
         if (!technicalPauseUsed.ContainsKey(playerTeam)) technicalPauseUsed[playerTeam] = 0;
         technicalPauseUsed[playerTeam]++;
 
+        // 1. 執行原廠暫停
         PauseMatch(player, command);
+
+        // 2. 廣播通知（標籤暗紅 `\u0002`，文字綠色 `\u0006`，秒數橘色 `\u0010`）
+        Server.PrintToChatAll($" \u0006技術暫停已啟動！將在 \u0010 10 秒鐘後 \u0006自動解除並強制恢復比賽！");
+
+        // 3. 添加高效能非同步計時器
+        AddTimer(10.0f, () => {
+            // 🌟【升級防呆】：
+            // 狀況 A：如果已經不在暫停狀態 (!isPaused) -> 代表玩家或管理員早就提早按了解除，計時器直接退場。
+            // 狀況 B：如果玩家正在打 .up 倒數開賽中 (unpauseCountdownStarted) -> 計時器也直接退場，把主導權還給官方倒數！
+            if (!isPaused || unpauseCountdownStarted) return; 
+
+            Server.PrintToChatAll($" \u0010 10 秒 \u0006時間已到！強制解除技術暫停");
+            
+            // 呼叫原廠的強制解除暫停函式
+            ForceUnpauseMatch(null, null);
+        }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
     }
 
-    // 🌟 實例化清理工具：精準刪除 MatchZy 本家資料夾底下的隊伍鎖定檔
+    // 精準刪除 MatchZy 本家資料夾底下的隊伍鎖定檔
     private void InstanceResetTechPauseFiles()
     {
         try
