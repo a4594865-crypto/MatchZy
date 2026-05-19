@@ -797,68 +797,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     
     isShufflePending = false;
 }
-// 技術暫停核心邏輯 (修正版)
-        public void TechPause(CCSPlayerController? player, CommandInfo? command)
-        {
-            // 1. RCON 控制台執行，強制暫停
-            if (player == null)
-            {
-                ForcePauseMatch(player, command);
-                return;
-            }
-
-            // 2. 獲取遊戲規則
-            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerulesproxy").FirstOrDefault()?.GameRules;
-
-            // 3. 嚴格攔截：僅在準備階段 (FreezePeriod) 允許執行
-            if (gameRules == null || !gameRules.FreezePeriod)
-            {
-                PrintToPlayerChat(player, $" {ChatColors.Red}技術暫停僅限於「回合準備階段 (Freezetime)」使用！");
-                return;
-            }
-
-            // 4. 基礎檢查
-            if (isPaused)
-            {
-                ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
-                return;
-            }
-
-            // 5. 隊伍判定與次數檢查
-            Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-            string teamKey = (playerMatchTeam == matchzyTeam1) ? "matchzyTeam1" : "matchzyTeam2";
-
-            if (techPausesLeft[teamKey] <= 0)
-            {
-                PrintToPlayerChat(player, $" {ChatColors.Green}{playerMatchTeam.teamName}{ChatColors.Default} 已經沒有可用的技術暫停次數！");
-                return;
-            }
-
-            // 6. 執行動作
-            techPausesLeft[teamKey]--;
-            Server.ExecuteCommand("mp_pause_match;");
-            isPaused = true;
-            
-            unpauseData["t"] = false;
-            unpauseData["ct"] = false;
-            unpauseData["pauseTeam"] = playerMatchTeam.teamName;
-
-            PrintToAllChat($" 隊伍 {ChatColors.Green}{playerMatchTeam.teamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
-            PrintToAllChat($" 暫停將在 300 秒後自動解除，或雙方輸入 .up 解除。");
-
-            // 7. 建立計時器
-            techPauseAutoUnpauseTimer?.Kill();
-            techPauseAutoUnpauseTimer = AddTimer(300.0f, () =>
-            {
-                if (isPaused)
-                {
-                    Server.ExecuteCommand("mp_unpause_match;");
-                    isPaused = false;
-                    PrintToAllChat($" 技術暫停已達 300 秒上限，系統自動解除！");
-                }
-                techPauseAutoUnpauseTimer = null;
-            });
-        }
 
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
