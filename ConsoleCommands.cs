@@ -7,15 +7,11 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 配合您的 MatchZy 版本，使用字串 "matchzyTeam1" 與 "matchzyTeam2" 作為字典 Key
-    public Dictionary<string, int> techPausesLeft = new() { { "matchzyTeam1", 1 }, { "matchzyTeam2", 1 } };
-
-    // 用來控制 300 秒自動解除暫停的計時器變數
-    public CounterStrikeSharp.API.Modules.Timers.Timer? techPauseAutoUnpauseTimer = null;
+    // 注意：變數與 ResetTechPauseCount 的宣告已在其他檔案完成，此處僅提供方法的實作邏輯
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
-        // 1. 如果是伺服器 RCON 控制台輸入，直接當作強制暫停（不受任何階段限制）
+        // 1. 如果是控制台 RCON 執行，直接強制暫停
         if (player == null)
         {
             ForcePauseMatch(player, command);
@@ -25,8 +21,8 @@ public partial class MatchZy
         // 2. 獲取遊戲規則狀態
         var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerulesproxy").FirstOrDefault()?.GameRules;
 
-        // 3. 嚴格檢查：必須在 FreezePeriod (準備階段) 才允許繼續
-        // 如果現在不是準備階段，直接提示並中斷，不扣次數、不發送指令
+        // 3. 檢查限制：必須在 FreezePeriod (準備階段) 才允許繼續
+        // 如果不在準備階段，直接提示並中斷，不執行任何動作
         if (gameRules == null || !gameRules.FreezePeriod)
         {
             PrintToPlayerChat(player, $" {ChatColors.Red}技術暫停僅限於「回合準備階段 (Freezetime)」使用！");
@@ -58,7 +54,7 @@ public partial class MatchZy
             return;
         }
 
-        // 7. 扣除次數並執行指令
+        // 7. 扣除次數並執行暫停
         techPausesLeft[teamKey]--;
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
@@ -84,13 +80,5 @@ public partial class MatchZy
             }
             techPauseAutoUnpauseTimer = null;
         });
-    }
-
-    public void ResetTechPauseCount()
-    {
-        techPausesLeft["matchzyTeam1"] = 1;
-        techPausesLeft["matchzyTeam2"] = 1;
-        techPauseAutoUnpauseTimer?.Kill();
-        techPauseAutoUnpauseTimer = null;
     }
 }
