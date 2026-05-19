@@ -2,7 +2,7 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
-using CounterStrikeSharp.API.Modules.Timers; // 🌟 確保引入計時器模組
+using CounterStrikeSharp.API.Modules.Timers;
 
 namespace MatchZy;
 
@@ -82,13 +82,13 @@ public partial class MatchZy
         // 1. 執行原廠暫停
         PauseMatch(player, command);
 
-        // 2. 廣播通知（改成 10 秒測試版，主文字綠色 `\u0006`，秒數橘色 `\u0010`）
-        Server.PrintToChatAll($" \u0006技 術 暫 停 已 啟 動 將 在 \u0010 10 秒 鐘 後 \u0006自 動 解 除");
+        // 2. 廣播通知（300秒版本，主文字綠色 `\u0006`，秒數橘色 `\u0010`）
+        Server.PrintToChatAll($" \u0006技 術 暫 停 已 啟 動 將 在 \u0010 300 秒 鐘 後 \u0006自 動 解 除");
 
-        // 3. 🌟【無情修復】：加上 TimerFlags.REALTIME 與位元運算
-        // 這樣計時器看的是「手錶時間」，就算 CS2 引擎凍結了，10秒一到它依然會一腳把門踹開！
-        AddTimer(10.0f, () => {
-            // 安全防呆
+        // 3. 添加 300 秒的高效能非同步計時器
+        // 🌟【修復】：將 TimerFlags.REALTIME 改為標準命名的 TimerFlags.REAL_TIME
+        AddTimer(300.0f, () => {
+            // 安全防呆：如果已經被人手動解除了，計時器直接退場
             if (!isPaused) return; 
 
             // 同步插件內部狀態
@@ -98,8 +98,8 @@ public partial class MatchZy
             Server.ExecuteCommand("mp_unpause_match");
 
             // 顯示時間到的專屬綠橘色通知
-            Server.PrintToChatAll($" \u0010 10 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
+            Server.PrintToChatAll($" \u0010 300 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
             
-        }, TimerFlags.STOP_ON_MAPCHANGE | TimerFlags.REALTIME); // 🌟 核心就在這裡！
+        }, TimerFlags.STOP_ON_MAPCHANGE | TimerFlags.REAL_TIME);
     }
 }
