@@ -32,6 +32,22 @@ public partial class MatchZy
             return;
         }
 
+        // ================= 【純粹攔截：回合未正式開始】 =================
+        var gameRules = GameRules();
+        if (gameRules != null)
+        {
+            // 如果目前是在熱身階段 (Warmup)，直接阻擋
+            if (gameRules.WarmupPeriod) return;
+
+            // 核心攔截：如果遊戲目前正在每回合的凍結時間 (Freeze Time) 內，且玩家不是管理員，就阻擋暫停
+            if (gameRules.FreezePeriod && !IsPlayerAdmin(player))
+            {
+                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Red}技術暫停 (.tech) 只能在每回合凍結時間 (Freeze Time) 結束、正式開打後才能使用！");
+                return;
+            }
+        }
+        // =============================================================
+
         // 3. 基本檢查：是否已經暫停、是否在半場、是否已結束
         if (isPaused)
         {
@@ -40,7 +56,7 @@ public partial class MatchZy
         }
         if (IsHalfTimePhase())
         {
-            ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]);
+            ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]); ;
             return;
         }
         if (IsPostGamePhase())
@@ -48,55 +64,49 @@ public partial class MatchZy
             ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]);
             return;
         }
+        if (IsTacticalTimeoutActive())
+        {
+            ReplyToUserCommand(player, Localizer["matchzy.pause.tacticaltimeout"]);
+            return;
+        }
 
-        // 4. 檢查玩家是否在有效隊伍 (CsTeam.Terrorist 或 CsTeam.CounterTerrorist)
-        if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
+        if (player.Team == CsTeam.Spectator || player.Team == CsTeam.None) return;
 
-        // 5. 利用 MatchZy 的 reverseTeamSides 字典，精確將當前陣營映射到真實隊伍物件
-        Team playerMatchTeam;
+        // 4. 判斷玩家目前的戰隊 Key (matchzyTeam1 或 matchzyTeam2)
+        string teamKey = "";
+        string teamName = "";
+
         if (player.Team == CsTeam.CounterTerrorist)
         {
-            playerMatchTeam = reverseTeamSides["CT"];
+            teamKey = reverseTeamSides["CT"].Equals(team1) ? "matchzyTeam1" : "matchzyTeam2";
+            teamName = reverseTeamSides["CT"].teamName;
         }
-        else
+        else if (player.Team == CsTeam.Terrorist)
         {
-            playerMatchTeam = reverseTeamSides["TERRORIST"];
+            teamKey = reverseTeamSides["TERRORIST"].Equals(team1) ? "matchzyTeam1" : "matchzyTeam2";
+            teamName = reverseTeamSides["TERRORIST"].teamName;
         }
 
-        string teamKey = "";
-        string currentTeamName = playerMatchTeam.teamName;
+        if (string.IsNullOrEmpty(teamKey)) return;
 
-        // 配合您的專案變數名稱「matchzyTeam1」與「matchzyTeam2」進行真實隊伍比對
-        if (playerMatchTeam == matchzyTeam1)
+        // 5. 檢查該戰隊是否還有暫停次數（直接用你原本檔案內建的即可）
+        if (techPausesLeft.ContainsKey(teamKey) && techPausesLeft[teamKey] <= 0)
         {
-            teamKey = "matchzyTeam1";
-        }
-        else if (playerMatchTeam == matchzyTeam2)
-        {
-            teamKey = "matchzyTeam2";
-        }
-        else
-        {
+            PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Red}貴隊本場比賽的技術暫停 (.tech) 次數已達上限 (1次)！");
             return;
         }
 
-        // 6. 檢查次數限制
-        if (techPausesLeft[teamKey] <= 0)
-        {
-            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 已 經 沒 有 可 用 的 技 術 暫 停 次 數");
-            return;
-        }
+        // 6. 扣除該隊可用次數 (變為 0)
+        techPausesLeft[teamKey] = 0;
 
-        // 7. 扣除次數並執行 CS2 原生暫停
-        techPausesLeft[teamKey]--;
+        // 7. 執行 CS2 暫停指令並同步外掛狀態
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
-        
-        unpauseData["t"] = false;
+        unpauseData["pauseTeam"] = teamName;
         unpauseData["ct"] = false;
-        unpauseData["pauseTeam"] = currentTeamName; 
+        unpauseData["t"] = false;
 
-        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
+        PrintToAllChat($"{chatPrefix} {ChatColors.Green}{teamName} {ChatColors.Default}請求了技術暫停。剩餘次數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
         PrintToAllChat($" 暫 停 將 在 \u0004300秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.up\u0001 解 除。");
 
         // 8. 安全防護：如果原本有計時器在跑，先砍掉並重置時間
@@ -127,18 +137,8 @@ public partial class MatchZy
             else
             {
                 int remaining = 300 - techPauseElapsedTime;
-                PrintToAllChat($" 技 術 暫 停 中... 距離自動解除還剩 \u0004{remaining} 秒\u0001 ");
+                PrintToAllChat($" 技 術 暫 停 中... 剩餘 \u0004{remaining}\u0001 秒後自動解除暫停。");
             }
         }, TimerFlags.REPEAT);
-    }
-
-    // 建立一個統一重設次數的方法
-    public void ResetTechPauseCount()
-    {
-        techPausesLeft["matchzyTeam1"] = 1;
-        techPausesLeft["matchzyTeam2"] = 1;
-        techPauseElapsedTime = 0;
-        techPauseAutoUnpauseTimer?.Kill();
-        techPauseAutoUnpauseTimer = null;
     }
 }
