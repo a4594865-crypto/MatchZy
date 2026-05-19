@@ -10,39 +10,40 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 🌟【終極核心】：宣告一個完全獨立、專屬於我們控制的記憶體計數器，100% 避開與原廠大腦衝突！
-    // Key 使用 string（儲存隊伍名字），這樣重開、換圖在記憶體裡最好清理
-    public Dictionary<string, int> myTechPauseCount = new();
+    // 🌟【最穩固的計數器】：改用 CsTeam 記憶體列舉（CT 或 T），100% 精準鎖定當下按下指令的那個陣營
+    public Dictionary<CsTeam, int> customTechPauseUsed = new();
 
-    // 🌟【開機/換圖/.restart 三路總開關】：當開機（Load）或打 .restart / 換圖（ResetMatch）時，
-    // 官方會呼叫這個清理點，我們在這裡把獨立計數器徹底清空，次數 100% 完美刷新！
+    // 🌟【總開關 1】：換地圖、.restart 重開比賽時，MatchZy 核心必經此處，直接清空計數
     public void InitTechPauseFileCleaner()
     {
-        myTechPauseCount.Clear();
+        customTechPauseUsed.Clear();
     }
 
-    // 🌟 同步對接你在 MatchZy.cs 裡面寫的 ResetMatch 管道
+    // 🌟【總開關 2】：對接你在 MatchZy.cs 的 ResetMatch 管道，確保雙重保險
     public void ResetTechPauseOnMatchReset()
     {
-        myTechPauseCount.Clear();
+        customTechPauseUsed.Clear();
+    }
+
+    // 🌟【總開關 3】：開機或手動重載插件時點火
+    public void TechPauseOnPluginLoad()
+    {
+        customTechPauseUsed.Clear();
     }
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
-        // 【熱身期保險】：未正式開賽前，一律無限重置次數
+        // 1. 【熱身期保險】：只要比賽還不是 Live 狀態，一律無限重置次數，不准鎖死
         if (!isMatchLive) 
         {
-            myTechPauseCount.Clear();
+            customTechPauseUsed.Clear();
         }
 
         if (!isMatchLive) return;
 
-        if (player == null)
-        {
-            ForceUnpauseMatch(player, command); // 防呆
-            return;
-        }
+        if (player == null) return;
 
+        // 2. 狀態檢查（利用 MatchZy 內建變數攔截）
         if (isPaused)
         {
             ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
@@ -55,7 +56,7 @@ public partial class MatchZy
         }
         if (IsPostGamePhase())
         {
-            myTechPauseCount.Clear();
+            customTechPauseUsed.Clear();
             ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]);
             return;
         }
@@ -65,50 +66,54 @@ public partial class MatchZy
             return;
         }
 
+        // 防呆：觀察者或無團隊不准暫停
         if (player.Team == CsTeam.Spectator || player.Team == CsTeam.None) return;
 
-        if (!techPauseEnabled.Value && player != null)
+        if (!techPauseEnabled.Value)
         {
             PrintToPlayerChat(player, Localizer["matchzy.ready.techpausenotenabled"]);
             return;
         }
 
-        // 判定目前按指令的玩家肉體在哪個原廠 Team 裡面
-        Team playerTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-        
-        if (playerTeam == null || string.IsNullOrEmpty(playerTeam.teamName)) return;
+        // 🌟【核心攔截】：直接抓玩家目前的肉體團隊 (CsTeam.CounterTerrorist 或 CsTeam.Terrorist)
+        CsTeam callingTeam = player.Team;
 
-        string currentTeamKey = playerTeam.teamName;
-
-        // 🌟【精準攔截】：檢查我們自己的獨立計數器，只要大於等於 1 次，立刻噴語言包拒絕暫停！
-        if (myTechPauseCount.ContainsKey(currentTeamKey) && myTechPauseCount[currentTeamKey] >= 1)
+        // 如果這個陣營這場比賽已經用過暫停了，立刻攔截並噴語言包拒絕
+        if (customTechPauseUsed.ContainsKey(callingTeam) && customTechPauseUsed[callingTeam] >= 1)
         {
-            ReplyToUserCommand(player, Localizer["matchzy.pause.notechpauseleft", currentTeamKey]);
+            // 抓取原廠隊伍物件用來塞進語言包的 {0} 佔位符
+            Team playerTeam = (callingTeam == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
+            string teamNameForMsg = (playerTeam != null && !string.IsNullOrEmpty(playerTeam.teamName)) ? playerTeam.teamName : (callingTeam == CsTeam.CounterTerrorist ? "CT" : "T");
+            
+            ReplyToUserCommand(player, Localizer["matchzy.pause.notechpauseleft", teamNameForMsg]);
             return;
         }
 
-        // 🌟 通過檢查，我們自己的獨立計數器 +1
-        if (!myTechPauseCount.ContainsKey(currentTeamKey)) myTechPauseCount[currentTeamKey] = 0;
-        myTechPauseCount[currentTeamKey]++;
+        // 🌟【寫入紀錄】：通過檢查，該陣營的暫停次數扣除（記憶體計數 +1）
+        if (!customTechPauseUsed.ContainsKey(callingTeam)) customTechPauseUsed[callingTeam] = 0;
+        customTechPauseUsed[callingTeam]++;
 
-        // 執行原廠最完美、能把時間死死定格的暫停邏輯
-        PauseMatch(player, command);
+        // 🌟【原生強制暫停】：不再呼叫原廠 PauseMatch！我們直接改寫全域變數，並對 CS2 引擎下達原生技術暫停指令
+        isPaused = true;
+        Server.ExecuteCommand("mp_pause_match");
 
-        // 廣播通知（綠色系統訊息標籤）
+        // 廣播通知全服玩家（自訂系統訊息標籤）
         Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0006技 術 暫 停 已 啟 動 將 在 \u0010 300 秒 鐘 後 \u0006自 動 解 除");
 
-        // 300秒非同步鬧鐘
+        // 🌟【非同步極致優化鬧鐘】：300秒（300000毫秒）倒數
         Task.Run(async () => {
             await Task.Delay(30000); 
 
+            // 安全投遞回 CS2 主線程執行
             Server.NextFrame(() => {
-                // 安全防呆：如果玩家中途已經手動解除暫停了，鬧鐘直接退場
+                // 安全防呆：如果玩家在 300 秒內已經手動打 .unpause 解除了，鬧鐘直接退場
                 if (!isPaused) return; 
 
-                // 🌟【終極修正】：使用原廠最高權限解鎖函數，帶入 null，確保同步解除原廠大腦鎖定，不再卡住！
-                ForceUnpauseMatch(null, null);
+                // 🌟【原生強制解除】：100% 繞過原廠 null 攔截！我們自己改寫狀態，並向核心引擎下達解除指令
+                isPaused = false;
+                Server.ExecuteCommand("mp_unpause_match");
 
-                // 唯一指定通知
+                // 噴出時間到的自訂通知
                 Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0010 300 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
             });
         });
