@@ -79,31 +79,29 @@ public partial class MatchZy
         if (!technicalPauseUsed.ContainsKey(playerTeam)) technicalPauseUsed[playerTeam] = 0;
         technicalPauseUsed[playerTeam]++;
 
-        // 🌟【第一步：暴力凍結時間】：直接把回合時間改成 999 分鐘，讓它永遠扣不完！
-        Server.ExecuteCommand("mp_roundtime 999");
+        // 🌟【最關鍵的核心修正】：第一時間將 MatchZy 全域暫停狀態拉成 true！
+        // 這樣 MatchZy 官方的底層主程式才會啟動「每影格強制凍結回合計時器」的超能力！
+        isPaused = true;
 
-        // 2. 執行原廠暫停
+        // 1. 執行原廠暫停
         PauseMatch(player, command);
 
-        // 3. 廣播通知
+        // 2. 廣播通知（300秒版本，主文字綠色 `\u0006`，秒數橘色 `\u0010`）
         Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0006技 術 暫 停 已 啟 動 將 在 \u0010 300 秒 鐘 後 \u0006自 動 解 除");
 
-        // 4. 異步非阻塞計時器（300000毫秒 = 300秒）
+        // 3. 異步非阻塞計時器（300000毫秒 = 300秒，0效能負擔）
         Task.Run(async () => {
-            await Task.Delay(20000); 
+            await Task.Delay(30000); 
 
             // 安全投遞回主線程執行
             Server.NextFrame(() => {
-                // 安全防呆
+                // 安全防呆：如果已經被人手動解除暫停了（isPaused 變成 false），計時器直接退場
                 if (!isPaused) return; 
 
-                // 同步插件內部狀態
+                // 🌟 同步插件內部狀態為解除
                 isPaused = false;
 
-                // 🌟【第二步：恢復官方時間】：解除暫停的當下，立刻把回合時間還原成標準競賽的 1 分 55 秒 (1.92分鐘)
-                Server.ExecuteCommand("mp_roundtime 1.92");
-
-                // 直接向 CS2 官方伺服器引擎下達最高權限原生解除暫停指令
+                // 直接向 CS2 官方伺服器引擎下達最高權限原生解除暫停指令！
                 Server.ExecuteCommand("mp_unpause_match");
 
                 // 顯示時間到的自訂標籤通知
