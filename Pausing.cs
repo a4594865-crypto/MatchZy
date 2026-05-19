@@ -3,14 +3,16 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Timers;
+using System.Collections.Generic;
 
 namespace MatchZy
 {
     public partial class MatchZy
     {
-        // 紀錄隊伍已使用的 .tech 次數 (隊伍代號: 2 = T, 3 = CT)
+        // 紀錄隊伍已使用的 .tech 次數 (2 = T 隊, 3 = CT 隊)
         public Dictionary<int, int> techPauseCount = new Dictionary<int, int>() { { 2, 0 }, { 3, 0 } };
-        // 自動解除暫停的計時器
+        
+        // 300 秒自動強制解除暫停的計時器
         public CounterStrikeSharp.API.Modules.Timers.Timer? techAutoUnpauseTimer = null;
 
         public void PauseMatch(CCSPlayerController? player, CommandInfo? command)
@@ -23,8 +25,8 @@ namespace MatchZy
                 return;
             }
 
-            // 如果是伺服器 RCON 或管理員強制暫停，直接走 Force 邏輯
-            if (player == null || IsPlayerAdmin(player))
+            // 如果是伺服器主機控制台 (RCON) 執行，直接走強制暫停，不消耗次數
+            if (player == null)
             {
                 ForcePauseMatch(player, command);
                 StartTechTimer("Admin");
@@ -32,7 +34,7 @@ namespace MatchZy
             }
 
             int teamNum = player.TeamNum;
-            if (teamNum != 2 && teamNum != 3) return; // 觀戰者不可暫停
+            if (teamNum != 2 && teamNum != 3) return; // 觀戰者或無隊伍不予理會
 
             // 檢查次數限制：每隊只能 1 次
             if (techPauseCount.ContainsKey(teamNum) && techPauseCount[teamNum] >= 1)
@@ -51,7 +53,7 @@ namespace MatchZy
             unpauseData["ct"] = false;
             unpauseData["t"] = false;
 
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{teamName} {ChatColors.Default}請求了技術暫停。剩餘次數：0");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{teamName} {ChatColors.Default}請求了技術暫停。剩餘可用次數：0");
 
             // 啟動 300 秒自動解除計時器
             StartTechTimer(teamName);
@@ -60,19 +62,19 @@ namespace MatchZy
         // 啟動 300 秒自動解除暫停邏輯
         public void StartTechTimer(string teamName)
         {
-            // 安全清理舊計時器
+            // 安全機制：若已有計時器正在跑，先清理掉
             if (techAutoUnpauseTimer != null)
             {
                 techAutoUnpauseTimer.Kill();
                 techAutoUnpauseTimer = null;
             }
 
-            // 建立一個 300 秒的計時器
+            // 建立一個 300 秒倒數的計時器
             techAutoUnpauseTimer = AddTimer(300.0f, () =>
             {
                 if (isPaused)
                 {
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}技術暫停已滿 300 秒，系統自動強制解除暫停！");
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}技術暫停已滿 300 秒，雙方未解除，系統自動強制恢復比賽！");
                     Server.ExecuteCommand("mp_unpause_match;");
                     isPaused = false;
                     unpauseData["ct"] = false;
@@ -88,7 +90,7 @@ namespace MatchZy
             });
         }
 
-        // 用於手動取消暫停時，順便殺掉 300 秒計時器
+        // 用於玩家手動取消暫停時，提早停止 300 秒計時器
         public void ClearTechTimer()
         {
             if (techAutoUnpauseTimer != null)
@@ -98,7 +100,7 @@ namespace MatchZy
             }
         }
 
-        // 用於重置所有技術暫停數據
+        // 用於重置所有技術暫停數據與刷新次數
         public void ResetTechPauseData()
         {
             techPauseCount[2] = 0;
