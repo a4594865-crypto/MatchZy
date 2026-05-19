@@ -100,7 +100,7 @@ public partial class MatchZy
         techPauseAutoUnpauseTimer?.Kill();
 
         // 9. 建立一個 300 秒後觸發的自動解除計時器（已將 30.0f 修正為 300.0f）
-        techPauseAutoUnpauseTimer = AddTimer(300.0f, () =>
+        techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
         {
             if (isPaused)
             {
