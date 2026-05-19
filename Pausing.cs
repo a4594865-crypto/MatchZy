@@ -87,7 +87,7 @@ public partial class MatchZy
         Server.PrintToChatAll($" \u0006技 術 暫 停 已 啟 動 將 在 \u0010 5 分 鐘 後 \u0006自 動 解 除");
 
         // 3. 添加 300 秒的高效能非同步計時器
-        AddTimer(300.0f, () => {
+        AddTimer(10.0f, () => {
             // 安全防呆
             if (!isPaused) return; 
 
