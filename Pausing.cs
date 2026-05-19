@@ -32,21 +32,22 @@ public partial class MatchZy
             return;
         }
 
-        // ================= 【純粹攔截：回合未正式開始】 =================
+        // ================= 【唯一新增：限制只能在 15秒 Freeze Time 內使用】 =================
         var gameRules = GameRules();
         if (gameRules != null)
         {
-            // 如果目前是在熱身階段 (Warmup)，直接阻擋
+            // 如果目前是在熱身階段 (Warmup)，直接阻擋不執行
             if (gameRules.WarmupPeriod) return;
 
-            // 核心攔截：如果遊戲目前正在每回合的凍結時間 (Freeze Time) 內，且玩家不是管理員，就阻擋暫停
-            if (gameRules.FreezePeriod && !IsPlayerAdmin(player))
+            // 核心判定：如果目前「不在」凍結時間內，代表回合已經開打了！
+            // 此時如果玩家不是管理員，就直接阻擋並跳出提示
+            if (!gameRules.FreezePeriod && !IsPlayerAdmin(player))
             {
-                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Red}技術暫停 (.tech) 只能在每回合凍結時間 (Freeze Time) 結束、正式開打後才能使用！");
+                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Red}技術暫停 (.tech) 只能在每回合開始的 15秒凍結時間 (Freeze Time) 內使用！");
                 return;
             }
         }
-        // =============================================================
+        // ===================================================================================
 
         // 3. 基本檢查：是否已經暫停、是否在半場、是否已結束
         if (isPaused)
@@ -56,7 +57,7 @@ public partial class MatchZy
         }
         if (IsHalfTimePhase())
         {
-            ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]); ;
+            ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]);
             return;
         }
         if (IsPostGamePhase())
@@ -89,10 +90,10 @@ public partial class MatchZy
 
         if (string.IsNullOrEmpty(teamKey)) return;
 
-        // 5. 檢查該戰隊是否還有暫停次數（直接用你原本檔案內建的即可）
+        // 5. 檢查該戰隊是否還有暫停次數
         if (techPausesLeft.ContainsKey(teamKey) && techPausesLeft[teamKey] <= 0)
         {
-            PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Red}貴隊本場比賽的技術暫停 (.tech) 次數已達上限 (1次)！");
+            PrintToPlayerChat(player, $"{chatPrefix} 您 的 隊 伍 技 術 暫 停 次 數 已 達 上 限 ({ChatColors.Green} 1 次 {ChatColors.Default})");
             return;
         }
 
