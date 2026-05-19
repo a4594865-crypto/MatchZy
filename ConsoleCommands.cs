@@ -197,7 +197,7 @@ namespace MatchZy
         [ConsoleCommand("css_tech", "Pause the match")]
         public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            PauseMatch(player, command);
+            TechPause(player, command); // 導向到我們在 Pausing.cs 寫的新邏輯
         }
 
         [ConsoleCommand("css_pause", "Pause the match")]
@@ -227,6 +227,9 @@ namespace MatchZy
         public void OnForceUnpauseCommand(CCSPlayerController? player, CommandInfo? command)
         {
             ForceUnpauseMatch(player, command);
+            // 管理員強制解除暫停時，順便取消 300 秒技術暫停計時器
+            techPauseAutoUnpauseTimer?.Kill();
+            techPauseAutoUnpauseTimer = null;
         }
 
         [ConsoleCommand("css_unpause", "Unpause the match")]
@@ -273,6 +276,10 @@ namespace MatchZy
                     isPaused = false;
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
+
+                    // 雙方同意解除暫停，移除 300 秒技術暫停計時器
+                    techPauseAutoUnpauseTimer?.Kill();
+                    techPauseAutoUnpauseTimer = null;
                 }
                 else if (unpauseTeamName == "Admin")
                 {
@@ -281,11 +288,15 @@ namespace MatchZy
                     isPaused = false;
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
+
+                    // 管理員同意解除暫停，移除 300 秒技術暫停計時器
+                    techPauseAutoUnpauseTimer?.Kill();
+                    techPauseAutoUnpauseTimer = null;
                 }
                 else
                 {
                     PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", unpauseTeamName, remainingUnpauseTeam]);
-                    // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{unpauseTeamName}{ChatColors.Default} wants to unpause the match. {ChatColors.Green}{remainingUnpauseTeam}{ChatColors.Default}, please write !unpause to confirm.");
+                    // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{unpauseTeamName}{ChatColors.Default} wants to unpause the match. {ChatColors.Green}{remainingUnpauseTeam}{ChatColors.Default}?, please write !unpause to confirm.");
                 }
                 if (!isPaused && pausedStateTimer != null)
                 {
@@ -471,6 +482,7 @@ namespace MatchZy
                     // Server.PrintToChatAll($"{chatPrefix} An admin force-ended the match.");
                     PrintToAllChat(Localizer["matchzy.cc.endmatch"]);
                     ResetMatch();
+                    ResetTechPauseCount(); // 比賽結束刷新 .tech 次數
                 }
                 else
                 {
@@ -488,12 +500,12 @@ namespace MatchZy
         [ConsoleCommand("css_rr", "Restarts the match")]
         public void OnRestartMatchCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            ResetTechPauseData();
             if (IsPlayerAdmin(player, "css_restart", "@css/config"))
             {
                 if (!isPractice)
                 {
                     ResetMatch();
+                    ResetTechPauseCount(); // 輸入 .restart 重開時刷新 .tech 次數
                 }
                 else
                 {
@@ -512,6 +524,7 @@ namespace MatchZy
         {
             var mapName = command.ArgByIndex(1);
             HandleMapChangeCommand(player, mapName);
+            ResetTechPauseCount(); // 換地圖時刷新 .tech 次數
         }
 
         [ConsoleCommand("css_rmap", "Reloads the current map")]
@@ -539,6 +552,7 @@ namespace MatchZy
                 // ReplyToUserCommand(player, "Invalid map name!");
                 ReplyToUserCommand(player, Localizer["matchzy.cc.invalidmap"]);
             }
+            ResetTechPauseCount(); // 重新載入地圖時刷新 .tech 次數
         }
 
         [ConsoleCommand("css_start", "Force starts the match")]
@@ -564,6 +578,7 @@ namespace MatchZy
                     //Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}Admin{ChatColors.Default} has started the game!");
                     PrintToAllChat(Localizer["matchzy.cc.gamestarted"]);
                     HandleMatchStart();
+                    ResetTechPauseCount(); // 開賽時確保次數為 1 滿狀態
                 }
             }
             else
