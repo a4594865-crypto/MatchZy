@@ -43,7 +43,7 @@ public partial class MatchZy
             // 此時如果玩家不是管理員，就直接阻擋並跳出提示
             if (!gameRules.FreezePeriod && !IsPlayerAdmin(player))
             {
-                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Red}技術暫停 (.tech) 只能在每回合開始的 15秒凍結時間 (Freeze Time) 內使用！");
+                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Green}技 術 暫 停 只 能 在 每 回 合 開 始 前 使 用");
                 return;
             }
         }
@@ -107,7 +107,7 @@ public partial class MatchZy
         unpauseData["ct"] = false;
         unpauseData["t"] = false;
 
-        PrintToAllChat($"{chatPrefix} {ChatColors.Green}{teamName} {ChatColors.Default}請求了技術暫停。剩餘次數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
+        PrintToAllChat($"{chatPrefix} {ChatColors.Green}{teamName} {ChatColors.Default}請 求 了 技 術 暫 停。剩 餘 次 數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
         PrintToAllChat($" 暫 停 將 在 \u0004300秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.up\u0001 解 除。");
 
         // 8. 安全防護：如果原本有計時器在跑，先砍掉並重置時間
@@ -132,13 +132,13 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上限，系統自動解除暫停");
+                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上限，系 統 自 動 解 除 暫 停");
                 techPauseAutoUnpauseTimer = null;
             }
             else
             {
                 int remaining = 300 - techPauseElapsedTime;
-                PrintToAllChat($" 技 術 暫 停 中... 剩餘 \u0004{remaining}\u0001 秒後自動解除暫停。");
+                PrintToAllChat($" 技 術 暫 停 中... 剩 餘 \u0004{remaining}\u0001 秒 後 自 動 解 除 暫 停");
             }
         }, TimerFlags.REPEAT);
     }
