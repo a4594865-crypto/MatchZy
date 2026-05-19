@@ -7,8 +7,8 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 這裡新增：紀錄雙方隊伍剩餘的 .tech 暫停次數（預設每場比賽/地圖 1 次）
-    public Dictionary<string, int> techPausesLeft = new() { { "CT", 1 }, { "TERRORIST", 1 } };
+    // 【修改】將字典的 Key 從 "CT"/"TERRORIST" 改為綁定真實隊伍 "TeamA"/"TeamB"
+    public Dictionary<string, int> techPausesLeft = new() { { "TeamA", 1 }, { "TeamB", 1 } };
 
     // 這裡新增：用來控制 300 秒自動解除暫停的計時器變數
     public CounterStrikeSharp.API.Modules.Timers.Timer? techPauseAutoUnpauseTimer = null;
@@ -48,14 +48,32 @@ public partial class MatchZy
         // 4. 檢查玩家是否在有效隊伍 (2 = T, 3 = CT)
         if (player.TeamNum != 2 && player.TeamNum != 3) return;
 
-        // 5. 判定是哪一個陣營發起的
-        string teamKey = (player.TeamNum == 3) ? "CT" : "TERRORIST";
-        string currentTeamName = (player.TeamNum == 3) ? reverseTeamSides["CT"].teamName : reverseTeamSides["TERRORIST"].teamName;
+        // 5. 【關鍵修改】透過 GetPlayerTeam 判斷玩家屬於真實的 Team A 還是 Team B，避免換邊漏洞
+        string teamKey = "";
+        string currentTeamName = "";
+
+        Team playerMatchTeam = GetPlayerTeam(player);
+
+        if (playerMatchTeam == matchTeamA)
+        {
+            teamKey = "TeamA";
+            currentTeamName = matchTeamA.teamName;
+        }
+        else if (playerMatchTeam == matchTeamB)
+        {
+            teamKey = "TeamB";
+            currentTeamName = matchTeamB.teamName;
+        }
+        else
+        {
+            // 如果找不到真實隊伍歸屬（例如觀眾），直接不處理
+            return;
+        }
 
         // 6. 檢查次數限制
         if (techPausesLeft[teamKey] <= 0)
         {
-            PrintToPlayerChat(player, $"[\u0002MatchZy\u0001] {ChatColors.Green}{currentTeamName}{ChatColors.Default} 已經沒有可用的技術暫停次數！");
+            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 已經沒有可用的技術暫停次數！");
             return;
         }
 
@@ -68,13 +86,13 @@ public partial class MatchZy
         unpauseData["ct"] = false;
         unpauseData["pauseTeam"] = currentTeamName; 
 
-        PrintToAllChat($"[\u0002MatchZy\u0001] 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{techPausesLeft[teamKey]} 次。");
-        PrintToAllChat($"[\u0002MatchZy\u0001] 暫停將在 \u0004300秒\u0001 後自動解除，或雙方輸入 \u0004.unpause\u0001 解除。");
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{techPausesLeft[teamKey]} 次。");
+        PrintToAllChat($" 暫停將在 \u0004300秒\u0001 後自動解除，或雙方輸入 \u0004.up\u0001 解除。");
 
         // 8. 安全防護：如果原本有計時器在跑，先砍掉
         techPauseAutoUnpauseTimer?.Kill();
 
-        // 9. 建立一個 300 秒後觸發的自動解除計時器
+        // 9. 【修改】建立一個 300 秒後觸發的自動解除計時器（時間由原先的 30.0f 修正回 300.0f）
         techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
         {
             if (isPaused)
@@ -83,7 +101,7 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($"[\u0002MatchZy\u0001] \u0002技術暫停已達 300 秒上限，系統自動解除暫停！\u0001");
+                PrintToAllChat($" 技術暫停已達\u0002 300 秒 \u0001上限，系統自動解除暫停");
             }
             techPauseAutoUnpauseTimer = null;
         });
@@ -92,8 +110,9 @@ public partial class MatchZy
     // 這裡新增：建立一個統一重設次數的方法
     public void ResetTechPauseCount()
     {
-        techPausesLeft["CT"] = 1;
-        techPausesLeft["TERRORIST"] = 1;
+        // 【修改】重設時同樣針對真實隊伍 TeamA/TeamB 進行重設
+        techPausesLeft["TeamA"] = 1;
+        techPausesLeft["TeamB"] = 1;
         techPauseAutoUnpauseTimer?.Kill();
         techPauseAutoUnpauseTimer = null;
     }
