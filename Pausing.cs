@@ -34,11 +34,11 @@ public partial class MatchZy
                 var gameRules = gameRulesEntities.First().GameRules;
                 if (gameRules != null)
                 {
+                    // 修正：將 M_bFreezePeriod 與 M_bRoundTerminating 修正為符合最新 API 的小寫 m_b 開頭
                     // m_bFreezePeriod = 是否在凍結時間, m_bRoundTerminating = 是否正在處理回合結束
-                    // 如果「不在凍結時間」而且「沒有在回合結束處理中」，代表回合已經正式開始、玩家正在對槍中，此時禁止暫停
-                    if (!gameRules.M_bFreezePeriod && !gameRules.M_bRoundTerminating)
+                    if (!gameRules.m_bFreezePeriod && !gameRules.m_bRoundTerminating)
                     {
-                        PrintToPlayerChat(player, $" {ChatColors.Red}回 合 已 正 式 開 始，現 在 無 法 使 用 技 術 暫 停");
+                        PrintToPlayerChat(player, $" {ChatColors.Red}回合已正式開始，現在無法使用技術暫停！請等待下回合凍結時間。");
                         return;
                     }
                 }
@@ -116,7 +116,7 @@ public partial class MatchZy
         unpauseData["ct"] = false;
         unpauseData["pauseTeam"] = currentTeamName; 
 
-        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟 用 了 技 術 暫 停。剩 餘 次 數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
         PrintToAllChat($" 暫 停 將 在 \u0004300秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.up\u0001 解 除。");
 
         // 8. 安全防護：如果原本有計時器在跑，先砍掉並重置時間
@@ -141,13 +141,13 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上 限，系 統 自 動 解 除 暫 停");
+                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上限，系統自動解除暫停");
                 techPauseAutoUnpauseTimer = null;
             }
             else
             {
                 int remaining = 300 - techPauseElapsedTime;
-                PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 除 還 剩 \u0004{remaining} 秒\u0001 ");
+                PrintToAllChat($" 技 術 暫 停 中... 距離自動解除還剩 \u0004{remaining} 秒\u0001 ");
             }
         }, TimerFlags.REPEAT);
     }
