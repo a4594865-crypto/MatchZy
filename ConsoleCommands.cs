@@ -196,11 +196,11 @@ namespace MatchZy
 
   // 🌟 找到大約第 183 行的 css_tech 指令，改成下面這樣：
 [ConsoleCommand("css_tech", "Pause the match")]
-public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
-{
-    // 不要叫 PauseMatch 了，改成叫我們寫好的、有 300 秒計時與次數限制的全新核心方法！
-    ExecuteCustomTechPause(player, command);
-}
+        public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            // 🌟 核心修正：不要再叫 PauseMatch 了！直接改叫我們自訂、有 300 秒限制與精準攔截的 ExecuteCustomTechPause
+            ExecuteCustomTechPause(player, command);
+        }
 
         [ConsoleCommand("css_pause", "Pause the match")]
         public void OnPauseCommand(CCSPlayerController? player, CommandInfo? command)
@@ -211,7 +211,8 @@ public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
             }
             else
             {
-                PauseMatch(player, command);
+                // 🌟 同步修正：如果伺服器設定 .pause 等同於技術暫停，也走我們的自訂核心
+                ExecuteCustomTechPause(player, command);
             }
         }
 
@@ -253,7 +254,6 @@ public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
                     {
                         unpauseData["t"] = true;
                     }
-
                 }
                 else if (player?.TeamNum == 3)
                 {
@@ -268,26 +268,30 @@ public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
                 {
                     return;
                 }
+
+                // 🌟 當兩隊都同意解除暫停時
                 if ((bool)unpauseData["t"] && (bool)unpauseData["ct"])
                 {
                     PrintToAllChat(Localizer["matchzy.pause.teamsunpausedthematch"]);
                     Server.ExecuteCommand("mp_unpause_match;");
                     isPaused = false;
+                    isMyTechPausing = false; // 🌟 注入修正：通知我們的 300 秒鬧鐘提早下線，不要重複廣播
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
                 }
+                // 🌟 當管理員在控制台或輸入指令解除暫停時
                 else if (unpauseTeamName == "Admin")
                 {
                     PrintToAllChat(Localizer["matchzy.pause.adminunpausedthematch"]);
                     Server.ExecuteCommand("mp_unpause_match;");
                     isPaused = false;
+                    isMyTechPausing = false; // 🌟 注入修正：通知我們的 300 秒鬧鐘提早下線，不要重複廣播
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
                 }
                 else
                 {
                     PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", unpauseTeamName, remainingUnpauseTeam]);
-                    // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{unpauseTeamName}{ChatColors.Default} wants to unpause the match. {ChatColors.Green}{remainingUnpauseTeam}{ChatColors.Default}, please write !unpause to confirm.");
                 }
                 if (!isPaused && pausedStateTimer != null)
                 {
