@@ -2,6 +2,7 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
+using System.Linq; // 必須引入以確保 FindAllEntities 能運作
 
 namespace MatchZy;
 
@@ -45,14 +46,15 @@ public partial class MatchZy
             return;
         }
 
-        // 【修正】使用 roundPhase 來判斷凍結時間，確保編譯通過
-        if (roundPhase != RoundPhase.Freezetime)
+        // 【最終修正】直接讀取遊戲規則，判斷是否處於「凍結買槍時間」
+        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        if (gameRules != null && !gameRules.IsFreezePeriod)
         {
             PrintToPlayerChat(player, $" {ChatColors.Green}技 術 暫 停 只 能 在 回 合 開 始 前 輸 入{ChatColors.Default}");
             return;
         }
 
-        // 4. 檢查玩家是否在有效隊伍 (CsTeam.Terrorist 或 CsTeam.CounterTerrorist)
+        // 4. 檢查玩家是否在有效隊伍
         if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
 
         // 5. 利用 MatchZy 的 reverseTeamSides 字典，精確將當前陣營映射到真實隊伍物件
@@ -69,7 +71,6 @@ public partial class MatchZy
         string teamKey = "";
         string currentTeamName = playerMatchTeam.teamName;
 
-        // 配合您的專案變數名稱「matchzyTeam1」與「matchzyTeam2」進行真實隊伍比對
         if (playerMatchTeam == matchzyTeam1)
         {
             teamKey = "matchzyTeam1";
@@ -80,7 +81,6 @@ public partial class MatchZy
         }
         else
         {
-            // 安全防護：如果不屬於任何一隊（例如獨立觀眾），則不處理
             return;
         }
 
@@ -106,7 +106,7 @@ public partial class MatchZy
         // 8. 安全防護：如果原本有計時器在跑，先砍掉
         techPauseAutoUnpauseTimer?.Kill();
 
-        // 9. 建立一個 300 秒後觸發的自動解除計時器 (修正為 300.0f)
+        // 9. 建立一個 300 秒後觸發的自動解除計時器 (正式修正為 300.0f)
         techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
         {
             if (isPaused)
@@ -121,7 +121,6 @@ public partial class MatchZy
         });
     }
 
-    // 建立一個統一重設次數的方法
     public void ResetTechPauseCount()
     {
         techPausesLeft["matchzyTeam1"] = 1;
