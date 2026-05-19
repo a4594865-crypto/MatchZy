@@ -113,7 +113,7 @@ public partial class MatchZy
 
         // 300秒非同步鬧鐘
         Task.Run(async () => {
-            await Task.Delay(300000); 
+            await Task.Delay(30000); 
 
             Server.NextFrame(() => {
                 if (!isPaused) return; 
