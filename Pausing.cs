@@ -25,22 +25,20 @@ public partial class MatchZy
         // 1. 如果比賽還沒正式開始，不允許技術暫停
         if (!isMatchLive) return;
 
-        // 新增規則：回合正式開始後（非凍結時間且非回合結束空檔），禁止輸入 .tech
+        // 【核心修改】安全檢查：回合正式開始後，禁止輸入 .tech
         if (player != null)
         {
-            var gameRulesEntities = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules");
-            if (gameRulesEntities.Any())
+            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+            if (gameRules != null)
             {
-                var gameRules = gameRulesEntities.First().GameRules;
-                if (gameRules != null)
+                // 使用最新版 CounterStrikeSharp 標準公開屬性：
+                // FreezePeriod = 是否在凍結時間
+                // WarmupPeriod = 是否在熱身
+                // 如果「不在凍結時間」而且「也不是在熱身/刀房」，代表回合已經正式開始，此時禁止暫停
+                if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                 {
-                    // 修正：將 M_bFreezePeriod 與 M_bRoundTerminating 修正為符合最新 API 的小寫 m_b 開頭
-                    // m_bFreezePeriod = 是否在凍結時間, m_bRoundTerminating = 是否正在處理回合結束
-                    if (!gameRules.m_bFreezePeriod && !gameRules.m_bRoundTerminating)
-                    {
-                        PrintToPlayerChat(player, $" {ChatColors.Red}回合已正式開始，現在無法使用技術暫停！請等待下回合凍結時間。");
-                        return;
-                    }
+                    PrintToPlayerChat(player, $" {ChatColors.Red}回合已正式開始，現在無法使用技術暫停！請等待下回合凍結時間。");
+                    return;
                 }
             }
         }
