@@ -29,7 +29,7 @@ public partial class MatchZy
         // 如果現在是 Freezetime，這段 if 就不會成立，程式會繼續向下執行，允許暫停
         if (isMatchLive && gameRules != null && !gameRules.FreezePeriod)
         {
-            PrintToPlayerChat(player, $" {ChatColors.Red}技術暫停僅限於「回合準備階段 (Freezetime)」使用，比賽進行中無法啟用！");
+            PrintToPlayerChat(player, $" {ChatColors.Red}比 賽 進 行 中 無 法 啟 用 技 術 暫 停");
             return;
         }
 
