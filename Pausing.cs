@@ -45,10 +45,10 @@ public partial class MatchZy
             return;
         }
 
-        // 【新增檢查】如果目前不是凍結時間（代表回合已經開始、玩家可以自由移動了），則暫停無效
-        if (!isFreezeTime)
+        // 【修正】使用 roundPhase 來判斷凍結時間，確保編譯通過
+        if (roundPhase != RoundPhase.Freezetime)
         {
-            PrintToPlayerChat(player, $" {ChatColors.Green}技 術 暫 停 只 能 在 回 合 開 始 前 內 輸 入{ChatColors.Default}");
+            PrintToPlayerChat(player, $" {ChatColors.Green}技 術 暫 停 只 能 在 回 合 開 始 前 輸 入{ChatColors.Default}");
             return;
         }
 
@@ -106,8 +106,8 @@ public partial class MatchZy
         // 8. 安全防護：如果原本有計時器在跑，先砍掉
         techPauseAutoUnpauseTimer?.Kill();
 
-        // 9. 建立一個 300 秒後觸發的自動解除計時器（已將時間精確修正為 300.0f）
-        techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
+        // 9. 建立一個 300 秒後觸發的自動解除計時器 (修正為 300.0f)
+        techPauseAutoUnpauseTimer = AddTimer(300.0f, () =>
         {
             if (isPaused)
             {
@@ -124,7 +124,6 @@ public partial class MatchZy
     // 建立一個統一重設次數的方法
     public void ResetTechPauseCount()
     {
-        // 同步修正為您的專案專屬變數名稱 key
         techPausesLeft["matchzyTeam1"] = 1;
         techPausesLeft["matchzyTeam2"] = 1;
         techPauseAutoUnpauseTimer?.Kill();
