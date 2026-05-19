@@ -1,6 +1,5 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using System;
@@ -17,28 +16,20 @@ public partial class MatchZy
     // 🌟 狀態標記：用來記錄目前是不是正處於我們的「300秒技術暫停」期間
     public bool isMyTechPausing = false;
 
-    // 🌟【自動刷新大腦 1】：偷聽遊戲重開事件（.restart、mp_restartgame、換地圖都會觸發）
-    [GameEventHandler("cs_match_reset")]
-    public HookResult OnMatchReset(EventCsMatchReset @event, GameEventInfo info)
+    // 🌟【開機/重載插件/換地圖 終極刷新防線】：
+    // 這是 CounterStrikeSharp 官方標準的虛擬方法，当地圖載入（換圖）或伺服器開機時，100% 絕對會跑這裡！
+    public override void OnMapStart(string mapName)
     {
+        base.OnMapStart(mapName);
         customTechPauseUsed.Clear();
         isMyTechPausing = false;
-        return HookResult.Continue;
-    }
-
-    // 🌟【自動刷新大腦 2】：偷聽地圖載入/宣告冷卻結束事件（確保換圖 100% 刷新）
-    [GameEventHandler("round_announce_match_start")]
-    public HookResult OnRoundAnnounceMatchStart(EventRoundAnnounceMatchStart @event, GameEventInfo info)
-    {
-        customTechPauseUsed.Clear();
-        isMyTechPausing = false;
-        return HookResult.Continue;
     }
 
     // 🌟 這是提供給 ConsoleCommands.cs 呼叫的「真正具備 300 秒限制與攔截」的實體方法！
     public void ExecuteCustomTechPause(CCSPlayerController? player, CommandInfo? command)
     {
-        // 未開賽或熱身期保險：一律無限重置次數
+        // 🌟【.restart 重開比賽 終極刷新防線】：
+        // 只要比賽還不是 Live 狀態（包含管理員打了 .restart 導致比賽重回熱身或未開賽狀態），一律直接清空計數，不准鎖死！
         if (!isMatchLive) 
         {
             customTechPauseUsed.Clear();
@@ -66,7 +57,7 @@ public partial class MatchZy
             return;
         }
 
-        // 🌟 抓取當前玩家的肉體陣營（CT 或 T）
+        // 抓取當前玩家的肉體陣營（CT 或 T）
         CsTeam callingTeam = player.Team;
 
         // 🌟【次數鐵腕攔截】：只要這個陣營已經暫停過 1 次，直接噴語言包阻擋，絕對進不去！
@@ -79,16 +70,16 @@ public partial class MatchZy
             return;
         }
 
-        // 🌟 透過檢查，該陣營技術暫停次數在記憶體中 +1
+        // 透過檢查，該陣營技術暫停次數在記憶體中 +1
         if (!customTechPauseUsed.ContainsKey(callingTeam)) customTechPauseUsed[callingTeam] = 0;
         customTechPauseUsed[callingTeam]++;
 
-        // 🌟 標記暫停狀態，並直接執行原廠最安全的暫停方法（讓時間與肉體完美定格）
+        // 標記暫停狀態，並直接執行原廠最安全的暫停方法（讓時間與肉體完美定格）
         isMyTechPausing = true;
         PauseMatch(player, command);
 
         // 全服廣播技術暫停通知
-        Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0006技 術 暫 停 已 啟 動 將 在 \u0010 300 秒 鐘 後 \u0006自 自動 解 除");
+        Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0006技 術 暫 停 已 啟 動 將 在 \u0010 300 秒 鐘 後 \u0006自 動 解 除");
 
         // 🌟【300秒非同步不吃效能鬧鐘】
         Task.Run(async () => {
@@ -113,4 +104,3 @@ public partial class MatchZy
             });
         });
     }
-}
