@@ -2,6 +2,8 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
+using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -9,33 +11,46 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
+    // 保留你原本完全正常的次數紀錄字典
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 使用 Server.GameDirectory 確保路徑在伺服器開機、換圖時 100% 絕對精準！
+    // 🌟【路徑修正】：改回插件專屬的私有目錄！這樣不論地圖是否在跑，外掛都有最高權限刪除檔案，絕對不會被 CS2 鎖死！
     private static string GetLockFilePath(string teamName)
     {
-        string baseDir = Server.GameDirectory; 
+        string pluginDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
         string safeTeamName = string.Join("_", teamName.Split(Path.GetInvalidFileNameChars()));
-        return Path.Combine(baseDir, $"tech_lock_{safeTeamName}.txt");
+        return Path.Combine(pluginDir, $"tech_lock_{safeTeamName}.txt");
     }
 
-    // 當 MatchZy 插件初次加載時執行清理
+    // 🌟【核心對接】：MatchZy 主插件載入（Load）時會跑這裡。
+    // 我們在這裡直接向 CS2 引擎註冊「官方地圖載入監聽器」，不管手動換圖還是硬換，換圖瞬間必定執行清理！
+    public void RegisterTechPauseMapEventListener()
+    {
+        RegisterListener<Listeners.OnMapStart>(mapName =>
+        {
+            // 換地圖（不論是自動打完換，還是管理員打 .map 換）
+            StaticResetAllTechPauseFiles();
+            technicalPauseUsed.Clear();
+        });
+    }
+
+    // 🌟【開機保險】：伺服器初次啟動、插件載入時強行清空
     static MatchZy()
     {
         StaticResetAllTechPauseFiles();
     }
 
-    // 當管理員手動打 .restart、重開賽、或是換場初始化時，100% 執行物理擦除
+    // 🌟【重開賽保險】：當管理員打 .restart、手動重打 Knife/開賽、重置場次時，MatchZy 核心必經此處
     public void InitTechPauseFileCleaner()
     {
         technicalPauseUsed.Clear();
-        StaticResetAllTechPauseFiles(); 
+        StaticResetAllTechPauseFiles(); // 100% 物理擦除私有目錄下的 txt 檔案
     }
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
-        // 如果比賽根本還沒正式 Live（例如還在熱身、手動重開剛進來），直接無限刷新次數
+        // 🌟【熱身期與未開賽保險】：只要比賽還不是 Live 狀態（包含打 .restart 後回到熱身等待階段），一律無限重置次數
         if (!isMatchLive) 
         {
             StaticResetAllTechPauseFiles();
@@ -85,10 +100,10 @@ public partial class MatchZy
         
         if (playerTeam == null || string.IsNullOrEmpty(playerTeam.teamName)) return;
 
+        // 取得該隊伍的專屬實體檔案鎖路徑
         string lockFilePath = GetLockFilePath(playerTeam.teamName);
 
-        // 🌟【完美進化】：檢查硬碟鎖時，不再寫死中文字！
-        // 直接調用官方語言包，並把隊伍名稱帶進去，乾淨又專業！
+        // 檢查硬碟鎖，直接調用官方語言包
         if (File.Exists(lockFilePath))
         {
             ReplyToUserCommand(player, Localizer["matchzy.pause.notechpauseleft", playerTeam.teamName]);
@@ -113,29 +128,32 @@ public partial class MatchZy
 
         // 300秒非同步鬧鐘
         Task.Run(async () => {
-            await Task.Delay(30000); 
+            await Task.Delay(300000); 
 
             Server.NextFrame(() => {
                 if (!isPaused) return; 
 
-                // 呼叫 MatchZy 原廠解除暫停
-                ForceUnpauseMatch(player, command);
+                // 手動修正暫停狀態，徹底繞過原廠 ForceUnpauseMatch 的自帶廣播
+                isPaused = false;
 
-                // 噴出時間到的自訂標籤通知
+                // 直接對 CS2 伺服器引擎下達最高解除指令
+                Server.ExecuteCommand("mp_unpause_match");
+
+                // 唯一指定通知
                 Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0010 300 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
             });
         });
     }
 
-    // 靜態清理工具：精準刪除硬碟中所有 tech_lock_ 開頭的暫存檔
+    // 🌟 核心清理工具：精準刪除外掛私有目錄下的所有 tech_lock_ 檔案，此處擁有 100% 最高讀寫刪除權限
     private static void StaticResetAllTechPauseFiles()
     {
         try
         {
-            string baseDir = Server.GameDirectory;
-            if (Directory.Exists(baseDir))
+            string pluginDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
+            if (Directory.Exists(pluginDir))
             {
-                string[] files = Directory.GetFiles(baseDir, "tech_lock_*.txt");
+                string[] files = Directory.GetFiles(pluginDir, "tech_lock_*.txt");
                 foreach (string file in files)
                 {
                     File.Delete(file);
