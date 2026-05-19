@@ -45,6 +45,13 @@ public partial class MatchZy
             return;
         }
 
+        // 【新增檢查】如果目前不是凍結時間（代表回合已經開始、玩家可以自由移動了），則暫停無效
+        if (!isFreezeTime)
+        {
+            PrintToPlayerChat(player, $" {ChatColors.Green}技 術 暫 停 只 能 在 回 合 開 始 前 內 輸 入{ChatColors.Default}");
+            return;
+        }
+
         // 4. 檢查玩家是否在有效隊伍 (CsTeam.Terrorist 或 CsTeam.CounterTerrorist)
         if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
 
@@ -80,7 +87,7 @@ public partial class MatchZy
         // 6. 檢查次數限制
         if (techPausesLeft[teamKey] <= 0)
         {
-            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 已經沒有可用的技術暫停次數！");
+            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 已 經 沒 有 可 用 技 術 暫 停 次 數");
             return;
         }
 
@@ -93,13 +100,13 @@ public partial class MatchZy
         unpauseData["ct"] = false;
         unpauseData["pauseTeam"] = currentTeamName; 
 
-        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{techPausesLeft[teamKey]} 次。");
-        PrintToAllChat($" 暫停將在 \u0004300秒\u0001 後自動解除，或雙方輸入 \u0004.unpause\u0001 解除。");
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
+        PrintToAllChat($" 暫 停 將 在 \u0004300秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.up\u0001 解 除。");
 
         // 8. 安全防護：如果原本有計時器在跑，先砍掉
         techPauseAutoUnpauseTimer?.Kill();
 
-        // 9. 建立一個 300 秒後觸發的自動解除計時器（已將 30.0f 修正為 300.0f）
+        // 9. 建立一個 300 秒後觸發的自動解除計時器（已將時間精確修正為 300.0f）
         techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
         {
             if (isPaused)
@@ -108,7 +115,7 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($" 技術暫停已達\u0002 300 秒 \u0001上限，系統自動解除暫停！");
+                PrintToAllChat($" 技 術 暫 停 已 達\u0004 300 秒 \u0001上 限，系 統 自 動 解 除 暫 停！");
             }
             techPauseAutoUnpauseTimer = null;
         });
