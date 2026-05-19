@@ -6,13 +6,15 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
+    // 🌟【關鍵修復】：宣告一個完全獨立的、不會被原廠邏輯暗中清空的鐵鎖計數器
+    public static Dictionary<string, int> customTechPauseLimit = new();
+    
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
-        // 🌟【修改】：砍掉官方擺爛的 return; 讓技術暫停指令復活！
-
+        // 砍掉官方擺爛的 return; 讓技術暫停指令復活
         if (!isMatchLive) return;
 
         // Treating .tech command as .forcepause if it is used via server console.
@@ -24,25 +26,21 @@ public partial class MatchZy
 
         if (isPaused)
         {
-            // ReplyToUserCommand(player, "Match is already paused!");
             ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
             return;
         }
         if (IsHalfTimePhase())
         {
-            // ReplyToUserCommand(player, "You cannot use this command during halftime.");
-            ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]); ;
+            ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]);
             return;
         }
         if (IsPostGamePhase())
         {
-            // ReplyToUserCommand(player, "You cannot use this command after the game has ended.");
             ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]);
             return;
         }
         if (IsTacticalTimeoutActive())
         {
-            // ReplyToUserCommand(player, "You cannot use this command when tactical timeout is active.");
             ReplyToUserCommand(player, Localizer["matchzy.pause.tacticaltimeout"]);
             return;
         }
@@ -55,26 +53,32 @@ public partial class MatchZy
             return;
         }
 
-        // 🌟【官方原本的檢查】：if (maxTechPausesAllowed.Value <= 0) return; 
-        // 🌟【修改】：直接拿掉官方檢查，因為我們要死鎖 1 次，不需要去讀取設定檔的 2 次。
-
+        // 取得當前隊伍物件
         Team playerTeam = (player!.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         
-        // 如果這個隊伍還沒有紀錄，先幫它初始化為 0 次
-        if (!technicalPauseUsed.ContainsKey(playerTeam))
+        // 🌟【核心修改】：使用隊伍的唯一區別名稱（避免被換邊或重置影響）
+        string teamKey = playerTeam.teamName;
+
+        if (!customTechPauseLimit.ContainsKey(teamKey))
         {
-            technicalPauseUsed[playerTeam] = 0;
+            customTechPauseLimit[teamKey] = 0;
         }
 
-        // 🌟【修改】：這裡直接寫死判定「>= 1」。只要這隊這場打過 1 次了，直接拒絕！
-        if (technicalPauseUsed[playerTeam] >= 1)
+        // 🌟 鐵律判定：只要這個隊伍名稱的紀錄大於等於 1，誰來都直接攔截噴紅字！
+        if (customTechPauseLimit[teamKey] >= 1)
         {
-            PrintToPlayerChat(player, Localizer["matchzy.pause.notechpauseleft", playerTeam.teamName]);
+            PrintToPlayerChat(player, $" \u0002[MatchZy] \u0007你們隊伍（{teamKey}）本場比賽的技術暫停次數（1次）已經用盡！");
             return;
         }
 
-        // 🌟【新增】：通過上面只能用 1 次的檢查後，次數累加，並直接去跑原廠的暫停流程！
+        // 🌟 成功通過，把我們獨立的計數器加 1（這個變數原廠絕對動不到，不會被洗掉）
+        customTechPauseLimit[teamKey]++;
+        
+        // 同步增加原廠變數（維持原廠架構完整）
+        if (!technicalPauseUsed.ContainsKey(playerTeam)) technicalPauseUsed[playerTeam] = 0;
         technicalPauseUsed[playerTeam]++;
+
+        // 執行原廠的暫停流程
         PauseMatch(player, command);
     }
 }
