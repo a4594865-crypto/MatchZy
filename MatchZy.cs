@@ -419,14 +419,10 @@ AddCommandListener("jointeam", (player, info) =>
             //     return HookResult.Continue;
             // });
 
-//  修改後的新程式碼（加上了 ResetTechPauseData();）
 RegisterListener<Listeners.OnMapStart>(mapName => {
     AddTimer(1.0f, () => {
         // 核心修正：清理緩存，但不手動指定 CT/T
         ResetTeamDataCaches(); 
-        
-        // --- 新增：換地圖或重啟伺服器時，刷新技術暫停次數與清理計時器 ---
-        ResetTechPauseData();
 
         if (!isMatchSetup) {
             // 一般路人局：自動啟動
