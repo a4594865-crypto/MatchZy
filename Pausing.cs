@@ -10,6 +10,19 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
+    // 🌟【關鍵優修】：動態獲取 MatchZy 插件自己所在的實體資料夾路徑，確保 Windows 絕對不會找錯地方
+    private static string GetLockFilePath(string sideKey)
+    {
+        string pluginDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
+        return Path.Combine(pluginDir, $"tech_lock_{sideKey}.txt");
+    }
+
+    // 🌟【開機保險】：只要伺服器重開機、或是更換地圖插件載入，立刻去把這個路徑下的檔案擦乾淨！
+    static MatchZy()
+    {
+        StaticResetTechPauseFiles();
+    }
+
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
         if (!isMatchLive) return;
@@ -27,14 +40,13 @@ public partial class MatchZy
         }
         if (IsHalfTimePhase())
         {
-            // 🌟【修改】：這裡不執行擦除檔案了，直接回傳原廠訊息。
             ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]);
             return;
         }
         if (IsPostGamePhase())
         {
-            // 🌟【保留】：只有在整場比賽結束、準備換地圖時，才把檔案擦掉
-            ResetTechPauseFiles();
+            // 比賽結束換地圖時，執行擦除
+            StaticResetTechPauseFiles();
             ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]);
             return;
         }
@@ -52,18 +64,19 @@ public partial class MatchZy
             return;
         }
 
-        // 抓取玩家此時此刻所在的陣營
+        // 抓取玩家陣營
         string sideKey = "";
         if (player.Team == CsTeam.CounterTerrorist) sideKey = "ct";
         else if (player.Team == CsTeam.Terrorist) sideKey = "t";
         else return;
 
-        string lockFilePath = $"tech_lock_{sideKey}.txt";
+        // 🌟 使用絕對路徑
+        string lockFilePath = GetLockFilePath(sideKey);
 
         // 檢查硬碟鎖
         if (File.Exists(lockFilePath))
         {
-            PrintToPlayerChat(player, $" \u0006你們隊伍本場比賽的技術暫停次數（\u0010 1 次 \u0006）已經用盡");
+            PrintToPlayerChat(player, $" \u0002[MatchZy] \u0006你們隊伍本場比賽的技術暫停次數（1次）已經用盡！");
             return;
         }
 
@@ -81,13 +94,16 @@ public partial class MatchZy
         PauseMatch(player, command);
     }
 
-    // 🌟【工具】：只在賽後換地圖時被呼叫，擦除檔案
-    private void ResetTechPauseFiles()
+    // 🌟 靜態清理工具：精準刪除 MatchZy 資料夾底下的鎖定檔
+    private static void StaticResetTechPauseFiles()
     {
         try
         {
-            if (File.Exists("tech_lock_ct.txt")) File.Delete("tech_lock_ct.txt");
-            if (File.Exists("tech_lock_t.txt")) File.Delete("tech_lock_t.txt");
+            string ctPath = GetLockFilePath("ct");
+            string tPath = GetLockFilePath("t");
+
+            if (File.Exists(ctPath)) File.Delete(ctPath);
+            if (File.Exists(tPath)) File.Delete(tPath);
         }
         catch (Exception) { }
     }
