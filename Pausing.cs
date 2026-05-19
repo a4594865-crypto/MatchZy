@@ -10,27 +10,31 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 🌟 使用原廠內建的字典來記錄次數，這樣換圖、.restart 時，原廠主程式會自動幫我們 Clear() 清空，完美刷新！
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 🌟 核心標記：用來防止 300 秒鬧鐘在玩家提早解除時重疊廣播
-    public bool isMyCustomTechPausing = false;
+    // 🌟 宣告我們自訂的狀態標記，用來保護 300 秒鬧鐘不重複執行
+    public bool isMyTechPausing = false;
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
-        // 🌟 砍掉原廠原本的 return; 讓技術暫停功能真正活過來！
-        
+        // 🌟【自動刷新開關】：如果目前不是正式比賽 Live 狀態（例如打 .restart 或是剛換新地圖）
+        // 玩家只要打指令，這裡第一時間直接清空次數，下一場完美恢復！
+        if (!isMatchLive)
+        {
+            technicalPauseUsed.Clear();
+            isMyTechPausing = false;
+        }
+
         if (!isMatchLive) return;
 
-        // 如果是伺服器控制台發送，走原廠強制暫停
+        // Treating .tech command as .forcepause if it is used via server console.
         if (player == null)
         {
             ForcePauseMatch(player, command);
             return;
         }
 
-        // 原廠標準狀態檢查（防呆）
         if (isPaused)
         {
             ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
@@ -62,53 +66,52 @@ public partial class MatchZy
 
         if (maxTechPausesAllowed.Value <= 0) return;
 
-        // 🌟 呼叫原廠精準換邊判定：抓出按下指令的玩家目前肉體所屬的真實 Team 物件
-        Team playerTeam = (player!.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"]; //
+        Team playerTeam = (player!.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         
-        // 🌟【次數鐵腕攔截】：只要這個隊伍已經用過 1 次（或超過設定值），立刻擋下並噴語言包！
-        if (technicalPauseUsed.ContainsKey(playerTeam) && technicalPauseUsed[playerTeam] >= maxTechPausesAllowed.Value) //
+        // 🌟【鐵腕攔截次數】：如果該陣營使用次數已滿，直接阻擋並噴語言包！
+        if (technicalPauseUsed.ContainsKey(playerTeam) && technicalPauseUsed[playerTeam] >= maxTechPausesAllowed.Value)
         {
-            PrintToPlayerChat(player, Localizer["matchzy.pause.notechpauseleft", playerTeam.teamName]); //
+            PrintToPlayerChat(player, Localizer["matchzy.pause.notechpauseleft", playerTeam.teamName]);
             return;
         }
 
-        // 🌟 通過檢查，原廠字典計數 +1
+        // 🌟 通過檢查，該隊伍計數器 +1
         if (!technicalPauseUsed.ContainsKey(playerTeam)) technicalPauseUsed[playerTeam] = 0;
         technicalPauseUsed[playerTeam]++;
 
-        // 🌟 標記我們的技術暫停啟動，並呼叫原廠最完美的定格暫停
-        isMyCustomTechPausing = true;
+        // 🌟 標記技術暫停正式啟動，並調用原廠定格暫停
+        isMyTechPausing = true;
         PauseMatch(player, command);
 
-        // 全服廣播技術暫停通知
+        // 全服廣播綠色通知
         Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0006技 術 暫 停 已 啟 動 將 在 \u0010 300 秒 鐘 後 \u0006自 動 解 除");
 
-        // 🌟【300秒非同步完美計時鬧鐘】
+        // 🌟【300秒非同步不吃效能計時器】
         Task.Run(async () => {
-            await Task.Delay(30000); // 準時睡眠 300 秒
+            await Task.Delay(30000); // 睡眠 300 秒 (300000 ms)
 
             // 安全投遞回 CS2 主線程執行解除
             Server.NextFrame(() => {
-                // 防呆：如果 300 秒內玩家自己手動打 .unpause 解除了，鬧鐘直接退場
-                if (!isPaused || !isMyCustomTechPausing) return; 
+                // 防呆：如果 300 秒內玩家手動打 .unpause 解除了，鬧鐘直接退出
+                if (!isPaused || !isMyTechPausing) return;
 
-                // 🌟【解除核心】：直接修改全域變數，並下達最高權限原生解除指令
+                // 🌟【解除核心】：修改全域暫停變數，並下達最高權限原生解除指令（無分號）
                 isPaused = false;
-                isMyCustomTechPausing = false;
-                Server.ExecuteCommand("mp_unpause_match;");
+                isMyTechPausing = false;
+                Server.ExecuteCommand("mp_unpause_match");
 
-                // 🌟【終極粉碎】：徹底殺死 MatchZy 後台殘留的暫停狀態計時器，防止原廠再次強行覆蓋暫停
+                // 🌟【物理粉碎鎖】：徹底幹掉 MatchZy 原廠後台殘留的暫停狀態計時器，防止伺服器再次回彈
                 if (pausedStateTimer != null)
                 {
                     pausedStateTimer.Kill();
                     pausedStateTimer = null;
                 }
 
-                // 清空點頭數據
+                // 清空原廠的點頭同意數據
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
 
-                // 噴出時間到廣播
+                // 廣播強制解除通知
                 Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0010 300 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
             });
         });
