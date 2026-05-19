@@ -10,11 +10,12 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 🌟 1. 終極核心修正：改用「字串 string (隊伍名稱)」作為 Key！
-    // 這樣不論上半場、下半場怎麼換邊，隊伍名字永遠不變，次數絕對死鎖，100% 杜絕換邊穿透！
-    public Dictionary<string, int> customTechPauseUsed = new();
-    
+    // 🌟 核心修正：把原廠原本的 technicalPauseUsed 補回來！否則編譯會一直報錯
+    public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
+
+    // 🌟 1. 這是我們用來死鎖次數的鐵腕字典（改用 string 隊伍名稱，換邊、改名絕對不穿透）
+    public Dictionary<string, int> customTechPauseUsed = new();
 
     // 🌟 2. 狀態標記，用來保護 300 秒鬧鐘，防止提早解除時重疊
     public bool isMyTechPausing = false;
@@ -125,7 +126,7 @@ public partial class MatchZy
                 unpauseData["t"] = false;
 
                 // 廣播強制解除通知
-                Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0010 300 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
+                Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0010 300 秒 \u0006時 間 已 到！強制 解 除 技 術 暫 停");
             });
         });
     }
