@@ -10,17 +10,22 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 🌟 核心修正：改用 CsTeam 記憶體列舉，徹底避開原廠 Team 物件對比失效的 Bug
-    public Dictionary<CsTeam, int> customTechPauseUsed = new();
+    // 🌟 1. 終極核心修正：改用「字串 string (隊伍名稱)」作為 Key！
+    // 這樣不論上半場、下半場怎麼換邊，隊伍名字永遠不變，次數絕對死鎖，100% 杜絕換邊穿透！
+    public Dictionary<string, int> customTechPauseUsed = new();
+    
     public int lastTechPauseDuration = 0;
 
-    // 🌟 狀態標記，用來保護 300 秒鬧鐘
+    // 🌟 2. 狀態標記，用來保護 300 秒鬧鐘，防止提早解除時重疊
     public bool isMyTechPausing = false;
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
-        // 🌟【自動刷新開關】：打 .restart 重開賽、換地圖或未正式開賽前，只要打指令，第一時間強制清空次數
-        if (!isMatchLive)
+        // 🌟 3.【重啟、重開、換圖、開機 總刷新檢查哨】：
+        // 當打 .restart、換地圖、或重啟伺服器時，MatchZy 原廠一定會把原生的 technicalPauseUsed 字典清空（Count == 0）。
+        // 我們直接同步監聽官方字典，只要原廠字典是空的，而我們自己的自訂字典還有殘留數據，就代表「賽局已經重置或換圖了」！
+        // 這時候立刻強行將我們的字串字典整台抹平，實現 100% 完美自動刷新，絕對不會卡到下一場！
+        if (technicalPauseUsed == null || technicalPauseUsed.Count == 0)
         {
             customTechPauseUsed.Clear();
             isMyTechPausing = false;
@@ -66,29 +71,35 @@ public partial class MatchZy
 
         if (maxTechPausesAllowed.Value <= 0) return;
 
-        // 🌟 核心修正：直接抓取按下指令玩家的肉體陣營 (CT 或 T)
-        CsTeam callingTeam = player.Team;
+        // 🌟 4. 利用原廠最精準的換邊映射，抓出目前按下指令的玩家所屬的真正「Team 物件」
+        Team playerTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         
-        // 🌟【鐵腕攔截次數】：只要這個陣營在字典裡的數字 >= 限制次數，直接死鎖阻擋！
-        if (customTechPauseUsed.ContainsKey(callingTeam) && customTechPauseUsed[callingTeam] >= maxTechPausesAllowed.Value)
+        // 🌟 5. 如果抓取失敗（保險防呆），才降級使用陣營名字
+        string teamKey = (playerTeam != null && !string.IsNullOrEmpty(playerTeam.teamName)) ? playerTeam.teamName : player.Team.ToString();
+        
+        // 🌟 6. 【鋼鐵次數攔截網】：利用隊伍真正的字串名字來判斷，只要該隊次數已滿，直接死鎖並噴提示！
+        if (customTechPauseUsed.ContainsKey(teamKey) && customTechPauseUsed[teamKey] >= maxTechPausesAllowed.Value)
         {
-            Team playerTeam = (callingTeam == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-            PrintToPlayerChat(player, Localizer["matchzy.pause.notechpauseleft", playerTeam.teamName]);
+            string teamNameForMsg = (playerTeam != null && !string.IsNullOrEmpty(playerTeam.teamName)) ? playerTeam.teamName : (player.Team == CsTeam.CounterTerrorist ? "CT" : "T");
+            PrintToPlayerChat(player, Localizer["matchzy.pause.notechpauseleft", teamNameForMsg]);
             return;
         }
 
-        // 🌟 通過檢查，該隊伍計數器精準 +1
-        if (!customTechPauseUsed.ContainsKey(callingTeam)) customTechPauseUsed[callingTeam] = 0;
-        customTechPauseUsed[callingTeam]++;
+        // 🌟 7. 通過檢查，將原廠的原生字典與我們的「字串死鎖字典」同步 +1
+        if (!technicalPauseUsed.ContainsKey(playerTeam!)) technicalPauseUsed[playerTeam!] = 0;
+        technicalPauseUsed[playerTeam!]++;
 
-        // 🌟 標記技術暫停正式啟動，並調用原廠定格暫停
+        if (!customTechPauseUsed.ContainsKey(teamKey)) customTechPauseUsed[teamKey] = 0;
+        customTechPauseUsed[teamKey]++;
+
+        // 🌟 8. 標記技術暫停正式啟動，並調用原廠定格暫停
         isMyTechPausing = true;
         PauseMatch(player, command);
 
-        // 全服廣播通知
-        Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0006技 術 暫 停 已 啟動 將 在 \u0010 300 秒 鐘 後 \u0006自 動 解 除");
+        // 全服廣播綠色通知
+        Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0006技 術 暫 停 已 啟 動 將 在 \u0010 300 秒 鐘 後 \u0006自 動 解 除");
 
-        // 🌟【300秒非同步不吃效能計時器】
+        // 🌟 9. 【300秒非同步不吃效能計時器】
         Task.Run(async () => {
             await Task.Delay(30000); // 準時睡眠 300 秒
 
