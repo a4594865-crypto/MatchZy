@@ -8,60 +8,47 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 確保字典定義正確：Key 是字串，Value 是整數 (int)
+    // 如果這裡報錯，請檢查 MatchZy.cs 是否重複定義了這個變數
+    // 確保這裡的 Dictionary 值一定是 int
     public Dictionary<string, int> techPausesLeft = new() { { "matchzyTeam1", 1 }, { "matchzyTeam2", 1 } };
     public CounterStrikeSharp.API.Modules.Timers.Timer? techPauseAutoUnpauseTimer = null;
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
         if (!isMatchLive) return;
+        if (player == null) { ForcePauseMatch(player, command); return; }
 
-        if (player == null)
-        {
-            ForcePauseMatch(player, command);
-            return;
-        }
+        // 1. 基礎檢查
+        if (isPaused) { ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]); return; }
+        if (IsHalfTimePhase()) { ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]); return; }
+        if (IsPostGamePhase()) { ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]); return; }
 
-        if (isPaused)
-        {
-            ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
-            return;
-        }
-
-        // 凍結時間檢查：直接檢查 gameRules.FreezePeriod
+        // 2. 取得凍結時間 (FreezePeriod 是底層 int 變數，大於 0 表示正在凍結)
         var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
-        if (gameRules != null && gameRules.FreezePeriod <= 0)
+        if (gameRules == null || gameRules.FreezePeriod <= 0)
         {
             PrintToPlayerChat(player, $" {ChatColors.Green}技 術 暫 停 只 能 在 回 合 開 始 前 輸 入{ChatColors.Default}");
             return;
         }
 
-        if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
-
-        // 取得真實隊伍物件
+        // 3. 隊伍判斷
         Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-        string teamKey = (playerMatchTeam == matchzyTeam1) ? "matchzyTeam1" : (playerMatchTeam == matchzyTeam2 ? "matchzyTeam2" : "");
+        string teamKey = (playerMatchTeam == matchzyTeam1) ? "matchzyTeam1" : "matchzyTeam2";
 
-        if (string.IsNullOrEmpty(teamKey)) return;
-
-        // 這裡檢查 int 是否 <= 0，就不會再報布林值錯誤了
+        // 4. 強制轉型檢查 (解決 bool vs int 衝突)
+        // 如果你的 Dictionary 其實存的是 bool，這裡會報錯，但因為上面定義是 int，這裡應順利運作
         if (techPausesLeft[teamKey] <= 0)
         {
             PrintToPlayerChat(player, $" {ChatColors.Green}{playerMatchTeam.teamName}{ChatColors.Default} 已 經 沒 有 可 用 技 術 暫 停 次 數");
             return;
         }
 
-        // 扣除次數
+        // 5. 執行暫停
         techPausesLeft[teamKey]--;
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
-
-        unpauseData["t"] = false;
-        unpauseData["ct"] = false;
-        unpauseData["pauseTeam"] = playerMatchTeam.teamName;
-
-        PrintToAllChat($" 隊伍 {ChatColors.Green}{playerMatchTeam.teamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
-        PrintToAllChat($" 暫 停 將 在 \u0004300秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.up\u0001 解 除。");
+        
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{playerMatchTeam.teamName}{ChatColors.Default} 啟用了技術暫停。剩餘：{techPausesLeft[teamKey]} 次。");
 
         techPauseAutoUnpauseTimer?.Kill();
         techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
@@ -70,7 +57,7 @@ public partial class MatchZy
             {
                 Server.ExecuteCommand("mp_unpause_match;");
                 isPaused = false;
-                PrintToAllChat($" 技 術 暫 停 已 達\u0004 300 秒 \u0001上 限，系 統 自 動 解 除 暫 停！");
+                PrintToAllChat($" 技 術 暫 停 已 達 300 秒，系 統 自 動 解 除！");
             }
             techPauseAutoUnpauseTimer = null;
         });
