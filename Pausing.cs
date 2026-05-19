@@ -83,7 +83,7 @@ public partial class MatchZy
 
         // 🌟【300秒非同步不吃效能鬧鐘】
         Task.Run(async () => {
-            await Task.Delay(30000); // 準時睡眠 300 秒
+            await Task.Delay(300000); // 準時睡眠 300 秒
 
             // 安全投遞回 CS2 主線程執行解除
             Server.NextFrame(() => {
@@ -95,6 +95,13 @@ public partial class MatchZy
                 isMyTechPausing = false;
                 Server.ExecuteCommand("mp_unpause_match;");
 
+                // 🌟【終極粉碎】：徹底幹掉 MatchZy 原廠後台殘留的暫停狀態計時器，防止原廠再次覆蓋暫停狀態
+                if (pausedStateTimer != null)
+                {
+                    pausedStateTimer.Kill();
+                    pausedStateTimer = null;
+                }
+
                 // 清空原廠的點頭同意數據，防止殘留
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
@@ -104,3 +111,4 @@ public partial class MatchZy
             });
         });
     }
+} // 👈 完美閉合 MatchZy 類別
