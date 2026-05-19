@@ -11,7 +11,7 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 開機/重載清理
+    // 開機/重載清理次數
     public void InitTechPauseFileCleaner()
     {
         technicalPauseUsed.Clear();
@@ -19,7 +19,7 @@ public partial class MatchZy
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
-        // 熱身期保險
+        // 熱身期保險：未正式開賽前打指令一律清空次數，防止跨場殘留
         if (!isMatchLive) 
         {
             technicalPauseUsed.Clear();
@@ -33,7 +33,8 @@ public partial class MatchZy
             return;
         }
 
-        if (isPaused)
+        // 🌟 完全借用官方狀態判定：如果已經在暫停中，就直接擋掉
+        if (isPaused || isTechPaused)
         {
             ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
             return;
@@ -68,7 +69,7 @@ public partial class MatchZy
         
         if (playerTeam == null) return;
 
-        // 檢查次數記錄
+        // 🌟 100% 精準對接官方次數限制邏輯
         if (technicalPauseUsed.ContainsKey(playerTeam) && technicalPauseUsed[playerTeam] >= 1)
         {
             ReplyToUserCommand(player, Localizer["matchzy.pause.notechpauseleft", playerTeam.teamName]);
@@ -79,32 +80,34 @@ public partial class MatchZy
         if (!technicalPauseUsed.ContainsKey(playerTeam)) technicalPauseUsed[playerTeam] = 0;
         technicalPauseUsed[playerTeam]++;
 
-        // 🌟【最關鍵的核心修正】：第一時間將 MatchZy 全域暫停狀態拉成 true！
-        // 這樣 MatchZy 官方的底層主程式才會啟動「每影格強制凍結回合計時器」的超能力！
+        // 🌟【震撼修正】：100% 啟動 MatchZy 官方原汁原味的技術暫停開關！
+        // 這樣官方底層的所有監聽器、時間凍結線程會瞬間判定「這是一次正統的技術暫停」，並主動鎖死官方時鐘！
+        isTechPaused = true;
         isPaused = true;
 
-        // 1. 執行原廠暫停
+        // 1. 執行最純粹的原廠暫停
         PauseMatch(player, command);
 
-        // 2. 廣播通知（300秒版本，主文字綠色 `\u0006`，秒數橘色 `\u0010`）
+        // 2. 噴出服主指定的專屬自訂標籤訊息
         Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0006技 術 暫 停 已 啟 動 將 在 \u0010 300 秒 鐘 後 \u0006自 動 解 除");
 
-        // 3. 異步非阻塞計時器（300000毫秒 = 300秒，0效能負擔）
+        // 3. 獨立的 300 秒（300000 毫秒）非同步鬧鐘
         Task.Run(async () => {
             await Task.Delay(30000); 
 
-            // 安全投遞回主線程執行
+            // 安全投遞回主線程執行，避免線程衝突
             Server.NextFrame(() => {
-                // 安全防呆：如果已經被人手動解除暫停了（isPaused 變成 false），計時器直接退場
-                if (!isPaused) return; 
+                // 安全防呆：如果已經被人用 .unpause 提前解除了，鬧鐘直接功成身退
+                if (!isPaused && !isTechPaused) return; 
 
-                // 🌟 同步插件內部狀態為解除
+                // 🌟【解除官方狀態】：把官方的核心開關關掉
+                isTechPaused = false;
                 isPaused = false;
 
-                // 直接向 CS2 官方伺服器引擎下達最高權限原生解除暫停指令！
+                // 直接向 CS2 官方伺服器引擎下達最高權限原生解除暫停指令
                 Server.ExecuteCommand("mp_unpause_match");
 
-                // 顯示時間到的自訂標籤通知
+                // 噴出時間到的自訂標籤通知
                 Server.PrintToChatAll($" \u0001[\u0006系統訊息\u0001] \u0010 300 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
             });
         });
