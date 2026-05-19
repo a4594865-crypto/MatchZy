@@ -83,7 +83,7 @@ public partial class MatchZy
 
         // 🌟【300秒非同步不吃效能鬧鐘】
         Task.Run(async () => {
-            await Task.Delay(300000); // 準時睡眠 300 秒
+            await Task.Delay(30000); // 準時睡眠 300 秒
 
             // 安全投遞回 CS2 主線程執行解除
             Server.NextFrame(() => {
@@ -111,4 +111,4 @@ public partial class MatchZy
             });
         });
     }
-} // 👈 完美閉合 MatchZy 類別
+} 
