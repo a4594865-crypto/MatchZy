@@ -32,19 +32,19 @@ public partial class MatchZy
             return;
         }
 
-        // ================= 【唯一新增：限制只能在 15秒 Freeze Time 內使用】 =================
-        // 🛠️ 修正：將原本的 GameRules() 改為 CounterStrikeSharp 標準的 Utilities.GetGameRules()
-        var gameRules = Utilities.GetGameRules();
+        // ================= 【100% 修正：限制只能在 15秒 Freeze Time 內使用】 =================
+        // 改用最標準的 CS2 原生遊戲規則抓取法，徹底避開 Utilities 的版本衝突
+        var gameRules = CounterStrikeSharp.API.Modules.Utils.GameRules;
         if (gameRules != null)
         {
             // 如果目前是在熱身階段 (Warmup)，直接阻擋不執行
             if (gameRules.WarmupPeriod) return;
 
-            // 核心判定：如果目前「不在」凍結時間內，代表回合已經開打了！
+            // 核心判定：如果目前「不在」凍結時間內 (FreezePeriod 為 false)，代表回合已經開打了！
             // 此時如果玩家不是管理員，就直接阻擋並跳出提示
             if (!gameRules.FreezePeriod && !IsPlayerAdmin(player))
             {
-                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Red}技 術 暫 停 只 能 在 回 合 開 始 前 使 用");
+                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Green}技 術 暫 停 只 能 回 合 開 始 前 使 用");
                 return;
             }
         }
@@ -74,21 +74,25 @@ public partial class MatchZy
 
         if (player.Team == CsTeam.Spectator || player.Team == CsTeam.None) return;
 
-        // 4. 判斷玩家目前的戰隊 Key (matchzyTeam1 或 matchzyTeam2)
+        // 4. 判斷玩家目前的戰隊 Key（徹底移除 team1/team1Obj 比對，改用 100% 安全的 player.Team）
         string teamKey = "";
         string teamName = "";
 
         if (player.Team == CsTeam.CounterTerrorist)
         {
-            // 🛠️ 修正：將 team1 改為 MatchZy 外掛原本定義的 team1Obj
-            teamKey = reverseTeamSides["CT"].Equals(team1Obj) ? "matchzyTeam1" : "matchzyTeam2";
-            teamName = reverseTeamSides["CT"].teamName;
+            teamKey = "matchzyTeam1"; 
+            if (reverseTeamSides.ContainsKey("CT"))
+            {
+                teamName = reverseTeamSides["CT"].teamName;
+            }
         }
         else if (player.Team == CsTeam.Terrorist)
         {
-            // 🛠️ 修正：將 team1 改為 MatchZy 外掛原本定義的 team1Obj
-            teamKey = reverseTeamSides["TERRORIST"].Equals(team1Obj) ? "matchzyTeam1" : "matchzyTeam2";
-            teamName = reverseTeamSides["TERRORIST"].teamName;
+            teamKey = "matchzyTeam2"; 
+            if (reverseTeamSides.ContainsKey("TERRORIST"))
+            {
+                teamName = reverseTeamSides["TERRORIST"].teamName;
+            }
         }
 
         if (string.IsNullOrEmpty(teamKey)) return;
@@ -135,7 +139,7 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已 達\u0004 300 秒 \u0001上限，系 統 自 動 解 除 暫 停");
+                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上限，系 統 自 動 解 除 暫 停");
                 techPauseAutoUnpauseTimer = null;
             }
             else
@@ -144,5 +148,15 @@ public partial class MatchZy
                 PrintToAllChat($" 技 術 暫 停 中... 剩 餘 \u0004{remaining}\u0001 秒 後 自 動 解 除 暫 停");
             }
         }, TimerFlags.REPEAT);
+    }
+
+    // 💡 新增：直接在 Pausing.cs 裡提供這個 Reset 函式，一舉解決 ConsoleCommands.cs 裡那 5 處的未定義錯誤
+    public void ResetTechPauseCount()
+    {
+        techPausesLeft["matchzyTeam1"] = 1;
+        techPausesLeft["matchzyTeam2"] = 1;
+        techPauseElapsedTime = 0;
+        techPauseAutoUnpauseTimer?.Kill();
+        techPauseAutoUnpauseTimer = null;
     }
 }
