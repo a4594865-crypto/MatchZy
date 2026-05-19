@@ -419,7 +419,7 @@ AddCommandListener("jointeam", (player, info) =>
             //     return HookResult.Continue;
             // });
 
-//  修改後的新程式碼
+//  修改後的新程式碼（加上了 ResetTechPauseData();）
 RegisterListener<Listeners.OnMapStart>(mapName => {
     AddTimer(1.0f, () => {
         // 核心修正：清理緩存，但不手動指定 CT/T
