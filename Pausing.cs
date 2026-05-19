@@ -63,7 +63,7 @@ public partial class MatchZy
         // 檢查硬碟鎖
         if (File.Exists(lockFilePath))
         {
-            PrintToPlayerChat(player, $" \u0002[MatchZy] \u0007你們隊伍本場比賽的技術暫停次數（1次）已經用盡！");
+            PrintToPlayerChat(player, $" \u0006你們隊伍本場比賽的技術暫停次數（\u0010 1 次 \u0006）已經用盡");
             return;
         }
 
