@@ -3,6 +3,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Timers;
+using System.Linq;
 
 namespace MatchZy;
 
@@ -32,9 +33,11 @@ public partial class MatchZy
             return;
         }
 
-        // ================= 【100% 修正：限制只能在 15秒 Freeze Time 內使用】 =================
-        // 改用最標準的 CS2 原生遊戲規則抓取法，徹底避開 Utilities 的版本衝突
-        var gameRules = CounterStrikeSharp.API.Modules.Utils.GameRules;
+        // ================= 【100% 避開 API 版本衝突：使用實體搜尋法】 =================
+        // 直接從伺服器抓取名為 "cs_gamerules" 的實體代理，這是 CS2 絕對不會改變的底層結構
+        var gameRulesProxy = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault();
+        var gameRules = gameRulesProxy?.GameRules;
+        
         if (gameRules != null)
         {
             // 如果目前是在熱身階段 (Warmup)，直接阻擋不執行
@@ -44,7 +47,7 @@ public partial class MatchZy
             // 此時如果玩家不是管理員，就直接阻擋並跳出提示
             if (!gameRules.FreezePeriod && !IsPlayerAdmin(player))
             {
-                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Green}技 術 暫 停 只 能 回 合 開 始 前 使 用");
+                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Green}}技 術 暫 停 只 能 回 合 開 始 前 使 用");
                 return;
             }
         }
@@ -74,7 +77,7 @@ public partial class MatchZy
 
         if (player.Team == CsTeam.Spectator || player.Team == CsTeam.None) return;
 
-        // 4. 判斷玩家目前的戰隊 Key（徹底移除 team1/team1Obj 比對，改用 100% 安全的 player.Team）
+        // 4. 判斷玩家目前的戰隊 Key（使用 100% 安全的 player.Team，完全不比對 team1 或 team1Obj）
         string teamKey = "";
         string teamName = "";
 
@@ -139,7 +142,7 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上限，系 統 自 動 解 除 暫 停");
+                PrintToAllChat($" 技 術 暫 停 已 達\u0004 300 秒 \u0001上限，系 統 自 動 解 除 暫 停");
                 techPauseAutoUnpauseTimer = null;
             }
             else
@@ -150,7 +153,7 @@ public partial class MatchZy
         }, TimerFlags.REPEAT);
     }
 
-    // 💡 新增：直接在 Pausing.cs 裡提供這個 Reset 函式，一舉解決 ConsoleCommands.cs 裡那 5 處的未定義錯誤
+    // 💡 新增：提供這個 Reset 函式，一次解決 ConsoleCommands.cs 裡那 5 處的未定義錯誤
     public void ResetTechPauseCount()
     {
         techPausesLeft["matchzyTeam1"] = 1;
