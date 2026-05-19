@@ -194,11 +194,13 @@ namespace MatchZy
             SideSwitchCommand(player, CsTeam.CounterTerrorist);
         }
 
-        [ConsoleCommand("css_tech", "Pause the match")]
-        public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
-        {
-            PauseMatch(player, command);
-        }
+  // 🌟 找到大約第 183 行的 css_tech 指令，改成下面這樣：
+[ConsoleCommand("css_tech", "Pause the match")]
+public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
+{
+    // 不要叫 PauseMatch 了，改成叫我們寫好的、有 300 秒計時與次數限制的全新核心方法！
+    ExecuteCustomTechPause(player, command);
+}
 
         [ConsoleCommand("css_pause", "Pause the match")]
         public void OnPauseCommand(CCSPlayerController? player, CommandInfo? command)
