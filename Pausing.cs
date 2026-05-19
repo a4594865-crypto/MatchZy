@@ -17,10 +17,10 @@ public partial class MatchZy
         return Path.Combine(ModuleDirectory, $"tech_lock_{teamId}.txt");
     }
 
-    // 確保舊檔案被擦乾淨。
-    public override void Load(bool hotReload)
+    // 🌟【修復核心】：刪除原本重複定義的 Load 函式
+    // 改成這個自訂的清理接口，用來給原廠的 Load 順便調用，徹底解決報錯！
+    public void InitTechPauseFileCleaner()
     {
-        base.Load(hotReload);
         InstanceResetTechPauseFiles();
     }
 
