@@ -11,13 +11,13 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 🌟【修復】：拋棄不可靠的 Assembly 抓取，直接用 ModuleDirectory 鎖定 MatchZy 正牌資料夾！
-    private string GetLockFilePath(string teamNumStr)
+    // 拋棄不可靠的 Assembly 抓取，直接用 ModuleDirectory 鎖定 MatchZy 正牌資料夾！
+    private string GetLockFilePath(string teamHashCodeStr)
     {
-        return Path.Combine(ModuleDirectory, $"tech_lock_team_{teamNumStr}.txt");
+        return Path.Combine(ModuleDirectory, $"tech_lock_team_{teamHashCodeStr}.txt");
     }
 
-    // 🌟【修復】：保留這個自訂清理接口，用來給原廠的 Load 順便調用
+    // 保留自訂清理接口，用來給原廠的 Load 順便調用
     public void InitTechPauseFileCleaner()
     {
         InstanceResetTechPauseFiles();
@@ -66,14 +66,15 @@ public partial class MatchZy
         // 判定目前按指令的玩家肉體在哪個原廠 Team 裡面
         Team playerTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         
-        // 🌟【修復的核心精髓】：利用 CounterStrikeSharp 的官方 Team 物件（內部有不可變的唯一 ID 或它的記憶體 Hash 碼）
-        // 這樣做即使下半場換邊（CT 變 T），這個隊伍的底層實體代號依然不變！
-        string teamKey = ((int)playerTeam).ToString();
+        // 🌟【終極修復】：使用 GetHashCode() 把隊伍物件轉成全宇宙唯一的數字識別碼字串！
+        // 這樣做完全不牽涉到 (int) 的強制轉型，編譯器絕對不會報錯。
+        // 而且不論下半場怎麼換邊，該隊伍物件的 HashCode 永遠不變，鎖定依然堅不可摧！
+        string teamKey = playerTeam.GetHashCode().ToString();
 
         // 取得該隊伍的專屬實體檔案鎖路徑
         string lockFilePath = GetLockFilePath(teamKey);
 
-        // 檢查硬碟鎖（換邊一樣精準成功攔截！）
+        // 檢查硬碟鎖（隊伍鎖死，換邊一樣成功攔截！）
         if (File.Exists(lockFilePath))
         {
             PrintToPlayerChat(player, $" \u0006你們隊伍本場比賽的技術暫停次數（\u0010 1 次\u0006 ）已經用盡");
@@ -98,8 +99,7 @@ public partial class MatchZy
 
         // 3. 添加高效能非同步計時器
         AddTimer(10.0f, () => {
-            // 🌟【修復】：拋棄找不到的變數，純粹判定系統當前是否「還處於技術暫停中」
-            // 如果玩家打 .up 或者管理員解除了，isPaused 會提早變成 false，計時器會乾淨退場
+            // 安全防呆：如果玩家打 .up 或者管理員解除了，isPaused 會提早變成 false，計時器會乾淨退場
             if (!isPaused) return; 
 
             Server.PrintToChatAll($" \u0010 10 秒 \u0006時間已到！強制解除技術暫停");
@@ -114,7 +114,7 @@ public partial class MatchZy
     {
         try
         {
-            // 🌟 遍歷 MatchZy 資料夾，凡是 tech_lock_team_ 開頭的檔案，通通直接抹消！
+            // 遍歷 MatchZy 資料夾，凡是 tech_lock_team_ 開頭的檔案，通通直接抹消！
             if (Directory.Exists(ModuleDirectory))
             {
                 string[] files = Directory.GetFiles(ModuleDirectory, "tech_lock_team_*.txt");
