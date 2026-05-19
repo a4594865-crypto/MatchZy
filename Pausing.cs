@@ -2,7 +2,7 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
-using CounterStrikeSharp.API.Modules.Timers;
+using System.Threading.Tasks; // 🌟 引入 C# 核心非同步工作模組
 
 namespace MatchZy;
 
@@ -85,21 +85,25 @@ public partial class MatchZy
         // 2. 廣播通知（300秒版本，主文字綠色 `\u0006`，秒數橘色 `\u0010`）
         Server.PrintToChatAll($" \u0006技 術 暫 停 已 啟 動 將 在 \u0010 300 秒 鐘 後 \u0006自 動 解 除");
 
-        // 3. 添加 300 秒的高效能非同步計時器
-        // 🌟【修復】：將 TimerFlags.REALTIME 改為標準命名的 TimerFlags.REAL_TIME
-        AddTimer(300.0f, () => {
-            // 安全防呆：如果已經被人手動解除了，計時器直接退場
-            if (!isPaused) return; 
+        // 3. 🌟【終極絕招】：使用 Task.Run 加上 Task.Delay，徹底擺脫 TimerFlags 的束縛！
+        // 300,000 毫秒 = 300 秒
+        Task.Run(async () => {
+            await Task.Delay(1000); 
 
-            // 同步插件內部狀態
-            isPaused = false;
+            // 🌟 異步執行完後，將指令安全投遞回主線程執行，避免線程衝突（CS2 引擎安全規範）
+            Server.NextFrame(() => {
+                // 安全防呆：如果已經被人手動解除了，直接退場
+                if (!isPaused) return; 
 
-            // 直接向 CS2 官方伺服器引擎下達最高權限原生解除暫停指令！
-            Server.ExecuteCommand("mp_unpause_match");
+                // 同步插件內部狀態
+                isPaused = false;
 
-            // 顯示時間到的專屬綠橘色通知
-            Server.PrintToChatAll($" \u0010 300 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
-            
-        }, TimerFlags.STOP_ON_MAPCHANGE | TimerFlags.REAL_TIME);
+                // 直接向 CS2 官方伺服器引擎下達最高權限原生解除暫停指令！
+                Server.ExecuteCommand("mp_unpause_match");
+
+                // 顯示時間到的專屬綠橘色通知
+                Server.PrintToChatAll($" \u0010 300 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
+            });
+        });
     }
 }
