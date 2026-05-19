@@ -80,7 +80,7 @@ public partial class MatchZy
         // 6. 檢查次數限制
         if (techPausesLeft[teamKey] <= 0)
         {
-            PrintToPlayerChat(player, $" [\u0002MatchZy\u0001] {ChatColors.Green}{currentTeamName}{ChatColors.Default} 已經沒有可用的技術暫停次數！");
+            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 已經沒有可用的技術暫停次數！");
             return;
         }
 
@@ -93,14 +93,14 @@ public partial class MatchZy
         unpauseData["ct"] = false;
         unpauseData["pauseTeam"] = currentTeamName; 
 
-        PrintToAllChat($" [\u0002MatchZy\u0001] 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{techPausesLeft[teamKey]} 次。");
-        PrintToAllChat($" [\u0002MatchZy\u0001] 暫停將在 \u0004300秒\u0001 後自動解除，或雙方輸入 \u0004.unpause\u0001 解除。");
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{techPausesLeft[teamKey]} 次。");
+        PrintToAllChat($" 暫停將在 \u0004300秒\u0001 後自動解除，或雙方輸入 \u0004.up\u0001 解除。");
 
         // 8. 安全防護：如果原本有計時器在跑，先砍掉
         techPauseAutoUnpauseTimer?.Kill();
 
         // 9. 建立一個 300 秒後觸發的自動解除計時器
-        techPauseAutoUnpauseTimer = AddTimer(300.0f, () =>
+        techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
         {
             if (isPaused)
             {
@@ -108,7 +108,7 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($" [\u0002MatchZy\u0001] 技術暫停已達\u0002 300 秒 \u0001上限，系統自動解除暫停！");
+                PrintToAllChat($" 技術暫停已達\u0002 300 秒 \u0001上限，系統自動解除暫停！");
             }
             techPauseAutoUnpauseTimer = null;
         });
