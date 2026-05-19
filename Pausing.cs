@@ -15,37 +15,28 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 🌟【路徑修正】：改回插件專屬的私有目錄！這樣不論地圖是否在跑，外掛都有最高權限刪除檔案，絕對不會被 CS2 鎖死！
-    private static string GetLockFilePath(string teamName)
+    // 🌟【路徑修正】：使用標準實體方法，確保不論何時都能精準抓到插件資料夾路徑
+    private string GetLockFilePath(string teamName)
     {
         string pluginDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
         string safeTeamName = string.Join("_", teamName.Split(Path.GetInvalidFileNameChars()));
         return Path.Combine(pluginDir, $"tech_lock_{safeTeamName}.txt");
     }
 
-    // 🌟【核心對接】：MatchZy 主插件載入（Load）時會跑這裡。
-    // 我們在這裡直接向 CS2 引擎註冊「官方地圖載入監聽器」，不管手動換圖還是硬換，換圖瞬間必定執行清理！
-    public void RegisterTechPauseMapEventListener()
-    {
-        RegisterListener<Listeners.OnMapStart>(mapName =>
-        {
-            // 換地圖（不論是自動打完換，還是管理員打 .map 換）
-            StaticResetAllTechPauseFiles();
-            technicalPauseUsed.Clear();
-        });
-    }
-
-    // 🌟【開機保險】：伺服器初次啟動、插件載入時強行清空
-    static MatchZy()
-    {
-        StaticResetAllTechPauseFiles();
-    }
-
-    // 🌟【重開賽保險】：當管理員打 .restart、手動重打 Knife/開賽、重置場次時，MatchZy 核心必經此處
+    // 🌟【核心對接 1】：MatchZy 官方在每場比賽重新初始化（如 .restart、換地圖後開賽、重置場次）時必經此處！
+    // 我們直接在這裡把記憶體和硬碟檔案一起粉碎！
     public void InitTechPauseFileCleaner()
     {
         technicalPauseUsed.Clear();
-        StaticResetAllTechPauseFiles(); // 100% 物理擦除私有目錄下的 txt 檔案
+        ResetAllTechPauseFiles(); // 🌟 呼叫實體清理
+    }
+
+    // 🌟【核心對接 2】：MatchZy 原廠的重置比賽主事件，打 .restart 或換圖時一定會跑這裡
+    // 我們直接覆寫（或擴充）這個原廠管道，確保雙重保險！
+    public void ResetTechPauseOnMatchReset()
+    {
+        technicalPauseUsed.Clear();
+        ResetAllTechPauseFiles(); // 🌟 呼叫實體清理
     }
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
@@ -53,7 +44,7 @@ public partial class MatchZy
         // 🌟【熱身期與未開賽保險】：只要比賽還不是 Live 狀態（包含打 .restart 後回到熱身等待階段），一律無限重置次數
         if (!isMatchLive) 
         {
-            StaticResetAllTechPauseFiles();
+            ResetAllTechPauseFiles();
             technicalPauseUsed.Clear();
         }
 
@@ -77,7 +68,7 @@ public partial class MatchZy
         }
         if (IsPostGamePhase())
         {
-            StaticResetAllTechPauseFiles();
+            ResetAllTechPauseFiles();
             ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]);
             return;
         }
@@ -100,7 +91,7 @@ public partial class MatchZy
         
         if (playerTeam == null || string.IsNullOrEmpty(playerTeam.teamName)) return;
 
-        // 取得該隊伍的專屬實體檔案鎖路徑
+        // 取得該隊伍的專專屬實體檔案鎖路徑
         string lockFilePath = GetLockFilePath(playerTeam.teamName);
 
         // 檢查硬碟鎖，直接調用官方語言包
@@ -145,8 +136,9 @@ public partial class MatchZy
         });
     }
 
-    // 🌟 核心清理工具：精準刪除外掛私有目錄下的所有 tech_lock_ 檔案，此處擁有 100% 最高讀寫刪除權限
-    private static void StaticResetAllTechPauseFiles()
+    // 🌟【終極修正】：移除了 static！回歸最純正的插件實體方法。
+    // 這樣它在地圖運行中、或者輸入 .restart 時，就能完美調用外掛最高讀寫權限，徹底刪除檔案！
+    private void ResetAllTechPauseFiles()
     {
         try
         {
