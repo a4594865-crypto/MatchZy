@@ -14,10 +14,21 @@ namespace MatchZy
         
         // 300 秒自動強制解除暫停的計時器
         public CounterStrikeSharp.API.Modules.Timers.Timer? techAutoUnpauseTimer = null;
+        
+        // 新增：用來標記目前回合是否正在交火中
+        public bool isRoundActive = false; 
 
-        public void PauseMatch(CCSPlayerController? player, CommandInfo? command)
+        // 核心修正：將函數名稱改成 OnTechCommand，直接接管 .tech 指令
+        public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (!isMatchLive) return;
+
+            // 攔截回合未正式開始（如：凍結時間內、或剛結束時）的使用者
+            if (!isRoundActive && player != null && !IsPlayerAdmin(player))
+            {
+                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Red}技術暫停 (.tech) 只能在回合正式開始（凍結時間結束後）才能使用！");
+                return;
+            }
 
             if (isPaused)
             {
@@ -62,14 +73,12 @@ namespace MatchZy
         // 啟動 300 秒自動解除暫停邏輯
         public void StartTechTimer(string teamName)
         {
-            // 安全機制：若已有計時器正在跑，先清理掉
             if (techAutoUnpauseTimer != null)
             {
                 techAutoUnpauseTimer.Kill();
                 techAutoUnpauseTimer = null;
             }
 
-            // 建立一個 300 秒倒數的計時器
             techAutoUnpauseTimer = AddTimer(300.0f, () =>
             {
                 if (isPaused)
@@ -105,6 +114,7 @@ namespace MatchZy
         {
             techPauseCount[2] = 0;
             techPauseCount[3] = 0;
+            isRoundActive = false; // 重置時安全防護也歸零
             ClearTechTimer();
         }
     }
