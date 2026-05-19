@@ -6,8 +6,12 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 🌟【關鍵修復】：宣告一個完全獨立的、不會被原廠邏輯暗中清空的鐵鎖計數器
-    public static Dictionary<string, int> customTechPauseLimit = new();
+    // 🌟【終極修復】：改用不隨換邊錯亂的陣營字串（"CT" 或 "T"）來當作獨立鎖定鑰匙
+    public static Dictionary<string, int> customTechPauseLimit = new()
+    {
+        { "CT", 0 },
+        { "T", 0 }
+    };
     
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
@@ -53,28 +57,24 @@ public partial class MatchZy
             return;
         }
 
-        // 取得當前隊伍物件
-        Team playerTeam = (player!.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-        
-        // 🌟【核心修改】：使用隊伍的唯一區別名稱（避免被換邊或重置影響）
-        string teamKey = playerTeam.teamName;
+        // 🌟【核心邏輯優化】：直接抓取玩家此時此刻肉體所在的陣營（CT 還是 T）
+        string sideKey = "";
+        if (player.Team == CsTeam.CounterTerrorist) sideKey = "CT";
+        else if (player.Team == CsTeam.Terrorist) sideKey = "T";
+        else return;
 
-        if (!customTechPauseLimit.ContainsKey(teamKey))
+        // 🌟 鐵律判定：只要這個陣營位置的紀錄大於等於 1，直接攔截噴紅字！
+        if (customTechPauseLimit[sideKey] >= 1)
         {
-            customTechPauseLimit[teamKey] = 0;
-        }
-
-        // 🌟 鐵律判定：只要這個隊伍名稱的紀錄大於等於 1，誰來都直接攔截噴紅字！
-        if (customTechPauseLimit[teamKey] >= 1)
-        {
-            PrintToPlayerChat(player, $" \u0002[MatchZy] \u0007你們隊伍（{teamKey}）本場比賽的技術暫停次數（1次）已經用盡！");
+            PrintToPlayerChat(player, $" \u0002[MatchZy] \u0007你們隊伍本場比賽的技術暫停次數（1次）已經用盡！");
             return;
         }
 
-        // 🌟 成功通過，把我們獨立的計數器加 1（這個變數原廠絕對動不到，不會被洗掉）
-        customTechPauseLimit[teamKey]++;
+        // 成功通過，把該陣營位置的獨立計數器加 1（換邊時，這個位置的次數會跟著換過去給新隊伍，完全公平）
+        customTechPauseLimit[sideKey]++;
         
-        // 同步增加原廠變數（維持原廠架構完整）
+        // 同步增加原廠變數（維持原廠架構完整，避免後台噴報錯）
+        Team playerTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         if (!technicalPauseUsed.ContainsKey(playerTeam)) technicalPauseUsed[playerTeam] = 0;
         technicalPauseUsed[playerTeam]++;
 
