@@ -194,12 +194,11 @@ namespace MatchZy
             SideSwitchCommand(player, CsTeam.CounterTerrorist);
         }
 
-    [ConsoleCommand("css_tech", "Pause the match")]
-public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
-{
-    // 🌟【關鍵修正】：把原本的 PauseMatch 改成 TechPause！
-    TechPause(player, command);
-}
+        [ConsoleCommand("css_tech", "Pause the match")]
+        public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            PauseMatch(player, command);
+        }
 
         [ConsoleCommand("css_pause", "Pause the match")]
         public void OnPauseCommand(CCSPlayerController? player, CommandInfo? command)
