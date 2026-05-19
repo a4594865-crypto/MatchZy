@@ -25,7 +25,17 @@ public partial class MatchZy
         // 1. 如果比賽還沒正式開始，不允許技術暫停
         if (!isMatchLive) return;
 
-        // 【核心修改】安全檢查：回合正式開始後，禁止輸入 .tech
+        // 【安全防護 - 防重複鎖】如果計時器已經在跑，或者當前已經是暫停狀態，直接攔截，防止多個計時器重疊讀秒
+        if (techPauseAutoUnpauseTimer != null || isPaused)
+        {
+            if (player != null)
+            {
+                ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
+            }
+            return;
+        }
+
+        // 【核心修改】安全檢查：回合正式開始後（非凍結時間、非熱身/刀房），禁止輸入 .tech
         if (player != null)
         {
             var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
@@ -34,10 +44,9 @@ public partial class MatchZy
                 // 使用最新版 CounterStrikeSharp 標準公開屬性：
                 // FreezePeriod = 是否在凍結時間
                 // WarmupPeriod = 是否在熱身
-                // 如果「不在凍結時間」而且「也不是在熱身/刀房」，代表回合已經正式開始，此時禁止暫停
                 if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                 {
-                    PrintToPlayerChat(player, $" {ChatColors.Red}回合已正式開始，現在無法使用技術暫停！請等待下回合凍結時間。");
+                    PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 技 術 暫 停");
                     return;
                 }
             }
@@ -50,12 +59,7 @@ public partial class MatchZy
             return;
         }
 
-        // 3. 基本檢查：是否已經暫停、是否在半場、是否已結束
-        if (isPaused)
-        {
-            ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
-            return;
-        }
+        // 3. 基本檢查：是否在半場、是否已結束
         if (IsHalfTimePhase())
         {
             ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]);
@@ -117,8 +121,7 @@ public partial class MatchZy
         PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
         PrintToAllChat($" 暫 停 將 在 \u0004300秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.up\u0001 解 除。");
 
-        // 8. 安全防護：如果原本有計時器在跑，先砍掉並重置時間
-        techPauseAutoUnpauseTimer?.Kill();
+        // 8. 重置時間
         techPauseElapsedTime = 0;
 
         // 9. 建立一個每 30 秒觸發一次的計時器
@@ -139,13 +142,13 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上限，系統自動解除暫停");
+                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上 限，系 統 自 動 解 除 暫 停");
                 techPauseAutoUnpauseTimer = null;
             }
             else
             {
                 int remaining = 300 - techPauseElapsedTime;
-                PrintToAllChat($" 技 術 暫 停 中... 距離自動解除還剩 \u0004{remaining} 秒\u0001 ");
+                PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 除 還 剩 \u0004{remaining} 秒\u0001 ");
             }
         }, TimerFlags.REPEAT);
     }
