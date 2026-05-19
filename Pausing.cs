@@ -10,17 +10,18 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 🌟【關鍵優修】：動態獲取 MatchZy 插件自己所在的實體資料夾路徑，確保 Windows 絕對不會找錯地方
-    private static string GetLockFilePath(string sideKey)
+    // 🌟【終極修復】：拋棄不可靠的 Assembly 抓取，直接用 ModuleDirectory 鎖定 MatchZy 正牌資料夾！
+    private string GetLockFilePath(string teamId)
     {
-        string pluginDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location) ?? "";
-        return Path.Combine(pluginDir, $"tech_lock_{sideKey}.txt");
+        return Path.Combine(ModuleDirectory, $"tech_lock_{teamId}.txt");
     }
 
-    // 🌟【開機保險】：只要伺服器重開機、或是更換地圖插件載入，立刻去把這個路徑下的檔案擦乾淨！
-    static MatchZy()
+    // 🌟【開機/換圖保險】：構造函數，因為實例化前拿不到 ModuleDirectory，
+    // 我們讓它在伺服器剛開機、插件剛啟動（OnLoad）時，再去確保舊檔案被擦乾淨。
+    public override void Load(bool hotReload)
     {
-        StaticResetTechPauseFiles();
+        base.Load(hotReload);
+        InstanceResetTechPauseFiles();
     }
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
@@ -46,7 +47,7 @@ public partial class MatchZy
         if (IsPostGamePhase())
         {
             // 比賽結束換地圖時，執行擦除
-            StaticResetTechPauseFiles();
+            InstanceResetTechPauseFiles();
             ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]);
             return;
         }
@@ -64,19 +65,22 @@ public partial class MatchZy
             return;
         }
 
-        // 抓取玩家陣營
-        string sideKey = "";
-        if (player.Team == CsTeam.CounterTerrorist) sideKey = "ct";
-        else if (player.Team == CsTeam.Terrorist) sideKey = "t";
+        // 判定目前按指令的玩家肉體在哪個原廠 Team 裡面
+        Team playerTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
+        
+        // 轉化為 MatchZy 的不變隊伍標籤 ("teamA" 或 "teamB")
+        string teamKey = "";
+        if (playerTeam == matchTeamA) teamKey = "teamA";
+        else if (playerTeam == matchTeamB) teamKey = "teamB";
         else return;
 
-        // 🌟 使用絕對路徑
-        string lockFilePath = GetLockFilePath(sideKey);
+        // 取得該隊伍的專屬實體檔案鎖路徑
+        string lockFilePath = GetLockFilePath(teamKey);
 
-        // 檢查硬碟鎖
+        // 檢查硬碟鎖（隊伍鎖死，換邊一樣成功攔截！）
         if (File.Exists(lockFilePath))
         {
-            PrintToPlayerChat(player, $" \u0006你們隊伍本場比賽的技術暫停次數（\u0010 1 次\u0006 ）已經用盡");
+            PrintToPlayerChat(player, $" \u0006你們隊伍本場比賽的技術暫停次數（\u0007 1 次\u0006 ）已經用盡");
             return;
         }
 
@@ -87,23 +91,22 @@ public partial class MatchZy
         }
         catch (Exception) { }
         
-        Team playerTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         if (!technicalPauseUsed.ContainsKey(playerTeam)) technicalPauseUsed[playerTeam] = 0;
         technicalPauseUsed[playerTeam]++;
 
         PauseMatch(player, command);
     }
 
-    // 🌟 靜態清理工具：精準刪除 MatchZy 資料夾底下的鎖定檔
-    private static void StaticResetTechPauseFiles()
+    // 🌟 實例化清理工具：精準刪除 MatchZy 本家資料夾底下的隊伍鎖定檔
+    private void InstanceResetTechPauseFiles()
     {
         try
         {
-            string ctPath = GetLockFilePath("ct");
-            string tPath = GetLockFilePath("t");
+            string pathA = GetLockFilePath("teamA");
+            string pathB = GetLockFilePath("teamB");
 
-            if (File.Exists(ctPath)) File.Delete(ctPath);
-            if (File.Exists(tPath)) File.Delete(tPath);
+            if (File.Exists(pathA)) File.Delete(pathA);
+            if (File.Exists(pathB)) File.Delete(pathB);
         }
         catch (Exception) { }
     }
