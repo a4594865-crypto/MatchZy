@@ -95,14 +95,14 @@ public partial class MatchZy
         PauseMatch(player, command);
 
         // 2. 廣播通知（標籤暗紅 `\u0002`，文字綠色 `\u0006`，秒數橘色 `\u0010`）
-        Server.PrintToChatAll($" \u0006技術暫停已啟動！將在 \u0010 10 秒鐘後 \u0006自動解除並強制恢復比賽！");
+        Server.PrintToChatAll($" \u0006技 術 暫 停 已 啟 動 將 在 \u0010 10 秒 鐘 後 \u0006自 動 解 除");
 
         // 3. 添加高效能非同步計時器
         AddTimer(10.0f, () => {
             // 安全防呆：如果玩家打 .up 或者管理員解除了，isPaused 會提早變成 false，計時器會乾淨退場
             if (!isPaused) return; 
 
-            Server.PrintToChatAll($" \u0010 10 秒 \u0006時間已到！強制解除技術暫停");
+            Server.PrintToChatAll($" \u0010 10 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
             
             // 呼叫原廠的強制解除暫停函式
             ForceUnpauseMatch(null, null);
