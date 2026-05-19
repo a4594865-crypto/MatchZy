@@ -197,8 +197,7 @@ namespace MatchZy
         [ConsoleCommand("css_tech", "Pause the match")]
         public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            // 🌟 修正：讓 .tech 真正去走 TechPause 進行次數與 300 秒限制！
-            TechPause(player, command);
+            PauseMatch(player, command);
         }
 
         [ConsoleCommand("css_pause", "Pause the match")]
@@ -210,8 +209,7 @@ namespace MatchZy
             }
             else
             {
-                // 🌟 同步修正：如果伺服器將 .pause 視為技術暫停，也走 TechPause 核心
-                TechPause(player, command);
+                PauseMatch(player, command);
             }
         }
 
@@ -253,6 +251,7 @@ namespace MatchZy
                     {
                         unpauseData["t"] = true;
                     }
+
                 }
                 else if (player?.TeamNum == 3)
                 {
@@ -270,26 +269,23 @@ namespace MatchZy
                 if ((bool)unpauseData["t"] && (bool)unpauseData["ct"])
                 {
                     PrintToAllChat(Localizer["matchzy.pause.teamsunpausedthematch"]);
-                    // 🌟 修正：移除害死人的分號，改為純淨指令！
-                    Server.ExecuteCommand("mp_unpause_match");
+                    Server.ExecuteCommand("mp_unpause_match;");
                     isPaused = false;
-                    isMyTechPausing = false; // 🌟 注入：通知我們的 300 秒鬧鐘提早下線
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
                 }
                 else if (unpauseTeamName == "Admin")
                 {
                     PrintToAllChat(Localizer["matchzy.pause.adminunpausedthematch"]);
-                    // 🌟 修正：移除害死人的分號，改為純淨指令！
-                    Server.ExecuteCommand("mp_unpause_match");
+                    Server.ExecuteCommand("mp_unpause_match;");
                     isPaused = false;
-                    isMyTechPausing = false; // 🌟 注入：通知我們的 300 秒鬧鐘提早下線
                     unpauseData["ct"] = false;
                     unpauseData["t"] = false;
                 }
                 else
                 {
                     PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", unpauseTeamName, remainingUnpauseTeam]);
+                    // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{unpauseTeamName}{ChatColors.Default} wants to unpause the match. {ChatColors.Green}{remainingUnpauseTeam}{ChatColors.Default}, please write !unpause to confirm.");
                 }
                 if (!isPaused && pausedStateTimer != null)
                 {
