@@ -33,7 +33,8 @@ public partial class MatchZy
         }
 
         // ================= 【唯一新增：限制只能在 15秒 Freeze Time 內使用】 =================
-        var gameRules = GameRules();
+        // 🛠️ 修正：將原本的 GameRules() 改為 CounterStrikeSharp 標準的 Utilities.GetGameRules()
+        var gameRules = Utilities.GetGameRules();
         if (gameRules != null)
         {
             // 如果目前是在熱身階段 (Warmup)，直接阻擋不執行
@@ -43,7 +44,7 @@ public partial class MatchZy
             // 此時如果玩家不是管理員，就直接阻擋並跳出提示
             if (!gameRules.FreezePeriod && !IsPlayerAdmin(player))
             {
-                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Green}技 術 暫 停 只 能 在 每 回 合 開 始 前 使 用");
+                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Red}技 術 暫 停 只 能 在 回 合 開 始 前 使 用");
                 return;
             }
         }
@@ -79,12 +80,14 @@ public partial class MatchZy
 
         if (player.Team == CsTeam.CounterTerrorist)
         {
-            teamKey = reverseTeamSides["CT"].Equals(team1) ? "matchzyTeam1" : "matchzyTeam2";
+            // 🛠️ 修正：將 team1 改為 MatchZy 外掛原本定義的 team1Obj
+            teamKey = reverseTeamSides["CT"].Equals(team1Obj) ? "matchzyTeam1" : "matchzyTeam2";
             teamName = reverseTeamSides["CT"].teamName;
         }
         else if (player.Team == CsTeam.Terrorist)
         {
-            teamKey = reverseTeamSides["TERRORIST"].Equals(team1) ? "matchzyTeam1" : "matchzyTeam2";
+            // 🛠️ 修正：將 team1 改為 MatchZy 外掛原本定義的 team1Obj
+            teamKey = reverseTeamSides["TERRORIST"].Equals(team1Obj) ? "matchzyTeam1" : "matchzyTeam2";
             teamName = reverseTeamSides["TERRORIST"].teamName;
         }
 
@@ -132,7 +135,7 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上限，系 統 自 動 解 除 暫 停");
+                PrintToAllChat($" 技 術 暫 停 已 達\u0004 300 秒 \u0001上限，系 統 自 動 解 除 暫 停");
                 techPauseAutoUnpauseTimer = null;
             }
             else
