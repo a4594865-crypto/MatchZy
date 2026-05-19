@@ -47,7 +47,7 @@ public partial class MatchZy
             // 此時如果玩家不是管理員，就直接阻擋並跳出提示
             if (!gameRules.FreezePeriod && !IsPlayerAdmin(player))
             {
-                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Green}}技 術 暫 停 只 能 回 合 開 始 前 使 用");
+                PrintToPlayerChat(player, $"{chatPrefix} {ChatColors.Green}技 術 暫 停 只 能 回 合 開 始 前 使 用");
                 return;
             }
         }
