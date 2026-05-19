@@ -2,6 +2,7 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Modules.Timers; // 🌟 確保引入計時器模組
 
 namespace MatchZy;
 
@@ -10,7 +11,7 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 🌟【開機清理】：給原廠 Load 調用，確保重開機/重載插件時，次數必定歸零
+    // 開機/重載清理
     public void InitTechPauseFileCleaner()
     {
         technicalPauseUsed.Clear();
@@ -18,7 +19,7 @@ public partial class MatchZy
 
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
-        // 🌟【熱身期保險】：如果比賽還沒正式開始，有人打指令就順便重置次數，徹底防止跨場次殘留！
+        // 熱身期保險
         if (!isMatchLive) 
         {
             technicalPauseUsed.Clear();
@@ -44,7 +45,7 @@ public partial class MatchZy
         }
         if (IsPostGamePhase())
         {
-            technicalPauseUsed.Clear(); // 賽後自動清空
+            technicalPauseUsed.Clear();
             ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]);
             return;
         }
@@ -67,39 +68,38 @@ public partial class MatchZy
         
         if (playerTeam == null) return;
 
-        // 🌟【終極修復】：直接檢查 MatchZy 內建的次數記錄字典！
-        // 如果這個隊伍已經用過暫停（次數 >= 1）
+        // 檢查次數記錄
         if (technicalPauseUsed.ContainsKey(playerTeam) && technicalPauseUsed[playerTeam] >= 1)
         {
-            // 🌟 直接呼叫你發現的這行原廠語言包，並把隊伍名稱帶進去（符合 "{0} 沒有更多的技術暫停了！"）
             ReplyToUserCommand(player, Localizer["matchzy.pause.notechpauseleft", playerTeam.teamName]);
             return;
         }
 
-        // 通過檢查，記錄該隊伍已使用 1 次技術暫停
+        // 通過檢查，記錄次數
         if (!technicalPauseUsed.ContainsKey(playerTeam)) technicalPauseUsed[playerTeam] = 0;
         technicalPauseUsed[playerTeam]++;
 
         // 1. 執行原廠暫停
         PauseMatch(player, command);
 
-        // 2. 廣播通知（300秒版本）
-        Server.PrintToChatAll($" \u0006技 術 暫 停 已 啟 動 將 在 \u0010 5 分 鐘 後 \u0006自 動 解 除");
+        // 2. 廣播通知（改成 10 秒測試版，主文字綠色 `\u0006`，秒數橘色 `\u0010`）
+        Server.PrintToChatAll($" \u0006技 術 暫 停 已 啟 動 將 在 \u0010 10 秒 鐘 後 \u0006自 動 解 除");
 
-        // 3. 添加 300 秒的高效能非同步計時器
+        // 3. 🌟【無情修復】：加上 TimerFlags.REALTIME 與位元運算
+        // 這樣計時器看的是「手錶時間」，就算 CS2 引擎凍結了，10秒一到它依然會一腳把門踹開！
         AddTimer(10.0f, () => {
             // 安全防呆
             if (!isPaused) return; 
 
-            // 手動將 MatchZy 內部的暫停開關改回 false
+            // 同步插件內部狀態
             isPaused = false;
 
             // 直接向 CS2 官方伺服器引擎下達最高權限原生解除暫停指令！
             Server.ExecuteCommand("mp_unpause_match");
 
-            // 顯示 300 秒時間到的專屬綠橘色通知
-            Server.PrintToChatAll($" \u0010 300 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
+            // 顯示時間到的專屬綠橘色通知
+            Server.PrintToChatAll($" \u0010 10 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
             
-        }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
+        }, TimerFlags.STOP_ON_MAPCHANGE | TimerFlags.REALTIME); // 🌟 核心就在這裡！
     }
 }
