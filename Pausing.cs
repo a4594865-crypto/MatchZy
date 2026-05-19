@@ -102,10 +102,16 @@ public partial class MatchZy
             // 安全防呆：如果玩家打 .up 或者管理員解除了，isPaused 會提早變成 false，計時器會乾淨退場
             if (!isPaused) return; 
 
+            // 🌟【核心重大改動】：手動將 MatchZy 內部的暫停開關改回 false，同步插件內部狀態
+            isPaused = false;
+
+            // 🌟【核心重大改動】：直接向 CS2 官方伺服器引擎下達最高權限原生解除暫停指令！
+            // 這樣做完全不會驚動 MatchZy 的多嘴本地化文字，從此徹底告別「管理員結束了暫停」這行假提示！
+            Server.ExecuteCommand("mp_unpause_match");
+
+            // 顯示你設定的專屬綠橘色倒數結束通知
             Server.PrintToChatAll($" \u0010 10 秒 \u0006時 間 已 到！強 制 解 除 技 術 暫 停");
             
-            // 呼叫原廠的強制解除暫停函式
-            ForceUnpauseMatch(null, null);
         }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
     }
 
