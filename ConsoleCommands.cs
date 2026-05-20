@@ -185,7 +185,7 @@ namespace MatchZy
             SideSwitchCommand(player, CsTeam.CounterTerrorist);
         }
 
- [ConsoleCommand("css_tech", "Pause the match")]
+        [ConsoleCommand("css_tech", "Pause the match")]
         public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (!isMatchLive) return;
@@ -200,7 +200,7 @@ namespace MatchZy
                 return; 
             }
 
-            // 🛑 核心防線 2：回合正式開始後攔截（您原本就有的：非凍結時間、非熱身，禁止輸入暫停）
+            // 🛑 核心防線 2：回合正式開始後攔截（非凍結時間、非熱身，禁止輸入暫停）
             if (player != null)
             {
                 var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
@@ -230,7 +230,7 @@ namespace MatchZy
             }
         }
 
-       [ConsoleCommand("css_tac", "Starts a tactical timeout for the requested team")]
+        [ConsoleCommand("css_tac", "Starts a tactical timeout for the requested team")]
         public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (player == null) return;
@@ -239,7 +239,7 @@ namespace MatchZy
             {
                 Log($"[.tac command sent via chat] Sent by: {player.UserId}, connectedPlayers: {connectedPlayers}");
                 
-                // 🛡️ 這是您原本檔案就有的：正在技術暫停（isPaused）時打 .p 就會被攔截，不需改變它
+                // 🛡️ 保留你原本檔案就有的設計：正在技術暫停（isPaused）時打 .p 就會被攔截
                 if (isPaused)
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.cc.matchpaused"]);
@@ -251,7 +251,7 @@ namespace MatchZy
                 {
                     if (gameRules.TerroristTimeOuts > 0)
                     {
-                        // 📝 【精準蓋章】確定要發動戰術暫停了，立刻記錄引擎時間（提供給 93 秒的大腦計算）
+                        // 📝 【精準蓋章】確定要發動戰術暫停了，立刻記錄引擎時間（啟動 93 秒冷卻計時）
                         lastTacticalPauseTime = Server.EngineTime;
                         Server.ExecuteCommand("timeout_terrorist_start");
                     }
@@ -264,7 +264,7 @@ namespace MatchZy
                 {
                     if (gameRules.CTTimeOuts > 0)
                     {
-                        // 📝 【精準蓋章】確定要發動戰術暫停了，立刻記錄引擎時間（提供給 93 秒的大腦計算）
+                        // 📝 【精準蓋章】確定要發動戰術暫停了，立刻記錄引擎時間（啟動 93 秒冷卻計時）
                         lastTacticalPauseTime = Server.EngineTime;
                         Server.ExecuteCommand("timeout_ct_start");
                     }
@@ -360,49 +360,6 @@ namespace MatchZy
                 {
                     pausedStateTimer.Kill();
                     pausedStateTimer = null;
-                }
-            }
-        }
-
-       [ConsoleCommand("css_tac", "Starts a tactical timeout for the requested team")]
-        public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
-        {
-            if (player == null) return;
-
-            if (matchStarted && isMatchLive)
-            {
-                Log($"[.tac command sent via chat] Sent by: {player.UserId}, connectedPlayers: {connectedPlayers}");
-                if (isPaused)
-                {
-                    ReplyToUserCommand(player, Localizer["matchzy.cc.matchpaused"]);
-                    return;
-                }
-                var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
-                if (player.TeamNum == 2)
-                {
-                    if (gameRules.TerroristTimeOuts > 0)
-                    {
-                        // 📝 【精準蓋章】確定要發動戰術暫停了，立刻記錄引擎時間！
-                        lastTacticalPauseTime = Server.EngineTime;
-                        Server.ExecuteCommand("timeout_terrorist_start");
-                    }
-                    else
-                    {
-                        ReplyToUserCommand(player, Localizer["matchzy.cc.nomorepauses"]);
-                    }
-                }
-                else if (player.TeamNum == 3)
-                {
-                    if (gameRules.CTTimeOuts > 0)
-                    {
-                        // 📝 【精準蓋章】確定要發動戰術暫停了，立刻記錄引擎時間！
-                        lastTacticalPauseTime = Server.EngineTime;
-                        Server.ExecuteCommand("timeout_ct_start");
-                    }
-                    else
-                    {
-                        ReplyToUserCommand(player, Localizer["matchzy.cc.nomorepauses"]);
-                    }
                 }
             }
         }
