@@ -20,11 +20,11 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 🔥【全新時間防線】用來記錄上一次玩家輸入 .p 戰術暫停的時間戳記（秒）
+    // 🔥【全新時間防線】用來記錄上一次玩家輸入任何戰術暫停的時間戳記（秒）
     private double lastTacticalPauseTime = 0.0;
 
     /// <summary>
-    /// 輔助方法：判斷目前是否剛好處於原生 .p 戰術暫停的 93 秒安全期內
+    /// 輔助方法：判斷目前是否剛好處於原生戰術暫停的 93 秒安全期內
     /// </summary>
     private bool IsInTacticalPauseWindow()
     {
@@ -33,12 +33,12 @@ public partial class MatchZy
         // 取得伺服器從開機到現在的總秒數
         double currentTime = Server.EngineTime;
         
-        // 如果當前時間距離上一次輸入 .p 還不到 93 秒，就判定「正在戰術暫停中」
+        // 如果當前時間距離上一次輸入戰術暫停還不到 93 秒，就判定「正在戰術暫停中」
         return (currentTime - lastTacticalPauseTime) <= 93.0;
     }
 
     /// <summary>
-    /// 【強力防線】全域攔截玩家輸入的所有暫停指令 (.p / .pause / .tech)
+    /// 【強力防線】全域攔截玩家輸入的所有暫停指令 (.p / .pause / .tech / .tac 等變體)
     /// </summary>
     public HookResult CheckAndInterceptPause(CCSPlayerController? player, CommandInfo command)
     {
@@ -46,13 +46,14 @@ public partial class MatchZy
 
         string cmdName = command.GetArg(0).ToLower();
 
-        // 📝 核心動作：只要有人輸入戰術暫停指令，立刻蓋章記錄時間
-        if (cmdName.Contains("pause") || cmdName == ".p" || cmdName == "!p" || cmdName == ".tac" || cmdName == "!tac")
+        // 📝 核心動作：用關鍵字比對，只要指令名稱包含 "p" 或 "pause" 或 "tac"，且「排除」了技術暫停 tech
+        // 這樣不論玩家輸入 .p、!p、.pause、!pause、.tac、!tac，外掛全部都能 100% 精準蓋章記錄時間！
+        if ((cmdName.Contains("p") || cmdName.Contains("pause") || cmdName.Contains("tac")) && !cmdName.Contains("tech"))
         {
             var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
             if (gameRules != null)
             {
-                // 只有在凍結時間內輸入 .p 才會觸發官方原生暫停，這時我們才記錄時間
+                // 只有在凍結時間內輸入才會觸發官方原生暫停，這時我們才記錄時間
                 if (gameRules.FreezePeriod || gameRules.WarmupPeriod)
                 {
                     lastTacticalPauseTime = Server.EngineTime;
@@ -60,34 +61,34 @@ public partial class MatchZy
             }
         }
 
-        // 🛑 防線 1：如果目前已經在跑「300秒技術暫停」，此時任何人輸入 .p 想疊加官方原生暫停，直接鎖死
+        // 🛑 防線 1：如果目前已經在跑「300秒技術暫停」，此時任何人輸入任何戰術暫停，直接鎖死
         if (techPauseAutoUnpauseTimer != null)
         {
-            if (cmdName.Contains("pause") || cmdName == ".p" || cmdName == "!p" || cmdName == ".tac" || cmdName == "!tac")
+            if ((cmdName.Contains("p") || cmdName.Contains("pause") || cmdName.Contains("tac")) && !cmdName.Contains("tech"))
             {
                 if (player != null)
                 {
-                    PrintToPlayerChat(player, $" 目前正在【技術暫停】中，無法使用戰術暫停！");
+                    PrintToPlayerChat(player, $" 目前正在【 技 術 暫 停 】中，無法使用戰術暫停");
                 }
                 return HookResult.Handled; // 丟進虛無，完全不交給 CS2 官方原生系統
             }
         }
 
-        // 🛑 防線 2：時間差攔截！如果輸入 .p 還沒超過 93 秒，此時打 .tech 直接無條件回絕！
+        // 🛑 防線 2：時間差攔截！如果輸入戰術暫停還沒超過 93 秒，此時打 .tech 直接無條件回絕！
         if (IsInTacticalPauseWindow() || techPauseAutoUnpauseTimer != null || isPaused)
         {
             if (cmdName.Contains("tech"))
             {
                 if (player != null)
                 {
-                    PrintToPlayerChat(player, $" 目 前 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
+                    PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
                 }
                 return HookResult.Handled; // 攔截，不讓技術暫停程式碼往下跑
             }
         }
 
         // 防線 3：原本的回合正式開始後攔截（非凍結時間、非熱身/刀房，禁止輸入暫停）
-        if (cmdName.Contains("pause") || cmdName == ".p" || cmdName == "!p" || cmdName.Contains("tech") || cmdName == ".tac" || cmdName == "!tac")
+        if (cmdName.Contains("p") || cmdName.Contains("pause") || cmdName.Contains("tac") || cmdName.Contains("tech"))
         {
             if (player != null)
             {
@@ -119,7 +120,7 @@ public partial class MatchZy
         {
             if (player != null)
             {
-                PrintToPlayerChat(player, $" 目 前 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
+                PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
             }
             return;
         }
