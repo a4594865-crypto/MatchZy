@@ -195,7 +195,7 @@ namespace MatchZy
             {
                 if (player != null)
                 {
-                    PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 開 啟 {ChatColors.Default}技 術 暫 停");
+                    PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 使 用 {ChatColors.Default}技 術 暫 停");
                 }
                 return; 
             }
