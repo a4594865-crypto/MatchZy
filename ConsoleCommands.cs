@@ -208,7 +208,7 @@ namespace MatchZy
                 {
                     if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                     {
-                        PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 技 術 暫 停");
+                        PrintToPlayerChat(player, $" 回 合 已 開 始，無 法 使 用 技 術 暫 停");
                         return; // 💥 直接封鎖，不往下執行
                     }
                 }
