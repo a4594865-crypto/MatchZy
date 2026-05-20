@@ -185,22 +185,22 @@ namespace MatchZy
             SideSwitchCommand(player, CsTeam.CounterTerrorist);
         }
 
-       [ConsoleCommand("css_tech", "Pause the match")]
+ [ConsoleCommand("css_tech", "Pause the match")]
         public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (!isMatchLive) return;
 
-            // 🛑 融合防線 1：時間差攔截！如果輸入戰術暫停還沒超過 93 秒，直接無條件回絕
+            // 🛑 融合防線 1：時間差與狀態攔截！
             if (IsInTacticalPauseWindow() || techPauseAutoUnpauseTimer != null || isPaused)
             {
                 if (player != null)
                 {
-                    PrintToPlayerChat(player, $" 已 處 於 暫 停，無 法 啟 用 技 術 暫 停");
+                    PrintToPlayerChat(player, $" 已 處 於 暫 停 或 冷 卻 狀 態 (93秒)，無 法 啟 用 技 術 暫 停");
                 }
                 return; 
             }
 
-            // 🛑 融合防線 2：【你原本珍貴的邏輯】回合正式開始後攔截（非凍結時間、非熱身，禁止輸入暫停）
+            // 🛑 融合防線 2：回合正式開始後攔截（非凍結時間、非熱身，禁止輸入暫停）
             if (player != null)
             {
                 var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
@@ -209,12 +209,68 @@ namespace MatchZy
                     if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                     {
                         PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 技 術 暫 停");
-                        return; // 💥 直接封鎖，不執行 TechPause
+                        return; // 💥 直接封鎖
                     }
                 }
             }
 
             TechPause(player, command); 
+        }
+
+        [ConsoleCommand("css_pause", "Pause the match")]
+        public void OnPauseCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (isPauseCommandForTactical)
+            {
+                OnTacCommand(player, command);
+            }
+            else
+            {
+                PauseMatch(player, command);
+            }
+        }
+
+        [ConsoleCommand("css_tac", "Starts a tactical timeout for the requested team")]
+        public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (player == null) return;
+
+            if (matchStarted && isMatchLive)
+            {
+                Log($"[.tac command sent via chat] Sent by: {player.UserId}, connectedPlayers: {connectedPlayers}");
+                if (isPaused)
+                {
+                    ReplyToUserCommand(player, Localizer["matchzy.cc.matchpaused"]);
+                    return;
+                }
+                var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
+                if (player.TeamNum == 2)
+                {
+                    if (gameRules.TerroristTimeOuts > 0)
+                    {
+                        // 📝 確定要發動戰術暫停了，立刻記錄引擎時間！
+                        lastTacticalPauseTime = Server.EngineTime;
+                        Server.ExecuteCommand("timeout_terrorist_start");
+                    }
+                    else
+                    {
+                        ReplyToUserCommand(player, Localizer["matchzy.cc.nomorepauses"]);
+                    }
+                }
+                else if (player.TeamNum == 3)
+                {
+                    if (gameRules.CTTimeOuts > 0)
+                    {
+                        // 📝 確定要發動戰術暫停了，立刻記錄引擎時間！
+                        lastTacticalPauseTime = Server.EngineTime;
+                        Server.ExecuteCommand("timeout_ct_start");
+                    }
+                    else
+                    {
+                        ReplyToUserCommand(player, Localizer["matchzy.cc.nomorepauses"]);
+                    }
+                }
+            }
         }
 
         [ConsoleCommand("css_fp", "Pause the match an admin")]
