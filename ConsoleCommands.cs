@@ -195,7 +195,7 @@ namespace MatchZy
             {
                 if (player != null)
                 {
-                    PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
+                    PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 開 啟 {ChatColors.Default}技 術 暫 停");
                 }
                 return; 
             }
@@ -208,7 +208,7 @@ namespace MatchZy
                 {
                     if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                     {
-                        PrintToPlayerChat(player, $" 回 合 已 開 始，無 法 使 用 技 術 暫 停");
+                        PrintToPlayerChat(player, $" 回 合 已 開 始，無 法 使 用 {ChatColors.Default}技 術 暫 停");
                         return; // 💥 直接封鎖，不往下執行
                     }
                 }
