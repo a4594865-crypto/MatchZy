@@ -21,16 +21,38 @@ public partial class MatchZy
     public int lastTechPauseDuration = 0;
 
     /// <summary>
+    /// 輔助方法：精確判斷目前伺服器是否處於「任何形式的暫停」
+    /// 包含：1. 外掛自己的技術暫停正在跑秒數 2. CS2 官方原生的戰術暫停正在生效
+    /// </summary>
+    private bool IsAnyPauseActive()
+    {
+        // 1. 檢查外掛自訂的技術暫停計時器是否正在運行
+        if (techPauseAutoUnpauseTimer != null) return true;
+
+        // 2. 強力讀取 CS2 遊戲核心規則，檢查官方原生暫停 (mp_team_timeout) 是否正在生效
+        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        if (gameRules != null)
+        {
+            // 如果遊戲核心標記目前正在暫停中，或者正在跑官方戰術暫停倒數
+            if (gameRules.IsMatchWaitingForResume || isPaused) 
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// 【強力防線】全域攔截玩家輸入的所有暫停指令 (.p / .pause / .tech)
     /// </summary>
     public HookResult CheckAndInterceptPause(CCSPlayerController? player, CommandInfo command)
     {
-        // 如果比賽還沒正式開始，直接放行不處理
         if (!isMatchLive) return HookResult.Continue;
 
         string cmdName = command.GetArg(0).ToLower();
 
-        // 🛑 防線 1：如果目前已經在跑「300秒技術暫停」，此時任何人輸入 .p 或 .pause 想疊加原生暫停，直接鎖死攔截！
+        // 🛑 防線 1：如果目前已經在跑「300秒技術暫停」，此時任何人輸入 .p 想疊加官方原生暫停，直接鎖死
         if (techPauseAutoUnpauseTimer != null)
         {
             if (cmdName.Contains("pause") || cmdName == ".p" || cmdName == "!p")
@@ -39,11 +61,24 @@ public partial class MatchZy
                 {
                     PrintToPlayerChat(player, $" 目前正在【技術暫停】中，無法使用戰術暫停！");
                 }
-                return HookResult.Handled; // 蒸汽蒸發，不交給官方原生系統
+                return HookResult.Handled; // 丟進虛無，完全不交給 CS2 官方原生系統
             }
         }
 
-        // 防線 2：原本的回合正式開始後攔截（非凍結時間、非熱身/刀房，禁止輸入暫停）
+        // 🛑 防線 2：如果目前正處於「CS2 官方原生戰術暫停中」，此時任何人打 .tech，直接攔截
+        if (IsAnyPauseActive())
+        {
+            if (cmdName.Contains("tech"))
+            {
+                if (player != null)
+                {
+                    PrintToPlayerChat(player, $" 目前比賽已處於暫停狀態，無法啟用技術暫停！");
+                }
+                return HookResult.Handled; // 攔截，不讓技術暫停程式碼往下跑
+            }
+        }
+
+        // 防線 3：原本的回合正式開始後攔截（非凍結時間、非熱身/刀房，禁止輸入暫停）
         if (cmdName.Contains("pause") || cmdName == ".p" || cmdName == "!p" || cmdName.Contains("tech"))
         {
             if (player != null)
@@ -54,7 +89,7 @@ public partial class MatchZy
                     if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                     {
                         string pauseType = cmdName.Contains("tech") ? "技術" : "戰術";
-                        PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 技 術 暫 停");
+                        PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 {pauseType} 暫 停");
                         return HookResult.Handled; 
                     }
                 }
@@ -71,21 +106,13 @@ public partial class MatchZy
     {
         if (!isMatchLive) return;
 
-        // 🛑 防線 3：如果目前正在跑「300秒技術暫停」，禁止重複觸發
-        if (techPauseAutoUnpauseTimer != null)
+        // 🛑 防線 4：全方位檢查，只要有任何暫停正在跑（包含官方原生暫停），.tech 絕對不准執行
+        if (IsAnyPauseActive())
         {
             if (player != null)
             {
-                ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
+                PrintToPlayerChat(player, $" 目前比賽已處於暫停狀態，無法啟用技術暫停！");
             }
-            return;
-        }
-
-        // 🛑 防線 4：如果目前「已經是原生暫停狀態（.p 戰術暫停中）」，絕對禁止再開 .tech 來亂！
-        if (isPaused)
-        {
-            if (player != null)
-                PrintToPlayerChat(player, $" 目前正處於【戰術暫停】中，無法啟用技術暫停！");
             return;
         }
 
