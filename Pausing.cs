@@ -33,18 +33,13 @@ public partial class MatchZy
     {
         if (!isMatchLive) return HookResult.Continue;
 
-        // 核心修正：在 CounterStrikeSharp 的 CommandListener 中
-        // 如果玩家是在對話框打字，GetArg(0) 會是 "say" 或 "say_team"，真正的關鍵字在 GetArg(1)
         string cmdName = command.GetArg(0).ToLower();
-        if (cmdName == "say" || cmdName == "say_team")
-        {
-            cmdName = command.GetArg(1).Trim().ToLower();
-        }
 
         // 📝 核心動作：只要任何人「輸入」了戰術暫停指令，立刻蓋章記錄時間！
+        // 這樣改絕對能精準抓到玩家打字的那一刻！
         if (cmdName == ".p" || cmdName == ".pause" || cmdName == ".tac" || 
             cmdName == "!p" || cmdName == "!pause" || cmdName == "!tac" ||
-            cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac" || cmdName == "p" || cmdName == "pause" || cmdName == "tac")
+            cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac")
         {
             lastTacticalPauseTime = Server.EngineTime;
         }
@@ -54,11 +49,11 @@ public partial class MatchZy
         {
             if (cmdName == ".p" || cmdName == ".pause" || cmdName == ".tac" || 
                 cmdName == "!p" || cmdName == "!pause" || cmdName == "!tac" ||
-                cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac" || cmdName == "p" || cmdName == "pause" || cmdName == "tac")
+                cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac")
             {
                 if (player != null)
                 {
-                    PrintToPlayerChat(player, $" 目前正在【 技 術 暫 停 】中，無法使用戰術暫停");
+                    PrintToPlayerChat(player, $" 目前正在【 技 術 暫 停 】中，無 法 使 用 戰 術 暫 停");
                 }
                 return HookResult.Handled;
             }
@@ -67,11 +62,11 @@ public partial class MatchZy
         // 🛑 防線 2：時間差攔截！如果輸入戰術暫停還沒超過 93 秒，此時打 .tech 直接無條件回絕！
         if (IsInTacticalPauseWindow() || techPauseAutoUnpauseTimer != null || isPaused)
         {
-            if (cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech" || cmdName == "tech")
+            if (cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech")
             {
                 if (player != null)
                 {
-                    PrintToPlayerChat(player, $" 已 處 於 暫 停 或 冷 卻 狀 態 (93秒)，無 法 啟 用 技 術 暫 停");
+                    PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
                 }
                 return HookResult.Handled; // 丟進虛無，完美攔截！
             }
@@ -80,8 +75,8 @@ public partial class MatchZy
         // 防線 3：原本的回合正式開始後攔截（非凍結時間、非熱身/刀房，禁止輸入暫停）
         if (cmdName == ".p" || cmdName == ".pause" || cmdName == ".tac" || 
             cmdName == "!p" || cmdName == "!pause" || cmdName == "!tac" ||
-            cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac" || cmdName == "tac" ||
-            cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech" || cmdName == "tech")
+            cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac" || 
+            cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech")
         {
             if (player != null)
             {
@@ -90,7 +85,8 @@ public partial class MatchZy
                 {
                     if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                     {
-                        PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 暫 停");
+                        string pauseType = (cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech") ? "技術" : "戰術";
+                        PrintToPlayerChat(player, $" 回 合 已 開 始，無 法 使 用 技 術 暫 停");
                         return HookResult.Handled; 
                     }
                 }
@@ -104,14 +100,13 @@ public partial class MatchZy
     {
         if (!isMatchLive) return;
 
-        // 🎯【終極攔截點】無論前面的過濾器有沒有抓到，只要這段代碼執行，就一定會檢查 93 秒防線
         if (IsInTacticalPauseWindow() || techPauseAutoUnpauseTimer != null || isPaused)
         {
             if (player != null)
             {
-                PrintToPlayerChat(player, $" 已 處 於 暫 停 或 冷 卻 狀 態 (93秒)，無 法 啟 用 技 術 暫 停");
+                PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
             }
-            return; // 🛑 這裡直接 return，MatchZy 原本的技術暫停邏輯「完全不會」被觸發！
+            return;
         }
 
         if (player == null)
