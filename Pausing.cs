@@ -97,7 +97,7 @@ public partial class MatchZy
 
         if (techPausesLeft[teamKey] <= 0)
         {
-            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 已 經 沒 有 可 用 的 技 術 暫 停 次 數");
+            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 您 的 技 術 暫 停 次 數 已 用 完");
             return;
         }
 
