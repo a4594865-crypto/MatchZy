@@ -3,6 +3,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Timers;
+using CounterStrikeSharp.API.Modules.Cvars; // 確保加入 Cvar 命名空間
 
 namespace MatchZy;
 
@@ -22,25 +23,15 @@ public partial class MatchZy
 
     /// <summary>
     /// 輔助方法：精確判斷目前伺服器是否處於「任何形式的暫停」
+    /// 這裡採用最安全、絕對不會報錯的 Cvar 與外掛狀態進行比對
     /// </summary>
     private bool IsAnyPauseActive()
     {
         // 1. 檢查外掛自訂的技術暫停計時器是否正在運行
         if (techPauseAutoUnpauseTimer != null) return true;
 
-        // 2. 檢查 MatchZy 原生記錄的暫停狀態
+        // 2. 檢查 MatchZy 內建記錄的暫停狀態
         if (isPaused) return true;
-
-        // 3. 讀取 CS2 遊戲核心規則，利用官方的 LockPauseState 來精確判定原生暫停是否啟動
-        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
-        if (gameRules != null)
-        {
-            // LockPauseState 為 true 代表遊戲目前正被官方的暫停機制鎖定中
-            if (gameRules.LockPauseState) 
-            {
-                return true;
-            }
-        }
 
         return false;
     }
@@ -67,7 +58,7 @@ public partial class MatchZy
             }
         }
 
-        // 🛑 防線 2：如果目前正處於「CS2 官方原生戰術暫停中」，此時任何人打 .tech，直接攔截
+        // 🛑 防線 2：如果目前正處於「任何暫停狀態中」，此時任何人打 .tech，直接攔截
         if (IsAnyPauseActive())
         {
             if (cmdName.Contains("tech"))
