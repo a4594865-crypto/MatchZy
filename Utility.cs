@@ -1151,23 +1151,71 @@ namespace MatchZy
         }
 
         private void PauseMatch(CCSPlayerController? player, CommandInfo? command)
-{
-    if (!isMatchLive) return;
-
-    if (player != null)
-    {
-        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
-        if (gameRules != null)
         {
-            // 如果既不是凍結時間，也不是熱身階段，代表回合已經正式開始
-            if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
+            if (isMatchLive && isPaused)
             {
-                PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 戰 術 暫 停");
+                // ReplyToUserCommand(player, "Match is already paused!");
+                ReplyToUserCommand(player, Localizer["matchzy.utility.paused"]);
                 return;
             }
+            if (IsHalfTimePhase())
+            {
+                // ReplyToUserCommand(player, "You cannot use this command during halftime.");
+                ReplyToUserCommand(player, Localizer["matchzy.utility.duringhalftime"]);
+                return;
+            }
+            if (IsPostGamePhase())
+            {
+                // ReplyToUserCommand(player, "You cannot use this command after the game has ended.");
+                ReplyToUserCommand(player, Localizer["matchzy.utility.matchended"]);
+                return;
+            }
+            if (IsTacticalTimeoutActive())
+            {
+                // ReplyToUserCommand(player, "You cannot use this command when tactical timeout is active.");
+                ReplyToUserCommand(player, Localizer["matchzy.utility.tacticaltimeout"]);
+                return;
+            }
+            if (!techPauseEnabled.Value && player != null)
+            {
+                PrintToPlayerChat(player, Localizer["matchzy.pause.techpausenotenabled"]);
+                return;
+            }
+            if(!string.IsNullOrEmpty(techPausePermission.Value) && techPausePermission.Value != "\"\"")
+            {
+                if (!IsPlayerAdmin(player, "css_pause", techPausePermission.Value))
+                {
+                    SendPlayerNotAdminMessage(player);
+                    return;
+                }
+            }
+            if (isMatchLive && !isPaused)
+            {
+
+                string pauseTeamName = "Admin";
+                unpauseData["pauseTeam"] = "Admin";
+                if (player?.TeamNum == 2)
+                {
+
+                    pauseTeamName = reverseTeamSides["TERRORIST"].teamName;
+                    unpauseData["pauseTeam"] = reverseTeamSides["TERRORIST"].teamName;
+                }
+                else if (player?.TeamNum == 3)
+                {
+                    pauseTeamName = reverseTeamSides["CT"].teamName;
+                    unpauseData["pauseTeam"] = reverseTeamSides["CT"].teamName;
+                }
+                else
+                {
+                    return;
+                }
+                PrintToAllChat(Localizer["matchzy.pause.pausedthematch", pauseTeamName]);
+                // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{pauseTeamName}{ChatColors.Default} has paused the match. Type .unpause to unpause the match");
+
+                SetMatchPausedFlags();
+            }
         }
-    }
-}
+
         private void ForcePauseMatch(CCSPlayerController? player, CommandInfo? command)
         {
             if (!matchStarted) return;
