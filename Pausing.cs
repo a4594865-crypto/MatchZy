@@ -20,6 +20,36 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
+    /// <summary>
+    /// 修改後的戰術暫停勾子：只用來在回合開始後進行攔截與提示
+    /// </summary>
+    public void PauseMatch(CCSPlayerController? player, CommandInfo? command)
+    {
+        // 如果比賽還沒正式開始，直接返回
+        if (!isMatchLive) return;
+
+        // 【核心修改】安全檢查：回合正式開始後（非凍結時間、非熱身/刀房），禁止輸入 .p / .pause
+        if (player != null)
+        {
+            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+            if (gameRules != null)
+            {
+                if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
+                {
+                    // 出了凍結時間，直接噴提示並 return 攔截，不讓指令繼續往下跑
+                    PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 戰 術 暫 停");
+                    return;
+                }
+            }
+        }
+
+        // 💡 如果是在凍結時間內，這裡什麼都不做，直接 return。
+        // 這樣 MatchZy 本原本註冊該指令的其他地方（例如命令監聽器）就會正常接手去跑它原生的戰術暫停流程。
+    }
+
+    /// <summary>
+    /// 技術暫停 (.tech) 的核心實作方法
+    /// </summary>
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
         // 1. 如果比賽還沒正式開始，不允許技術暫停
@@ -41,9 +71,6 @@ public partial class MatchZy
             var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
             if (gameRules != null)
             {
-                // 使用最新版 CounterStrikeSharp 標準公開屬性：
-                // FreezePeriod = 是否在凍結時間
-                // WarmupPeriod = 是否在熱身
                 if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                 {
                     PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 技 術 暫 停");
@@ -75,15 +102,7 @@ public partial class MatchZy
         if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
 
         // 5. 利用 MatchZy 的 reverseTeamSides 字典，精確將當前陣營映射到真實隊伍物件
-        Team playerMatchTeam;
-        if (player.Team == CsTeam.CounterTerrorist)
-        {
-            playerMatchTeam = reverseTeamSides["CT"];
-        }
-        else
-        {
-            playerMatchTeam = reverseTeamSides["TERRORIST"];
-        }
+        Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
 
         string teamKey = "";
         string currentTeamName = playerMatchTeam.teamName;
@@ -127,7 +146,6 @@ public partial class MatchZy
         // 9. 建立一個每 30 秒觸發一次的計時器
         techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
         {
-            // 如果在 30 秒期間內，比賽已經因為其他原因（如雙方 .up）解除了暫停，立即釋放計時器
             if (!isPaused)
             {
                 KillTechPauseTimer();
