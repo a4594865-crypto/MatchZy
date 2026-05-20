@@ -21,33 +21,6 @@ public partial class MatchZy
     public int lastTechPauseDuration = 0;
 
     /// <summary>
-    /// 修改後的戰術暫停勾子：只用來在回合開始後進行攔截與提示
-    /// </summary>
-    public void PauseMatch(CCSPlayerController? player, CommandInfo? command)
-    {
-        // 如果比賽還沒正式開始，直接返回
-        if (!isMatchLive) return;
-
-        // 【核心修改】安全檢查：回合正式開始後（非凍結時間、非熱身/刀房），禁止輸入 .p / .pause
-        if (player != null)
-        {
-            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
-            if (gameRules != null)
-            {
-                if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
-                {
-                    // 出了凍結時間，直接噴提示並 return 攔截，不讓指令繼續往下跑
-                    PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 戰 術 暫 停");
-                    return;
-                }
-            }
-        }
-
-        // 💡 如果是在凍結時間內，這裡什麼都不做，直接 return。
-        // 這樣 MatchZy 本原本註冊該指令的其他地方（例如命令監聽器）就會正常接手去跑它原生的戰術暫停流程。
-    }
-
-    /// <summary>
     /// 技術暫停 (.tech) 的核心實作方法
     /// </summary>
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
