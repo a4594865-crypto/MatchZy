@@ -27,16 +27,35 @@ public partial class MatchZy
     }
 
     /// <summary>
-    /// 【強力防線】全域攔截玩家輸入的所有暫停指令 (.p / .pause / .tech / .tac 等變體)
+    /// 【重要】請在你的插件主入口（例如 Load() 方法）中呼叫此方法，用來掛鉤聊天訊息！
     /// </summary>
-    public HookResult CheckAndInterceptPause(CCSPlayerController? player, CommandInfo command)
+    public void RegisterPauseInterceptor()
     {
-        if (!isMatchLive) return HookResult.Continue;
+        // 必須監聽玩家公頻與隊伍頻道的發言
+        AddCommandListener("say", OnPlayerChatCommand);
+        AddCommandListener("say_team", OnPlayerChatCommand);
+    }
 
-        string cmdName = command.GetArg(0).ToLower();
+    /// <summary>
+    /// 負責將網頁/遊戲聊天的參數拆解，再送進你的防線做過濾
+    /// </summary>
+    private HookResult OnPlayerChatCommand(CCSPlayerController? player, CommandInfo command)
+    {
+        if (player == null || !isMatchLive) return HookResult.Continue;
 
+        // 當玩家打字時，GetArg(0) 是 "say"，GetArg(1) 才是真正的打字內容
+        string chatMessage = command.GetArg(1).Trim().ToLower();
+
+        // 呼叫更新後的檢查邏輯
+        return CheckAndInterceptPause(player, chatMessage);
+    }
+
+    /// <summary>
+    /// 【強力防線】優化後的指令過濾器
+    /// </summary>
+    public HookResult CheckAndInterceptPause(CCSPlayerController player, string cmdName)
+    {
         // 📝 核心動作：只要任何人「輸入」了戰術暫停指令，立刻蓋章記錄時間！
-        // 這樣改絕對能精準抓到玩家打字的那一刻！
         if (cmdName == ".p" || cmdName == ".pause" || cmdName == ".tac" || 
             cmdName == "!p" || cmdName == "!pause" || cmdName == "!tac" ||
             cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac")
@@ -51,11 +70,8 @@ public partial class MatchZy
                 cmdName == "!p" || cmdName == "!pause" || cmdName == "!tac" ||
                 cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac")
             {
-                if (player != null)
-                {
-                    PrintToPlayerChat(player, $" 目前正在【 技 術 暫 停 】中，無法使用戰術暫停");
-                }
-                return HookResult.Handled;
+                PrintToPlayerChat(player, $" 目前正在【 技 術 暫 停 】中，無法使用戰術暫停");
+                return HookResult.Handled; // 攔截，不讓原本的 MatchZy 或遊戲執行
             }
         }
 
@@ -64,10 +80,7 @@ public partial class MatchZy
         {
             if (cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech")
             {
-                if (player != null)
-                {
-                    PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
-                }
+                PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
                 return HookResult.Handled; // 丟進虛無，完美攔截！
             }
         }
@@ -78,17 +91,13 @@ public partial class MatchZy
             cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac" || 
             cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech")
         {
-            if (player != null)
+            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+            if (gameRules != null)
             {
-                var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
-                if (gameRules != null)
+                if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                 {
-                    if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
-                    {
-                        string pauseType = (cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech") ? "技術" : "戰術";
-                        PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 技 術 暫 停");
-                        return HookResult.Handled; 
-                    }
+                    PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 暫 停");
+                    return HookResult.Handled; 
                 }
             }
         }
