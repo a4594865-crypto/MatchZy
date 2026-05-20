@@ -195,7 +195,7 @@ namespace MatchZy
             {
                 if (player != null)
                 {
-                    PrintToPlayerChat(player, $" 已 處 於 暫 停 或 冷 卻 狀 態 (93秒)，無 法 啟 用 技 術 暫 停");
+                    PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 啟 用 技 術 暫 停");
                 }
                 return; 
             }
