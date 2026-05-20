@@ -21,6 +21,44 @@ public partial class MatchZy
     public int lastTechPauseDuration = 0;
 
     /// <summary>
+    /// 【強力防線】全域攔截玩家輸入的所有暫停指令 (.p / .pause / .tech)
+    /// 當玩家在「回合正式開始後」輸入時，直接在這裡攔截並回絕，完全不放行給後續的官方邏輯！
+    /// </summary>
+    public HookResult CheckAndInterceptPause(CCSPlayerController? player, CommandInfo command)
+    {
+        // 如果比賽還沒正式開始，直接放行不處理
+        if (!isMatchLive) return HookResult.Continue;
+
+        // 取得玩家輸入的指令（轉成小寫，例如 .p, .pause, .tech, !p）
+        string cmdName = command.GetArg(0).ToLower();
+
+        // 平常我們只攔截暫停指令，解暫停 (.unpause / .up) 不可以攔截
+        if (cmdName.Contains("pause") || cmdName == ".p" || cmdName == "!p" || cmdName.Contains("tech"))
+        {
+            if (player != null)
+            {
+                var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+                if (gameRules != null)
+                {
+                    // 【核心檢查】只要「不是凍結時間」且「不是熱身階段」，就代表回合已經正式開始了
+                    if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
+                    {
+                        string pauseType = cmdName.Contains("tech") ? "技術" : "戰術";
+                        PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 {pauseType} 暫 停");
+                        
+                        // 🛑 重點：回傳 Handled 代表指令在這裡被我們硬生生吃掉了！
+                        // 官方 Utility.cs 裡面的 PauseMatch 還有其他的暫停邏輯連觸發的機會都沒有，100% 完美攔截！
+                        return HookResult.Handled; 
+                    }
+                }
+            }
+        }
+
+        // 如果是在凍結時間內，或者是其他指令，回傳 Continue 讓 MatchZy 原生邏輯繼續跑
+        return HookResult.Continue;
+    }
+
+    /// <summary>
     /// 技術暫停 (.tech) 的核心實作方法
     /// </summary>
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
@@ -36,20 +74,6 @@ public partial class MatchZy
                 ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
             }
             return;
-        }
-
-        // 【核心修改】安全檢查：回合正式開始後（非凍結時間、非熱身/刀房），禁止輸入 .tech
-        if (player != null)
-        {
-            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
-            if (gameRules != null)
-            {
-                if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
-                {
-                    PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 技 術 暫 停");
-                    return;
-                }
-            }
         }
 
         // 2. 如果是伺服器 RCON 控制台輸入，直接當作強制暫停
