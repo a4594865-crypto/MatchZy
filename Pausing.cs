@@ -127,10 +127,10 @@ public partial class MatchZy
         // 9. 建立一個每 30 秒觸發一次的計時器
         techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
         {
+            // 如果在 30 秒期間內，比賽已經因為其他原因（如雙方 .up）解除了暫停，立即釋放計時器
             if (!isPaused)
             {
-                techPauseAutoUnpauseTimer?.Kill();
-                techPauseAutoUnpauseTimer = null;
+                KillTechPauseTimer();
                 return;
             }
 
@@ -143,7 +143,7 @@ public partial class MatchZy
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
                 PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上 限，系 統 自 動 解 除 暫 停");
-                techPauseAutoUnpauseTimer = null;
+                KillTechPauseTimer();
             }
             else
             {
@@ -153,13 +153,19 @@ public partial class MatchZy
         }, TimerFlags.REPEAT);
     }
 
+    // 建立一個安全銷毀技術暫停計時器的方法，避免懸空指針
+    public void KillTechPauseTimer()
+    {
+        techPauseAutoUnpauseTimer?.Kill();
+        techPauseAutoUnpauseTimer = null;
+        techPauseElapsedTime = 0;
+    }
+
     // 建立一個統一重設次數的方法
     public void ResetTechPauseCount()
     {
         techPausesLeft["matchzyTeam1"] = 1;
         techPausesLeft["matchzyTeam2"] = 1;
-        techPauseElapsedTime = 0;
-        techPauseAutoUnpauseTimer?.Kill();
-        techPauseAutoUnpauseTimer = null;
+        KillTechPauseTimer();
     }
 }
