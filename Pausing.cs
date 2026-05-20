@@ -22,19 +22,21 @@ public partial class MatchZy
 
     /// <summary>
     /// 輔助方法：精確判斷目前伺服器是否處於「任何形式的暫停」
-    /// 包含：1. 外掛自己的技術暫停正在跑秒數 2. CS2 官方原生的戰術暫停正在生效
     /// </summary>
     private bool IsAnyPauseActive()
     {
         // 1. 檢查外掛自訂的技術暫停計時器是否正在運行
         if (techPauseAutoUnpauseTimer != null) return true;
 
-        // 2. 強力讀取 CS2 遊戲核心規則，檢查官方原生暫停 (mp_team_timeout) 是否正在生效
+        // 2. 檢查 MatchZy 原生記錄的暫停狀態
+        if (isPaused) return true;
+
+        // 3. 讀取 CS2 遊戲核心規則，利用官方的 LockPauseState 來精確判定原生暫停是否啟動
         var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
         if (gameRules != null)
         {
-            // 如果遊戲核心標記目前正在暫停中，或者正在跑官方戰術暫停倒數
-            if (gameRules.IsMatchWaitingForResume || isPaused) 
+            // LockPauseState 為 true 代表遊戲目前正被官方的暫停機制鎖定中
+            if (gameRules.LockPauseState) 
             {
                 return true;
             }
