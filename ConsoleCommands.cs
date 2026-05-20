@@ -194,23 +194,20 @@ namespace MatchZy
             SideSwitchCommand(player, CsTeam.CounterTerrorist);
         }
 
-        [ConsoleCommand("css_tech", "Pause the match")]
+       [ConsoleCommand("css_tech", "Pause the match")]
         public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            TechPause(player, command); // 導向到我們在 Pausing.cs 寫的新邏輯
-        }
+            // 🛑 【核心防線】檢查 93 秒冷卻時間，或是目前已經在技術暫停/普通暫停中
+            if (IsInTacticalPauseWindow() || techPauseAutoUnpauseTimer != null || isPaused)
+            {
+                if (player != null)
+                {
+                    PrintToPlayerChat(player, $" 已 處 於 暫 停 或 冷 卻 狀 態 (93秒)，無 法 啟 用 技 術 暫 停");
+                }
+                return; // 💥 直接回絕，不讓它往下執行 TechPause(player, command);
+            }
 
-        [ConsoleCommand("css_pause", "Pause the match")]
-        public void OnPauseCommand(CCSPlayerController? player, CommandInfo? command)
-        {
-            if (isPauseCommandForTactical)
-            {
-                OnTacCommand(player, command);
-            }
-            else
-            {
-                PauseMatch(player, command);
-            }
+            TechPause(player, command); // 導向到我們在 Pausing.cs 寫的新邏輯
         }
 
         [ConsoleCommand("css_fp", "Pause the match an admin")]
@@ -325,6 +322,8 @@ namespace MatchZy
                 {
                     if (gameRules.TerroristTimeOuts > 0)
                     {
+                        // 📝 【精準蓋章】確定發動戰術暫停，立刻記錄引擎時間！
+                        lastTacticalPauseTime = Server.EngineTime;
                         Server.ExecuteCommand("timeout_terrorist_start");
                     }
                     else
@@ -337,6 +336,8 @@ namespace MatchZy
                 {
                     if (gameRules.CTTimeOuts > 0)
                     {
+                        // 📝 【精準蓋章】確定發動戰術暫停，立刻記錄引擎時間！
+                        lastTacticalPauseTime = Server.EngineTime;
                         Server.ExecuteCommand("timeout_ct_start");
                     }
                     else
