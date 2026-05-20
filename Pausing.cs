@@ -46,9 +46,10 @@ public partial class MatchZy
 
         string cmdName = command.GetArg(0).ToLower();
 
-        // 📝 核心動作：用關鍵字比對，只要指令名稱包含 "p" 或 "pause" 或 "tac"，且「排除」了技術暫停 tech
-        // 這樣不論玩家輸入 .p、!p、.pause、!pause、.tac、!tac，外掛全部都能 100% 精準蓋章記錄時間！
-        if ((cmdName.Contains("p") || cmdName.Contains("pause") || cmdName.Contains("tac")) && !cmdName.Contains("tech"))
+        // 📝 核心動作：【精準比對】只有真正的戰術暫停指令，才蓋章記錄時間！（完美避開 .tech）
+        if (cmdName == ".p" || cmdName == ".pause" || cmdName == ".tac" || 
+            cmdName == "!p" || cmdName == "!pause" || cmdName == "!tac" ||
+            cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac")
         {
             var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
             if (gameRules != null)
@@ -64,7 +65,9 @@ public partial class MatchZy
         // 🛑 防線 1：如果目前已經在跑「300秒技術暫停」，此時任何人輸入任何戰術暫停，直接鎖死
         if (techPauseAutoUnpauseTimer != null)
         {
-            if ((cmdName.Contains("p") || cmdName.Contains("pause") || cmdName.Contains("tac")) && !cmdName.Contains("tech"))
+            if (cmdName == ".p" || cmdName == ".pause" || cmdName == ".tac" || 
+                cmdName == "!p" || cmdName == "!pause" || cmdName == "!tac" ||
+                cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac")
             {
                 if (player != null)
                 {
@@ -77,7 +80,7 @@ public partial class MatchZy
         // 🛑 防線 2：時間差攔截！如果輸入戰術暫停還沒超過 93 秒，此時打 .tech 直接無條件回絕！
         if (IsInTacticalPauseWindow() || techPauseAutoUnpauseTimer != null || isPaused)
         {
-            if (cmdName.Contains("tech"))
+            if (cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech")
             {
                 if (player != null)
                 {
@@ -88,7 +91,10 @@ public partial class MatchZy
         }
 
         // 防線 3：原本的回合正式開始後攔截（非凍結時間、非熱身/刀房，禁止輸入暫停）
-        if (cmdName.Contains("p") || cmdName.Contains("pause") || cmdName.Contains("tac") || cmdName.Contains("tech"))
+        if (cmdName == ".p" || cmdName == ".pause" || cmdName == ".tac" || 
+            cmdName == "!p" || cmdName == "!pause" || cmdName == "!tac" ||
+            cmdName == "css_p" || cmdName == "css_pause" || cmdName == "css_tac" || 
+            cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech")
         {
             if (player != null)
             {
@@ -97,8 +103,8 @@ public partial class MatchZy
                 {
                     if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                     {
-                        string pauseType = cmdName.Contains("tech") ? "技術" : "戰術";
-                        PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 技 術 暫 停");
+                        string pauseType = (cmdName == ".tech" || cmdName == "!tech" || cmdName == "css_tech") ? "技術" : "戰術";
+                        PrintToPlayerChat(player, $" 回 合 已 正 式 開 始，無 法 使 用 {pauseType} 暫 停");
                         return HookResult.Handled; 
                     }
                 }
@@ -178,7 +184,7 @@ public partial class MatchZy
         unpauseData["pauseTeam"] = currentTeamName; 
 
         PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 啟用了技術暫停。剩餘次數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
-        PrintToAllChat($" 暫 停 將 在 \u0004300秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.up\u0001 解 除。");
+        PrintToAllChat($" 暫 停 將 在 \u0004300秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.up\u0001 解除。");
 
         techPauseElapsedTime = 0;
 
@@ -199,13 +205,13 @@ public partial class MatchZy
                 isPaused = false;
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上 限，系 統 自 動 解 除 暫 停");
+                PrintToAllChat($" 技術暫停已達\u0004 300 秒 \u0001上限，系統自動解除暫停");
                 KillTechPauseTimer();
             }
             else
             {
                 int remaining = 300 - techPauseElapsedTime;
-                PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 除 還 剩 \u0004{remaining} 秒\u0001 ");
+                PrintToAllChat($" 技術暫停中... 距離自動解除還剩 \u0004{remaining} 秒\u0001 ");
             }
         }, TimerFlags.REPEAT);
     }
