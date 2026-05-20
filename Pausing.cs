@@ -54,7 +54,7 @@ public partial class MatchZy
         if (isPaused)
         {
             if (player != null)
-                PrintToPlayerChat(player, $" 目前正處於【 戰 術 暫 停 】中，無 法 啟 用 技 術 暫 停");
+                PrintToPlayerChat(player, $" 正處於【 戰 術 暫 停 】中，無 法 啟 用 技 術 暫 停");
             return;
         }
 
