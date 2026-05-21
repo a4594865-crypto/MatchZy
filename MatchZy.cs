@@ -1,4 +1,4 @@
-using System;                                                
+using System;                                       
 using System.Collections.Generic;                       
 using System.Linq;                                      
 using CounterStrikeSharp.API;
@@ -210,7 +210,7 @@ namespace MatchZy
                 { ".loadpos", OnLoadPosCommand}
             };
 
-            // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
+    // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
             RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
                 var player = @event.Userid;
 
@@ -253,42 +253,43 @@ namespace MatchZy
                 int userId = (int)(player.UserId ?? -1);
 
                 // --- A. 倒數期間斷線：中止倒數 ---
-                if (matchStartCountdownTimer != null)
-                {
-                    // 1. 定義要發送的訊息內容
-                    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線，倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+// --- A. 倒數期間斷線：中止倒數 ---
+if (matchStartCountdownTimer != null)
+{
+    // 1. 定義要發送的訊息內容
+    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線，倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
-                    // 2. 立即發送 (第 1 次)
-                    CancelMatchCountdown(disconnectMsg);
-                    
-                    // 3. 延遲 4 秒發送 (第 2 次)
-                    AddTimer(4.0f, () => {
-                        Server.PrintToChatAll(disconnectMsg);
-                    });
+    // 2. 立即發送 (第 1 次)
+    CancelMatchCountdown(disconnectMsg);
+    
+    // 3. 延遲 3 秒發送 (第 2 次)
+    AddTimer(4.0f, () => {
+        Server.PrintToChatAll(disconnectMsg);
+    });
 
-                    // 4. 延遲 8 秒發送 (第 3 次)
-                    AddTimer(8.0f, () => {
-                        Server.PrintToChatAll(disconnectMsg);
-                    });
+    // 4. 延遲 6 秒發送 (第 3 次)
+    AddTimer(8.0f, () => {
+        Server.PrintToChatAll(disconnectMsg);
+    });
 
-                    // 5. 清空狀態與計時器邏輯
-                    playerReadyStatus.Clear(); 
-                    matchStartCountdownTimer = null;
-                    isCountdownActive = false; 
-                }
+    // 5. 清空狀態與計時器邏輯
+    playerReadyStatus.Clear(); 
+    matchStartCountdownTimer = null;
+    isCountdownActive = false; 
+}
 
-                // --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
-                if (!isWarmup && !matchStarted && !isPractice)
-                {
-                    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
-                    {
-                        // 僅進行數值移除，不發送任何訊息或 Log
-                        playerReadyStatus.Remove(userId);
-                    }
+// --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
+if (!isWarmup && !matchStarted && !isPractice)
+{
+    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
+    {
+        // 僅進行數值移除，不發送任何訊息或 Log
+        playerReadyStatus.Remove(userId);
+    }
 
-                    // 更新地圖玩家緩存，確保剩下的玩家指令（如 .stay / .switch）能被正確計算
-                    UpdatePlayersMap();
-                }
+    // 更新地圖玩家緩存，確保剩下的玩家指令（如 .stay / .switch）能被正確計算
+    UpdatePlayersMap();
+}
 
                 // 呼叫原本可能定義在其他檔案的處理程序 (保持原架構相容)
                 return EventPlayerDisconnectHandler(@event, info);
@@ -302,46 +303,48 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-            // 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
-            AddCommandListener("jointeam", (player, info) =>
-            {
-                if (player == null || player.IsBot || isSleep) return HookResult.Continue;
+           // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
+// 修正版：處理換隊、觀戰以及倒數中止邏輯
+// 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
+AddCommandListener("jointeam", (player, info) =>
+{
+    if (player == null || player.IsBot || isSleep) return HookResult.Continue;
 
-                string targetTeam = info.ArgByIndex(1); 
-                int userId = (int)(player.UserId ?? -1);
+    string targetTeam = info.ArgByIndex(1); 
+    int userId = (int)(player.UserId ?? -1);
 
-                // --- 核心邏輯：只要正在倒數中，管你在不在熱身，通通不准換隊 ---
-                if (matchStartCountdownTimer != null || isCountdownActive)
-                {
-                    // 顯示警告訊息給該玩家
-                    player.PrintToChat($"{chatPrefix} {ChatColors.Default}倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
-                    
-                    // 返回 HookResult.Stop 就能直接吃掉這個指令，讓玩家留在原地
-                    return HookResult.Stop; 
-                }
+    // --- 核心邏輯：只要正在倒數中，管你在不在熱身，通通不准換隊 ---
+    if (matchStartCountdownTimer != null || isCountdownActive)
+    {
+        // 顯示警告訊息給該玩家
+        player.PrintToChat($"{chatPrefix} {ChatColors.Default}倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
+        
+        // 返回 HookResult.Stop 就能直接吃掉這個指令，讓玩家留在原地
+        return HookResult.Stop; 
+    }
 
-                // --- 以下為非倒數期間的正常比賽邏輯 ---
-                
-                // 如果是熱身階段（且沒在倒數），允許自由換隊
-                if (isWarmup) return HookResult.Continue;
+    // --- 以下為非倒數期間的正常比賽邏輯 ---
+    
+    // 如果是熱身階段（且沒在倒數），允許自由換隊
+    if (isWarmup) return HookResult.Continue;
 
-                // 比賽正式開始後
-                if (matchStarted)
-                {
-                    // 允許去觀戰 (targetTeam "1" 是觀戰)
-                    if (targetTeam == "1") return HookResult.Continue;
+    // 比賽正式開始後
+    if (matchStarted)
+    {
+        // 允許去觀戰 (targetTeam "1" 是觀戰)
+        if (targetTeam == "1") return HookResult.Continue;
 
-                    // 禁止 CT/T 互換 (targetTeam "2" 是 T, "3" 是 CT)
-                    byte currentTeam = player.TeamNum;
-                    if ((targetTeam == "2" || targetTeam == "3") && (currentTeam == 2 || currentTeam == 3))
-                    {
-                        player.PrintToChat($"{chatPrefix} {ChatColors.Default}比 賽 已 開 始，禁 止 互 換 隊 伍");
-                        return HookResult.Stop; 
-                    }
-                }
+        // 禁止 CT/T 互換 (targetTeam "2" 是 T, "3" 是 CT)
+        byte currentTeam = player.TeamNum;
+        if ((targetTeam == "2" || targetTeam == "3") && (currentTeam == 2 || currentTeam == 3))
+        {
+            player.PrintToChat($"{chatPrefix} {ChatColors.Default}比 賽 已 開 始，禁 止 互 換 隊 伍");
+            return HookResult.Stop; 
+        }
+    }
 
-                return HookResult.Continue;
-            });
+    return HookResult.Continue;
+});
 
             // --- 修正版：攔截倒數期間的所有隊伍變動廣播 ---
             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
@@ -389,7 +392,7 @@ namespace MatchZy
                 return HookResult.Changed;
             }, HookMode.Pre);
 
-            RegisterEventHandler<EventRoundEnd>((@event, info) => {
+           RegisterEventHandler<EventRoundEnd>((@event, info) => {
                 try 
                 {
                     if (isDryRun)
@@ -410,20 +413,30 @@ namespace MatchZy
 
             }, HookMode.Post);
 
-            RegisterListener<Listeners.OnMapStart>(mapName => {
-                AddTimer(1.0f, () => {
-                    // 核心修正：清理緩存，但不手動指定 CT/T
-                    ResetTeamDataCaches(); 
+            // RegisterEventHandler<EventMapShutdown>((@event, info) => {
+            //     Log($"[EventMapShutdown] Resetting match!");
+            //     ResetMatch();
+            //     return HookResult.Continue;
+            // });
 
-                    if (!isMatchSetup) {
-                        // 一般路人局：自動啟動
-                        AutoStart();
-                    } else {
-                        // 正式比賽 (JSON)：僅刷新隊名
-                        SetTeamNames(); 
-                    }
-                });
-            });
+RegisterListener<Listeners.OnMapStart>(mapName => {
+    AddTimer(1.0f, () => {
+        // 核心修正：清理緩存，但不手動指定 CT/T
+        ResetTeamDataCaches(); 
+
+        if (!isMatchSetup) {
+            // 一般路人局：自動啟動
+            AutoStart();
+        } else {
+            // 正式比賽 (JSON)：僅刷新隊名
+            SetTeamNames(); 
+        }
+    });
+});
+            // RegisterListener<Listeners.OnMapEnd>(() => {
+            //     Log($"[Listeners.OnMapEnd] Resetting match!");
+            //     ResetMatch();
+            // });
 
             RegisterEventHandler<EventPlayerDeath>((@event, info) => {
                 // Setting money back to 16000 when a player dies in warmup
@@ -464,46 +477,43 @@ namespace MatchZy
                 return HookResult.Continue;
             });
 
-            // ============================================================
-            // 核心修正後的聊天攔截：完全不影響任何功能，純安全放行
-            // ============================================================
             RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
+                // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-                // 1. 如果玩家輸入的是開賽指令
-                if (message == ".r" || message == ".ready") {
-                    
-                    // 只要「目前沒有在倒數」且「比賽還沒開始」，我們就 100% 往下放行 (Continue)，交給原版安全處理人數
-                    if (matchStartCountdownTimer == null && !isCountdownActive && !matchStarted && readyAvailable) {
-                        
-                        // 【洗牌相容邏輯】：如果在放行前發現有預約洗牌，且人數快滿了，就在這裡提早完美觸發洗牌
-                        if (isShufflePending && GetReadyPlayersCount() >= (minimumReadyRequired - 1))
-                        {
-                            ExecuteShuffleLogic(); 
-                            UpdatePlayersMap();    
-                        }
+               // 1. 攔截開賽指令
+if (message == ".r" || message == ".ready") {
+    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
+    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
+        
+        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
+        if (isShufflePending) 
+        {
+            ExecuteShuffleLogic(); // 執行洗牌
+            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
+        }
+        // -------------------------------------------------------
 
-                        // 延遲 0.2 秒自動幫我們開啟靜音牆（讓原版判定人數與倒數啟動成功）
-                        AddTimer(0.2f, () => {
-                            if (matchStartCountdownTimer != null) {
-                                isCountdownActive = true;
-                            }
-                        });
+        // 1. 執行原本的準備邏輯
+        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
+        
+        // 2. 開啟靜音開關
+        AddTimer(0.2f, () => {
+            isCountdownActive = true; 
+        });
+        
+        return HookResult.Handled; 
+    }
+}
 
-                        return HookResult.Continue; // 放行，交給原版 MatchZy 自動匹配指令並算對人數
-                    }
-                }
-
-                // 2. 如果倒數已經被原版系統啟動了，精確擋掉所有人在聊天室的發話雜訊
-                if ((matchStartCountdownTimer != null || isCountdownActive) && !originalMessage.Contains("倒數：")) {
+                // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
+                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
                     return HookResult.Handled;
                 }
+                // --- [第一步結束] ---
 
-                // ============================================================
-                // 以下 100% 完整保留您原有、辛苦寫好的自訂指令判定，完全未動
-                // ============================================================
                 int currentVersion = Api.GetVersion();
                 int index = @event.Userid + 1;
                 var playerUserId = NativeAPI.GetUseridFromIndex(index);
@@ -646,7 +656,6 @@ namespace MatchZy
 
                 return HookResult.Continue;
             });
-
             RegisterEventHandler<EventPlayerBlind>((@event, info) =>
             {
                 CCSPlayerController? player = @event.Userid;
@@ -675,6 +684,7 @@ namespace MatchZy
             RegisterEventHandler<EventMolotovDetonate>(EventMolotovDetonateHandler);
             RegisterEventHandler<EventDecoyStarted>(EventDecoyDetonateHandler);
             
+            // ============================
             Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/)");
         } // 結束 Load 函數
 
@@ -682,101 +692,111 @@ namespace MatchZy
         // --- 指令函數與核心修正代碼 ---
         // ==========================================
 
+        // --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者 ---
         public int GetReadyPlayersCount()
+{
+    int count = 0;
+    foreach (var entry in playerReadyStatus)
+    {
+        if (entry.Value == true)
         {
-            int count = 0;
-            foreach (var entry in playerReadyStatus)
+            var player = Utilities.GetPlayerFromUserid(entry.Key);
+            // 雙重保險：即使在名單內是 True，也必須人在場上才給分
+            if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
             {
-                if (entry.Value == true)
-                {
-                    var player = Utilities.GetPlayerFromUserid(entry.Key);
-                    if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
-                    {
-                        count++;
-                    }
-                }
-            }
-            return count;
-        }
-
-        [ConsoleCommand("css_shuffle", "預約隨機分隊")]
-        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)] 
-        public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
-            if (player != null && !IsPlayerAdmin(player)) {
-                return;
-            }
-
-            if (isMatchSetup) { 
-                ReplyToUserCommand(player, "正式比賽模式禁用隨機分隊！");
-                return;
-            }
-
-            isShufflePending = true;
-            
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。開賽時將自動洗牌！");
-            
-            if (player == null) {
-                Console.WriteLine("[MatchZy] 已 開 啟 隨 機 隊 伍 分 配");
+                count++;
             }
         }
+    }
+    return count;
+}
+[ConsoleCommand("css_shuffle", "預約隨機分隊")]
+[CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)] // 強制宣告客戶端與伺服器皆可執行
+public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
+    // 1. 權限檢查：如果是玩家發出的，檢查管理員權限；如果是伺服器 (player == null)，直接通過
+    if (player != null && !IsPlayerAdmin(player)) {
+        return;
+    }
 
-        [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
-        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
-        public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command) {
-            if (player != null && !IsPlayerAdmin(player)) {
-                return;
-            }
+    if (isMatchSetup) { 
+        ReplyToUserCommand(player, "正式比賽模式禁用隨機分隊！");
+        return;
+    }
 
-            isShufflePending = false;
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。將維持目前隊伍開賽。");
-            
-            if (player == null) {
-                Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
-            }
-        }
+    isShufflePending = true;
+    
+    // 2. 執行廣播
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」。開賽時將自動洗牌！");
+    
+    // 3. 確保黑視窗有回饋
+    if (player == null) {
+        Console.WriteLine("[MatchZy] 已 開 啟 隨 機 隊 伍 分 配");
+    }
+}
 
+[ConsoleCommand("css_unshuffle", "取消隨機分隊")]
+[CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
+public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command) {
+    if (player != null && !IsPlayerAdmin(player)) {
+        return;
+    }
+
+    isShufflePending = false;
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。將維持目前隊伍開賽。");
+    
+    if (player == null) {
+        Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
+    }
+}
         public void ExecuteShuffleLogic() 
+{
+    // 1. 安全檢查：如果沒有預約洗牌，則直接跳出
+    if (!isShufflePending) return;
+
+    // 2. 獲取當前所有在場上的選手（排除機器人與觀戰者）
+    List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
+        .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+        .ToList();
+
+    // 3. 人數檢查：至少需要 2 人才能洗牌
+    if (activePlayers.Count < 2) 
+    {
+        Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
+        isShufflePending = false; // 失敗也要重置標記，避免狀態殘留
+        return;
+    }
+
+    // 4. Fisher-Yates 洗牌演算法
+    Random rng = new();
+    int n = activePlayers.Count;
+    while (n > 1) 
+    {
+        n--;
+        int k = rng.Next(n + 1);
+        (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
+    }
+
+    // 5. 分配隊伍
+    int half = activePlayers.Count / 2;
+    for (int i = 0; i < activePlayers.Count; i++) 
+    {
+        // 為了確保 ChangeTeam 成功，建議在下一幀或立即執行時確保狀態一致
+        if (i < half) 
         {
-            if (!isShufflePending) return;
-
-            List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
-                .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                .ToList();
-
-            if (activePlayers.Count < 2) 
-            {
-                Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
-                isShufflePending = false; 
-                return;
-            }
-
-            Random rng = new();
-            int n = activePlayers.Count;
-            while (n > 1) 
-            {
-                n--;
-                int k = rng.Next(n + 1);
-                (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
-            }
-
-            int half = activePlayers.Count / 2;
-            for (int i = 0; i < activePlayers.Count; i++) 
-            {
-                if (i < half) 
-                {
-                    activePlayers[i].ChangeTeam(CsTeam.Terrorist);
-                }
-                else 
-                {
-                    activePlayers[i].ChangeTeam(CsTeam.CounterTerrorist);
-                }
-            }
-
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-            Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
-            
-            isShufflePending = false;
+            activePlayers[i].ChangeTeam(CsTeam.Terrorist);
         }
+        else 
+        {
+            activePlayers[i].ChangeTeam(CsTeam.CounterTerrorist);
+        }
+    }
+
+    // 6. 輸出訊息與重置標記
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+    Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
+    
+    isShufflePending = false;
+}
 
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
