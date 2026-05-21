@@ -363,7 +363,7 @@ AddCommandListener("jointeam", (player, info) =>
             {
                 if (player != null && isMatchSetup) 
                 {
-                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正式比賽期間，內建投票功能已被禁用！");
+                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正 式 比 賽 期 間，內 建 投 票 功 能 已 被 禁 用");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
