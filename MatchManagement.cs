@@ -43,7 +43,7 @@ else if (@event.Team == 2 || @event.Team == 3) // 進入選手隊伍
             {
                 if (!@event.Silent)
                 {
-                    ReplyToUserCommand(player, "刀局或比賽期間禁止自行更換隊伍！"); 
+                    ReplyToUserCommand(player, "刀 局 已 開 始，禁 止 互 換 隊 伍"); 
                     return HookResult.Stop; 
                 }
             }
@@ -561,11 +561,11 @@ else if (@event.Team == 2 || @event.Team == 3) // 進入選手隊伍
             (int team1Score, int team2Score) = (matchzyTeam1.seriesScore, matchzyTeam2.seriesScore);
             if (winnerName == null)
             {
-                PrintToAllChat($"{ChatColors.Green}雙方最終戰平！{ChatColors.Default}");
+                PrintToAllChat($"{ChatColors.Green}雙 方 最 終 戰 平{ChatColors.Default}");
             }
             else
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{winnerName}{ChatColors.Default} 贏得了最終勝利！");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{winnerName}{ChatColors.Default} 贏 得 了 最 終 勝 利");
             }
 
             string winnerTeam = (winnerName == null) ? "none" : matchzyTeam1.seriesScore > matchzyTeam2.seriesScore ? "team1" : "team2";
