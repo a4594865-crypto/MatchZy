@@ -949,7 +949,7 @@ namespace MatchZy
             string cleanTeamName1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             if (!cleanTeamName1.EndsWith("隊 伍")) cleanTeamName1 += " 隊 伍";
                 
-           Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
+           Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
         }
         else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
         {
@@ -957,7 +957,7 @@ namespace MatchZy
             string cleanTeamName2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             if (!cleanTeamName2.EndsWith("隊 伍")) cleanTeamName2 += " 隊 伍";
                 
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
         }
 
             matchConfig.CurrentMapNumber += 1;
@@ -1080,7 +1080,7 @@ namespace MatchZy
                     if (!cleanRoundTeam2.EndsWith("隊 伍")) cleanRoundTeam2 += " 隊 伍";
 
                     // 輸出乾淨的隊名
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanRoundTeam1}{ChatColors.Default}  {t1score} - {t2score}  {ChatColors.green}{cleanRoundTeam2}");
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanRoundTeam1}{ChatColors.Default}  {t1score} - {t2score}  {ChatColors.Lime}{cleanRoundTeam2}");
                     
                     ShowDamageInfo();
 
