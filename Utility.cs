@@ -1064,7 +1064,7 @@ namespace MatchZy
                     string cleanRoundTeam2 = matchzyTeam2.teamName.StartsWith("Team_") ? matchzyTeam2.teamName.Replace("Team_", "") : matchzyTeam2.teamName;
 
                     // 輸出乾淨的隊名
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanRoundTeam1}{ChatColors.Default}   {t1score} - {t2score}   {ChatColors.Green}{cleanRoundTeam2}");
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanRoundTeam1}{ChatColors.Default}  {t1score} - {t2score}  {ChatColors.Green}{cleanRoundTeam2}");
                     
                     ShowDamageInfo();
 
