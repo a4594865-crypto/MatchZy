@@ -748,7 +748,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-        public void ExecuteShuffleLogic() 
+public void ExecuteShuffleLogic() 
 {
     // 1. 安全檢查：如果沒有預約洗牌，則直接跳出
     if (!isShufflePending) return;
@@ -761,7 +761,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     // 3. 人數檢查：至少需要 2 人才能洗牌
     if (activePlayers.Count < 2) 
     {
-        Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
         isShufflePending = false; // 失敗也要重置標記，避免狀態殘留
         return;
     }
@@ -776,11 +775,10 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
     }
 
-    // 5. 分配隊伍
+    // 5. 分配隊伍（在此刻第 0 秒玩家收到換隊指令，進入 7 秒倒數）
     int half = activePlayers.Count / 2;
     for (int i = 0; i < activePlayers.Count; i++) 
     {
-        // 為了確保 ChangeTeam 成功，建議在下一幀或立即執行時確保狀態一致
         if (i < half) 
         {
             activePlayers[i].ChangeTeam(CsTeam.Terrorist);
@@ -791,10 +789,38 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         }
     }
 
-    // 6. 輸出訊息與重置標記
+    // 6. 輸出聊天室訊息與寫入指定格式的 Log 紀錄
     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
+
+    // ============================================================
+    // 🎯 終極鎖定：獨立定時器 9 秒（7秒開賽倒數 + 2秒底層同步緩衝）
+    // ============================================================
+    AddTimer(9.0f, () => {
+        
+        // 防呆：如果在倒數 7 秒期間有人斷線被 MatchZy 中斷了，代表這場取消重來，就不去執行抓取
+        if (!matchStarted && !readyAvailable) return; 
+
+        // 【精準在倒數結束 2 秒後，現場撈取此時此刻在新隊伍中真正還在線的選手】
+        var tCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 2);
+        var ctCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 3);
+
+        // 轉為純文字：如果抓得到人名就用 team_玩家名；若有萬一發生極端狀況，則給予非空的預設隊名
+        string tName = (tCaptain != null && !string.IsNullOrEmpty(tCaptain.PlayerName)) 
+                        ? $"team_{tCaptain.PlayerName}" 
+                        : "team_Terrorists";
+
+        string ctName = (ctCaptain != null && !string.IsNullOrEmpty(ctCaptain.PlayerName)) 
+                        ? $"team_{ctCaptain.PlayerName}" 
+                        : "team_CounterTerrorists";
+
+        // 用伺服器指令強制寫入！在比賽開始後的第 2 秒徹底鎖死
+        Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
+        Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
+    });
+    // ============================================================
     
+    // 洗牌與分配的核心動作已在第 0 秒完全發送給伺服器，重置標記
     isShufflePending = false;
 }
 
