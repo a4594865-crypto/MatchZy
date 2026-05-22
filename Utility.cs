@@ -766,7 +766,8 @@ namespace MatchZy
                 {
                     if (playerData[key].TeamNum == 3)
                     {
-                        matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_"));
+                        // 💡 拔除 "team_"，並在最後面加上 " 團隊"
+                        matchzyTeam1.teamName = RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_")) + " 團隊";
                         foreach (var coach in matchzyTeam1.coach) {
                             coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
                         }
@@ -785,7 +786,8 @@ namespace MatchZy
                 {
                     if (playerData[key].TeamNum == 2)
                     {
-                        matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_"));
+                        // 💡 拔除 "team_"，並在最後面加上 " 團隊"
+                        matchzyTeam2.teamName = RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_")) + " 團隊";
                         foreach (var coach in matchzyTeam2.coach) {
                             coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
                         }
