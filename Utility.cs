@@ -312,7 +312,7 @@ namespace MatchZy
             string cleanKnifeWinnerName = System.Text.RegularExpressions.Regex.Replace(knifeWinnerName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             
             // 💡 在名字的最後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
-            if (!cleanKnifeWinnerName.EndsWith("隊伍")) cleanKnifeWinnerName += " 隊伍";
+            if (!cleanKnifeWinnerName.EndsWith("隊 伍")) cleanKnifeWinnerName += " 隊 伍";
             
             ShowDamageInfo();
             
@@ -947,17 +947,17 @@ namespace MatchZy
             {
              // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
             string cleanTeamName1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
-            if (!cleanTeamName1.EndsWith("隊伍")) cleanTeamName1 += " 隊伍";
+            if (!cleanTeamName1.EndsWith("隊 伍")) cleanTeamName1 += " 隊 伍";
                 
-           Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
+           Server.PrintToChatAll($"{chatPrefix} {ChatColors.green}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
         }
         else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
         {
             // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
             string cleanTeamName2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
-            if (!cleanTeamName2.EndsWith("隊伍")) cleanTeamName2 += " 隊伍";
+            if (!cleanTeamName2.EndsWith("隊 伍")) cleanTeamName2 += " 隊 伍";
                 
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.green}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
         }
 
             matchConfig.CurrentMapNumber += 1;
@@ -1076,11 +1076,11 @@ namespace MatchZy
                     string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
 
                     // 💡 在名字的後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
-                    if (!cleanRoundTeam1.EndsWith("隊伍")) cleanRoundTeam1 += " 隊伍";
-                    if (!cleanRoundTeam2.EndsWith("隊伍")) cleanRoundTeam2 += " 隊伍";
+                    if (!cleanRoundTeam1.EndsWith("隊 伍")) cleanRoundTeam1 += " 隊 伍";
+                    if (!cleanRoundTeam2.EndsWith("隊 伍")) cleanRoundTeam2 += " 隊 伍";
 
                     // 輸出乾淨的隊名
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}{cleanRoundTeam1}{ChatColors.Default}  {t1score} - {t2score}  {ChatColors.Orange}{cleanRoundTeam2}");
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.green}{cleanRoundTeam1}{ChatColors.Default}  {t1score} - {t2score}  {ChatColors.green}{cleanRoundTeam2}");
                     
                     ShowDamageInfo();
 
