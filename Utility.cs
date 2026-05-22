@@ -936,11 +936,17 @@ namespace MatchZy
 
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
+                // 大局：自動洗掉開頭的 "Team_"
+                string cleanTeamName1 = matchzyTeam1.teamName.StartsWith("Team_") ? matchzyTeam1.teamName.Replace("Team_", "") : matchzyTeam1.teamName;
+                
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
             }
             else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
             {
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam2.teamName}{ChatColors.Default} is winning the series {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
+                // 大局：自動洗掉開頭的 "Team_"
+                string cleanTeamName2 = matchzyTeam2.teamName.StartsWith("Team_") ? matchzyTeam2.teamName.Replace("Team_", "") : matchzyTeam2.teamName;
+                
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
             }
 
             matchConfig.CurrentMapNumber += 1;
@@ -1043,7 +1049,7 @@ namespace MatchZy
             UpdateHostname();
         }
 
-        private void HandlePostRoundEndEvent(EventRoundEnd @event)
+       private void HandlePostRoundEndEvent(EventRoundEnd @event)
         {
             try
             {
@@ -1052,8 +1058,14 @@ namespace MatchZy
                     coachKillTimer?.Kill();
                     coachKillTimer = null;
                     (int t1score, int t2score) = GetTeamsScore();
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{matchzyTeam1.teamName} [{t1score} - {t2score}] {matchzyTeam2.teamName}");
 
+                    // 小局：在這裡自動洗掉雙方隊伍開頭的 "Team_"
+                    string cleanRoundTeam1 = matchzyTeam1.teamName.StartsWith("Team_") ? matchzyTeam1.teamName.Replace("Team_", "") : matchzyTeam1.teamName;
+                    string cleanRoundTeam2 = matchzyTeam2.teamName.StartsWith("Team_") ? matchzyTeam2.teamName.Replace("Team_", "") : matchzyTeam2.teamName;
+
+                    // 輸出乾淨的隊名
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanRoundTeam1}{ChatColors.Default}   {t1score} - {t2score}   {ChatColors.Green}{cleanRoundTeam2}");
+                    
                     ShowDamageInfo();
 
                     (Dictionary<ulong, Dictionary<string, object>> playerStatsDictionary, List<StatsPlayer> playerStatsListTeam1, List<StatsPlayer> playerStatsListTeam2) = GetPlayerStatsDict();
