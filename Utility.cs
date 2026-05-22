@@ -302,24 +302,26 @@ namespace MatchZy
             // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{knifeWinnerName}{ChatColors.Default} Won the knife. Waiting for them to type {ChatColors.Green}.stay{ChatColors.Default} or {ChatColors.Green}.switch{ChatColors.Default}");
         }
 
-       private void StartAfterKnifeWarmup()
+      private void StartAfterKnifeWarmup()
         {
             isWarmup = true;
             ExecWarmupCfg();
             knifeWinnerName = knifeWinner == 3 ? reverseTeamSides["CT"].teamName : reverseTeamSides["TERRORIST"].teamName;
             
-            // 💡 新增這行：將刀局贏家的隊伍名稱強制洗乾淨（大小寫通殺）
+            // 💡 將刀局贏家的隊伍名稱強制洗乾淨（不分大小寫洗掉 team_）
             string cleanKnifeWinnerName = System.Text.RegularExpressions.Regex.Replace(knifeWinnerName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            
+            // 💡 在名字的最後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
+            if (!cleanKnifeWinnerName.EndsWith("隊伍")) cleanKnifeWinnerName += " 隊伍";
             
             ShowDamageInfo();
             
-            // 💡 修改這行：把清洗後的乾淨名稱（cleanKnifeWinnerName）送進翻譯檔案
+            // 💡 把清洗後且在名字後面加了「 隊伍」的乾淨名稱送進翻譯檔案
             PrintToAllChat(Localizer["matchzy.knife.sidedecisionpending", cleanKnifeWinnerName]);
             
             // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{knifeWinnerName}{ChatColors.Default} Won the knife. Waiting for them to type {ChatColors.Green}.stay{ChatColors.Default} or {ChatColors.Green}.switch{ChatColors.Default}");
             sideSelectionMessageTimer ??= AddTimer(chatTimerDelay, SendSideSelectionMessage, TimerFlags.REPEAT);
         }
-
         private void SetLiveFlags()
         {
             // Setting match phases bools
@@ -766,8 +768,7 @@ namespace MatchZy
                 {
                     if (playerData[key].TeamNum == 3)
                     {
-                        // 💡 拔除 "team_"，並在最後面加上 " 團隊"
-                        matchzyTeam1.teamName = RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_")) + " 團隊";
+                        matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_"));
                         foreach (var coach in matchzyTeam1.coach) {
                             coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
                         }
@@ -786,8 +787,7 @@ namespace MatchZy
                 {
                     if (playerData[key].TeamNum == 2)
                     {
-                        // 💡 拔除 "team_"，並在最後面加上 " 團隊"
-                        matchzyTeam2.teamName = RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_")) + " 團隊";
+                        matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(playerData[key].PlayerName.Replace(" ", "_"));
                         foreach (var coach in matchzyTeam2.coach) {
                             coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
                         }
@@ -945,18 +945,20 @@ namespace MatchZy
 
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
-               // 大局：自動洗掉開頭的 "Team_"
-                string cleanTeamName1 = matchzyTeam1.teamName.StartsWith("Team_") ? matchzyTeam1.teamName.Replace("Team_", "") : matchzyTeam1.teamName;
+             // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
+            string cleanTeamName1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            if (!cleanTeamName1.EndsWith("隊伍")) cleanTeamName1 += " 隊伍";
                 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Green}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
-            }
-            else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
-            {
-                // 大局：自動洗掉開頭的 "Team_"
-                string cleanTeamName2 = matchzyTeam2.teamName.StartsWith("Team_") ? matchzyTeam2.teamName.Replace("Team_", "") : matchzyTeam2.teamName;
+           Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
+        }
+        else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
+        {
+            // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
+            string cleanTeamName2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            if (!cleanTeamName2.EndsWith("隊伍")) cleanTeamName2 += " 隊伍";
                 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Green}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
-            }
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
+        }
 
             matchConfig.CurrentMapNumber += 1;
             string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
@@ -1073,8 +1075,12 @@ namespace MatchZy
                     string cleanRoundTeam1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
                     string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
 
+                    // 💡 在名字的後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
+                    if (!cleanRoundTeam1.EndsWith("隊伍")) cleanRoundTeam1 += " 隊伍";
+                    if (!cleanRoundTeam2.EndsWith("隊伍")) cleanRoundTeam2 += " 隊伍";
+
                     // 輸出乾淨的隊名
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanRoundTeam1}{ChatColors.Default}  {t1score} - {t2score}  {ChatColors.Green}{cleanRoundTeam2}");
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}{cleanRoundTeam1}{ChatColors.Default}  {t1score} - {t2score}  {ChatColors.Orange}{cleanRoundTeam2}");
                     
                     ShowDamageInfo();
 
