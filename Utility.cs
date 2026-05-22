@@ -939,14 +939,14 @@ namespace MatchZy
                 // 大局：自動洗掉開頭的 "Team_"
                 string cleanTeamName1 = matchzyTeam1.teamName.StartsWith("Team_") ? matchzyTeam1.teamName.Replace("Team_", "") : matchzyTeam1.teamName;
                 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Green}{matchzyTeam1.seriesScore}-{matchzyTeam2.seriesScore}{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Green}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
             }
             else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
             {
                 // 大局：自動洗掉開頭的 "Team_"
                 string cleanTeamName2 = matchzyTeam2.teamName.StartsWith("Team_") ? matchzyTeam2.teamName.Replace("Team_", "") : matchzyTeam2.teamName;
                 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Green}{matchzyTeam2.seriesScore}-{matchzyTeam1.seriesScore}{ChatColors.Default}");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Green}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
             }
 
             matchConfig.CurrentMapNumber += 1;
