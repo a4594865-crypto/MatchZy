@@ -302,13 +302,20 @@ namespace MatchZy
             // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{knifeWinnerName}{ChatColors.Default} Won the knife. Waiting for them to type {ChatColors.Green}.stay{ChatColors.Default} or {ChatColors.Green}.switch{ChatColors.Default}");
         }
 
-        private void StartAfterKnifeWarmup()
+       private void StartAfterKnifeWarmup()
         {
             isWarmup = true;
             ExecWarmupCfg();
             knifeWinnerName = knifeWinner == 3 ? reverseTeamSides["CT"].teamName : reverseTeamSides["TERRORIST"].teamName;
+            
+            // 💡 新增這行：將刀局贏家的隊伍名稱強制洗乾淨（大小寫通殺）
+            string cleanKnifeWinnerName = System.Text.RegularExpressions.Regex.Replace(knifeWinnerName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            
             ShowDamageInfo();
-            PrintToAllChat(Localizer["matchzy.knife.sidedecisionpending", knifeWinnerName]);
+            
+            // 💡 修改這行：把清洗後的乾淨名稱（cleanKnifeWinnerName）送進翻譯檔案
+            PrintToAllChat(Localizer["matchzy.knife.sidedecisionpending", cleanKnifeWinnerName]);
+            
             // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{knifeWinnerName}{ChatColors.Default} Won the knife. Waiting for them to type {ChatColors.Green}.stay{ChatColors.Default} or {ChatColors.Green}.switch{ChatColors.Default}");
             sideSelectionMessageTimer ??= AddTimer(chatTimerDelay, SendSideSelectionMessage, TimerFlags.REPEAT);
         }
