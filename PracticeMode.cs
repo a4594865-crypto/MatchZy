@@ -771,11 +771,11 @@ namespace MatchZy
 			}
         }
 
-        [ConsoleCommand("css_prac", "Starts practice mode")]
-        [ConsoleCommand("css_tactics", "Starts practice mode")]
+        [ConsoleCommand("css_prac999", "Starts practice mode")]
+        [ConsoleCommand("css_tactics999", "Starts practice mode")]
         public void OnPracCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (!IsPlayerAdmin(player, "css_prac", "@css/map", "@custom/prac")) {
+            if (!IsPlayerAdmin(player, "css_prac999", "@css/map", "@custom/prac")) {
                 SendPlayerNotAdminMessage(player);
                 return;
             }
