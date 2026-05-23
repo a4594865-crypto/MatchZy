@@ -1076,8 +1076,8 @@ namespace MatchZy
                     string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
 
                     // 💡 在名字的後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
-                    if (!cleanRoundTeam1.EndsWith("隊 伍")) cleanRoundTeam1 += " 隊 伍";
-                    if (!cleanRoundTeam2.EndsWith("隊 伍")) cleanRoundTeam2 += " 隊 伍";
+                    if (!cleanRoundTeam1.EndsWith("隊伍")) cleanRoundTeam1 += " 隊伍";
+                    if (!cleanRoundTeam2.EndsWith("隊伍")) cleanRoundTeam2 += " 隊伍";
 
                     // 輸出乾淨的隊名
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanRoundTeam1}{ChatColors.Default}  {t1score} - {t2score}  {ChatColors.Lime}{cleanRoundTeam2}");
