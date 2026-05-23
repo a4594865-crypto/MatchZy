@@ -37,7 +37,7 @@ namespace MatchZy
         public bool isWarmup = false;
         public bool isCountdownActive = false; // 加入這一行，宣告全域開關
         public bool isShufflePending = false; // A方案：預約隨機分隊標記
-        public bool isShuffleNameLocked = false; // 🎯 新增：隨機分隊完成後，等待刀局開局命名的標記
+        public bool isShuffleNameLocked = false; // 新增：隨機分隊完成後，等待刀局開局命名的標記
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
         public bool isMatchLive = false;
@@ -258,7 +258,7 @@ namespace MatchZy
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義要發送的訊息內容
-    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+    string disconnectMsg = $"{chatPrefix} {ChatColors.Default}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.Default}斷 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.Default}準 備";
 
     // 2. 立即發送 (第 1 次)
     CancelMatchCountdown(disconnectMsg);
@@ -356,7 +356,7 @@ AddCommandListener("jointeam", (player, info) =>
     if (matchStartCountdownTimer != null || isCountdownActive)
     {
         // 顯示警告訊息給該玩家
-        player.PrintToChat($"{chatPrefix} {ChatColors.Default}倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
+        player.PrintToChat($"{chatPrefix} 倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
         
         // 返回 HookResult.Stop 就能直接吃掉這個指令，讓玩家留在原地
         return HookResult.Stop; 
@@ -377,7 +377,7 @@ AddCommandListener("jointeam", (player, info) =>
         byte currentTeam = player.TeamNum;
         if ((targetTeam == "2" || targetTeam == "3") && (currentTeam == 2 || currentTeam == 3))
         {
-            player.PrintToChat($"{chatPrefix} {ChatColors.Default}比 賽 已 開 始，禁 止 互 換 隊 伍");
+            player.PrintToChat($"{chatPrefix} 比 賽 已 開 始，禁 止 互 換 隊 伍");
             return HookResult.Stop; 
         }
     }
@@ -780,7 +780,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 
     isShufflePending = false;
-    Server.PrintToChatAll($"{chatPrefix} 管理員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default} 」 維持目前隊伍");
+    Server.PrintToChatAll($"{chatPrefix} 管理員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維持目前隊伍");
     
     if (player == null) {
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
@@ -841,9 +841,8 @@ public void ExecuteShuffleLogic()
     // 立即在第 0 秒寫入！確保 MatchZy 核心初始化與 Demo 錄製抓到這組名字
     Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
     Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
-
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-    Log($"[Shuffle-PreLock] 第0秒預先同步隊名: T={tName}, CT={ctName}");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定");
+    Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家");
 
     isShufflePending = false;
     isShuffleNameLocked = true; // 開啟標記，交給刀局第 5 秒做最終校正
