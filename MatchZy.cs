@@ -314,7 +314,7 @@ RegisterEventHandler<EventRoundPrestart>((@event, info) => {
         // 進入凍結時間的第 2 秒（此時所有人剛轉隊進來，生還狀態穩定，且還在 15 秒凍結內動彈不得）
         AddTimer(2.0f, () => {
             
-            // 現場撈取選手
+            // 現場撈取選手（安全過濾：必須有效、非機器人、且確實待在 T(2) 或 CT(3) 隊伍中）
             var tCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 2);
             var ctCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 3);
 
@@ -334,6 +334,7 @@ RegisterEventHandler<EventRoundPrestart>((@event, info) => {
             isShuffleNameLocked = false;
             
             Log($"[Shuffle-FreezeCheck] 已於刀局凍結時間第 2 秒完成隊名最終校正: T={tName}, CT={ctName}");
+            Console.WriteLine($"[MatchZy-Debug] 刀局第 2 秒校正成功！T 隊名：{tName} | CT 隊名：{ctName}");
         });
     }
 
