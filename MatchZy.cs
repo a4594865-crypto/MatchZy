@@ -37,7 +37,8 @@ namespace MatchZy
         public bool isWarmup = false;
         public bool isCountdownActive = false; // 加入這一行，宣告全域開關
         public bool isShufflePending = false; // A方案：預約隨機分隊標記
-        public bool isShuffleTriggered = false; // 用於通知回合開始(刀局凍結)時現場撈取人名改名
+        public bool isShuffleTriggered = false; // 全新加入：用於通知回合開始時現場撈取人名、發公告與寫 Log
+        public int shufflePlayerCount = 0;      // 全新加入：用於在第 0 秒記錄洗牌玩家數，在刀局第 5 秒精準寫入 Log
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
         public bool isMatchLive = false;
@@ -237,7 +238,7 @@ namespace MatchZy
                         // 延遲踢除，確保訊息發送
                         AddTimer(1.5f, () => {
                             if (player != null && player.IsValid) {
-                                Server.ExecuteCommand($"kickid {player.UserId} "伺 服 器 白 名 單 已 開 啟，您 不 在 白 名 單 中。"");
+                                Server.ExecuteCommand($"kickid {player.UserId} \"伺 服 器 白 名 單 已 開 啟，您 不 在 白 名 單 中。\"");
                                 Log($"[WHITELIST] 已踢出未授權玩家: {player.PlayerName}");
                             }
                         });
@@ -254,7 +255,6 @@ namespace MatchZy
                 int userId = (int)(player.UserId ?? -1);
 
                 // --- A. 倒數期間斷線：中止倒數 ---
-// --- A. 倒數期間斷線：中止倒數 ---
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義要發送的訊息內容
@@ -298,21 +298,43 @@ if (!isWarmup && !matchStarted && !isPractice)
 
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
+            
+            // ============================================================
+            // 🎯 核心修正：將隨機分隊的「廣播與改名」完美代理移至刀局凍結時間第 5 秒
+            // ============================================================
             RegisterEventHandler<EventRoundStart>((@event, info) => {
                 if (isShuffleTriggered) {
                     AddTimer(5.0f, () => {
+                        // 防呆：如果開賽前被重置中置，則不執行
                         if (!matchStarted && !readyAvailable) return;
+
+                        // 【精準現場撈取此時此刻在新隊伍中真正還在線的選手】
                         var tCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 2);
                         var ctCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 3);
-                        string tName = (tCaptain != null && !string.IsNullOrEmpty(tCaptain.PlayerName)) ? $"team_{tCaptain.PlayerName}" : "team_Terrorists";
-                        string ctName = (ctCaptain != null && !string.IsNullOrEmpty(ctCaptain.PlayerName)) ? $"team_{ctCaptain.PlayerName}" : "team_CounterTerrorists";
-                        Server.ExecuteCommand($"mp_teamname_1 "{tName}"");
-                        Server.ExecuteCommand($"mp_teamname_2 "{ctName}"");
+
+                        string tName = (tCaptain != null && !string.IsNullOrEmpty(tCaptain.PlayerName)) 
+                                        ? $"team_{tCaptain.PlayerName}" 
+                                        : "team_Terrorists";
+
+                        string ctName = (ctCaptain != null && !string.IsNullOrEmpty(ctCaptain.PlayerName)) 
+                                        ? $"team_{ctCaptain.PlayerName}" 
+                                        : "team_CounterTerrorists";
+
+                        // 用伺服器指令強制寫入，鎖死隊伍名稱
+                        Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
+                        Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
+
+                        // ✨ 您的原版廣播與 Log 完美歸位到這裡執行，保證倒數完跳入刀局才炸開！
+                        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+                        Log($"[Shuffle] 已完成隨機分隊，共分配 {shufflePlayerCount} 名玩家。");
+
+                        // 燒斷保險絲，功成身退
                         isShuffleTriggered = false;
                     });
                 }
                 return EventRoundStartHandler(@event, info);
             });
+
             RegisterEventHandler<EventRoundFreezeEnd>(EventRoundFreezeEndHandler);
             RegisterEventHandler<EventPlayerGivenC4>(EventPlayerGivenC4);
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
@@ -741,7 +763,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     isShufflePending = true;
     
     // 2. 執行廣播
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。開賽時將自動洗牌");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」。開賽時將自動洗牌");
     
     // 3. 確保黑視窗有回饋
     if (player == null) {
@@ -780,6 +802,9 @@ public void ExecuteShuffleLogic()
         return;
     }
 
+    // 🎯 核心補強：在第 0 秒將洗牌的 activePlayers.Count 玩家總數暫存起來，留給刀局第 5 秒 Log 寫入
+    shufflePlayerCount = activePlayers.Count;
+
     // 4. Fisher-Yates 洗牌演算法
     Random rng = new();
     int n = activePlayers.Count;
@@ -790,7 +815,7 @@ public void ExecuteShuffleLogic()
         (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
     }
 
-    // 5. 分配隊伍（在此刻第 0 秒玩家收到換隊指令，進入倒數）
+    // 5. 分配隊伍（在此刻第 0 秒玩家收到換隊指令，進入 7 秒倒數）
     int half = activePlayers.Count / 2;
     for (int i = 0; i < activePlayers.Count; i++) 
     {
@@ -804,14 +829,11 @@ public void ExecuteShuffleLogic()
         }
     }
 
-    // 6. 輸出聊天室訊息與寫入指定格式的 Log 紀錄
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-    Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
-
-    // ============================================================
-    // 🎯 核心優化：點亮開關，不寫任何硬編碼定時器，完全交給刀局凍結處理
-    // ============================================================
-    isShuffleTriggered = true; 
+    // =======================================================================
+    // 🎯 體驗歸位：第 0 秒洗牌時聊天室全面安靜，我們不在此發送綠色公告文字與 Log。
+    // 僅開啟觸發器，將原本在此處的 9 秒硬等計時器，優化至刀局的 EventRoundStart 精準執行。
+    // =======================================================================
+    isShuffleTriggered = true;
     
     // 洗牌與分配的核心動作已在第 0 秒完全發送給伺服器，重置標記
     isShufflePending = false;
