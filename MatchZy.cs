@@ -132,7 +132,7 @@ namespace MatchZy
                 { ".fup", OnForceUnpauseCommand },
                 { ".tac", OnTacCommand },
                 { ".roundknife", OnKnifeCommand },
-                { ".rk", OnKnifeCommand },
+                { ".rk999", OnKnifeCommand },
                 { ".playout", OnPlayoutCommand },
                 { ".start", OnStartCommand },
                 { ".force", OnStartCommand },
@@ -518,7 +518,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-               // 1. 攔截開賽指令
 // 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
     // 判斷是否為最後一個準備的人
