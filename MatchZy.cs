@@ -37,7 +37,6 @@ namespace MatchZy
         public bool isWarmup = false;
         public bool isCountdownActive = false; // 加入這一行，宣告全域開關
         public bool isShufflePending = false; // A方案：預約隨機分隊標記
-        public bool isShuffleNameLocked = false; // 🎯 新增：隨機分隊完成後，等待刀局開局命名的標記
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
         public bool isMatchLive = false;
@@ -131,8 +130,8 @@ namespace MatchZy
                 { ".forceunpause", OnForceUnpauseCommand },
                 { ".fup", OnForceUnpauseCommand },
                 { ".tac", OnTacCommand },
-                { ".roundknife999", OnKnifeCommand },
-                { ".rk999", OnKnifeCommand },
+                { ".roundknife", OnKnifeCommand },
+                { ".rk", OnKnifeCommand },
                 { ".playout", OnPlayoutCommand },
                 { ".start", OnStartCommand },
                 { ".force", OnStartCommand },
@@ -210,42 +209,6 @@ namespace MatchZy
                 { ".unshuffle", OnUnshuffleCommand },
                 { ".loadpos", OnLoadPosCommand}
             };
-// 1. 刀局後5秒抓隊伍名
-            RegisterEventHandler<EventRoundStart>((@event, info) => {
-                
-                // 🎯 核心攔截點：必須是刀局階段，且是由隨機分隊觸發的命名鎖定
-                if (isKnifeRound && isShuffleNameLocked) 
-                {
-                    // 這才是真正的：刀局凍結時間（FreezeTime）開始後的第 5 秒！
-                    AddTimer(5.0f, () => {
-                        
-                        // 防呆：如果在凍結時間的 5 秒內發生了什麼意外（例如管理員中途關閉或切換地圖），則直接取消
-                        if (!isKnifeRound) return; 
-
-                        // 現場撈取此時此刻在新隊伍中真正還在線、人在場上的選手
-                        var tCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 2);
-                        var ctCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 3);
-
-                        // 轉為純文字：如果抓得到人名就用 team_玩家名；若有萬一發生極端狀況，則給予非空的預設隊名
-                        string tName = (tCaptain != null && !string.IsNullOrEmpty(tCaptain.PlayerName)) 
-                                        ? $"team_{tCaptain.PlayerName}" 
-                                        : "team_Terrorists";
-
-                        string ctName = (ctCaptain != null && !string.IsNullOrEmpty(ctCaptain.PlayerName)) 
-                                        ? $"team_{ctCaptain.PlayerName}" 
-                                        : "team_CounterTerrorists";
-
-                        // 用伺服器指令強制寫入！在刀局凍結時間第 5 秒徹底鎖死
-                        Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
-                        Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
-                        
-                        // 執行完命名後，關閉這場比賽的命名旗標，避免下一回合重複命名
-                        isShuffleNameLocked = false;
-                    });
-                }
-
-                return HookResult.Continue;
-            });
 
     // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
             RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
@@ -785,7 +748,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-public void ExecuteShuffleLogic() 
+        public void ExecuteShuffleLogic() 
 {
     // 1. 安全檢查：如果沒有預約洗牌，則直接跳出
     if (!isShufflePending) return;
@@ -798,6 +761,7 @@ public void ExecuteShuffleLogic()
     // 3. 人數檢查：至少需要 2 人才能洗牌
     if (activePlayers.Count < 2) 
     {
+        Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
         isShufflePending = false; // 失敗也要重置標記，避免狀態殘留
         return;
     }
@@ -812,10 +776,11 @@ public void ExecuteShuffleLogic()
         (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
     }
 
-    // 5. 分配隊伍（在此刻第 0 秒玩家收到換隊指令，進入 7 秒倒數）
+    // 5. 分配隊伍
     int half = activePlayers.Count / 2;
     for (int i = 0; i < activePlayers.Count; i++) 
     {
+        // 為了確保 ChangeTeam 成功，建議在下一幀或立即執行時確保狀態一致
         if (i < half) 
         {
             activePlayers[i].ChangeTeam(CsTeam.Terrorist);
@@ -826,13 +791,12 @@ public void ExecuteShuffleLogic()
         }
     }
 
-    // 6. 輸出聊天室訊息與寫入指定格式的 Log 紀錄
+    // 6. 輸出訊息與重置標記
     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
-
-    // 洗牌與分配的核心動作已完成
+    
     isShufflePending = false;
-    isShuffleNameLocked = true; // 🎯 告訴系統：等一下進入刀局後，要去抓隊名！
 }
+
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
