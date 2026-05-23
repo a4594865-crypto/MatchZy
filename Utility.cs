@@ -292,7 +292,7 @@ namespace MatchZy
     Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
 
     PrintToAllChat($"{ChatColors.Green}======================");
-    PrintToAllChat($"{ChatColors.Red}★ {ChatColors.Default} 刀 局 開 始，勝 者 選 邊 {ChatColors.Red} ★{ChatColors.Default}");
+    PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★{ChatColors.Default}");
     PrintToAllChat($"{ChatColors.Green}======================");
 }
         private void SendSideSelectionMessage()
