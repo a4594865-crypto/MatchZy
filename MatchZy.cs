@@ -799,30 +799,28 @@ public void ExecuteShuffleLogic()
         activePlayers[i].ChangeTeam(i < half ? CsTeam.Terrorist : CsTeam.CounterTerrorist);
     }
 
-    // --- 🎯 關鍵修正區：寫入隊名到記憶體 ---
+    // --- 🎯 關鍵修正區：寫入隊名到記憶體 (修正版) ---
     var tCaptain = activePlayers.FirstOrDefault(p => p.TeamNum == 2);
     var ctCaptain = activePlayers.FirstOrDefault(p => p.TeamNum == 3);
 
-    string tName = (tCaptain != null) ? $"team_{tCaptain.PlayerName}" : "team_Terrorists";
-    string ctName = (ctCaptain != null) ? $"team_{ctCaptain.PlayerName}" : "team_CounterTerrorists";
+    string tName = (tCaptain != null && !string.IsNullOrEmpty(tCaptain.PlayerName)) ? $"team_{tCaptain.PlayerName}" : "team_Terrorists";
+    string ctName = (ctCaptain != null && !string.IsNullOrEmpty(ctCaptain.PlayerName)) ? $"team_{ctCaptain.PlayerName}" : "team_CounterTerrorists";
 
-    // 更新 MatchZy 的隊伍名稱記憶體
-    // 這一點至關重要：MatchZy 產生存檔時是讀取這些變數，而不是讀取 mp_teamname 的指令狀態
+    // 1. 正確更新 teamSides 字典 (這是 MatchZy 產生存檔時讀取的唯一來源)
+    // 注意：這裡直接操作物件屬性，不需要經過 matchConfig
     if (teamSides != null) 
     {
         if (teamSides.ContainsKey("TERRORIST")) teamSides["TERRORIST"].teamName = tName;
         if (teamSides.ContainsKey("CT")) teamSides["CT"].teamName = ctName;
     }
 
-    // 同步更新設定檔名稱 (確保 JSON 存檔一致)
-    if (matchConfig != null) {
-        matchConfig.Team1Name = tName;
-        matchConfig.Team2Name = ctName;
-    }
-
-    // 觸發 UI 名稱更新 (保留你原本的功能)
+    // 2. 觸發 UI 名稱更新 (保留你原本的功能)
     Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
     Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
+
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 名 已 更 新。");
+    isShufflePending = false;
+    isShuffleNameLocked = false;
 
     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 名 已 更 新。");
     isShufflePending = false;
