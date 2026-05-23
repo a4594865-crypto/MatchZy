@@ -795,13 +795,16 @@ public void ExecuteShuffleLogic()
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
 
     // ============================================================
-    // 🎯 智能無敵鎖定：動態掛載回合開始監聽（100% 命中刀局凍結時間）
+    // 🎯 修正版：智能動態掛載（修正為 CSS 官方標準委派語法）
     // ============================================================
-    // 宣告一個 Hook 容器，讓計時器執行完後可以把自己拔掉（自殺）
-    HookResult OnRoundStartHook(EventRoundStart @event, CommandInfo info)
+    
+    // 先宣告一個強型別的事件處理委派變數（解決 method group 轉換失敗問題）
+    Func<EventRoundStart, CommandInfo, HookResult> handlerDelegate = null!;
+
+    // 實作這個委派內容
+    handlerDelegate = (@event, info) => 
     {
-        // 🎯 核心鐵律：不論管理員有沒有打 .start，只要伺服器一進入刀局（凍結時間開始）
-        // 這一瞬間就會觸發這個 Hook，我們直接設定 5 秒計時器（凍結時間正中間）去抓人名！
+        // 🎯 只要伺服器一進入刀局（凍結時間開始），5 秒計時器準時點火！
         AddTimer(5.0f, () => {
             
             // 現場撈取此時此刻真正還在線、被定身在隊伍中的選手
@@ -821,22 +824,21 @@ public void ExecuteShuffleLogic()
             Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
         });
 
-        // 💡 關鍵：改完這一次之後，立刻在下一幀把這個臨時監聽器註銷（卸載）
-        // 這樣就不會影響到後續的手槍局或正式比賽，主機完全零負擔！
+        // 💡 修正錯誤 2：利用 CounterStrikeSharp 官方標準的 DeregisterEventHandler 進行銷毀
         Server.NextFrame(() => {
-            RemoveEventHandler<EventRoundStart>(OnRoundStartHook);
+            DeregisterEventHandler<EventRoundStart>(handlerDelegate);
         });
 
         return HookResult.Continue;
-    }
+    };
 
-    // 在分隊完成的這一刻，正式把這個「臨時監聽器」掛載上去，去偷聽接下來的凍結事件
-    RegisterEventHandler<EventRoundStart>(OnRoundStartHook);
+    // 修正錯誤 1：使用明確的委派變數來進行動態註冊
+    RegisterEventHandler<EventRoundStart>(handlerDelegate);
+    
     // ============================================================
     
     // 洗牌與分配的核心動作已在第 0 秒完全發送給伺服器，重置標記
     isShufflePending = false;
 }
-
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
