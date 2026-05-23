@@ -842,7 +842,7 @@ public void ExecuteShuffleLogic()
     Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
     Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
 
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！已預先鎖定官方隊名。");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
     Log($"[Shuffle-PreLock] 第0秒預先同步隊名: T={tName}, CT={ctName}");
 
     isShufflePending = false;
