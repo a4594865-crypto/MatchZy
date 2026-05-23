@@ -308,11 +308,18 @@ if (!isWarmup && !matchStarted && !isPractice)
 // 🎯 正確的攔截點：EventRoundPrestart 是每回合「重置、凍結時間開始」的第 0 秒
 RegisterEventHandler<EventRoundPrestart>((@event, info) => {
     
-    // 只要「隨機分隊名字鎖定」還開著，就代表這是倒數結束後的「第一個刀局凍結回合」
+    // 【第一道保險】：隨機分隊名字鎖定開著，代表這是倒數結束後的「第一個回合」
     if (isShuffleNameLocked) 
     {
-        // 進入凍結時間的第 2 秒（此時所有人剛轉隊進來，生還狀態穩定，且還在 15 秒凍結內動彈不得）
+        // 進入凍結時間的第 2 秒
         AddTimer(2.0f, () => {
+            
+            // 🔥【第二道終極保險】：實時檢查，如果現在「不是」刀局，立刻退出並解鎖！
+            if (!isKnifeRound) 
+            {
+                isShuffleNameLocked = false;
+                return;
+            }
             
             // 現場撈取選手（安全過濾：必須有效、非機器人、且確實待在 T(2) 或 CT(3) 隊伍中）
             var tCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 2);
@@ -330,11 +337,8 @@ RegisterEventHandler<EventRoundPrestart>((@event, info) => {
             Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
             Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
             
-            // 功成身退，關閉旗標，防止往後的回合重複覆寫隊名
+            // 功成身退，關閉旗標
             isShuffleNameLocked = false;
-            
-            Log($"[Shuffle-FreezeCheck] 已於刀局凍結時間第 2 秒完成隊名最終校正: T={tName}, CT={ctName}");
-            Console.WriteLine($"[MatchZy-Debug] 刀局第 2 秒校正成功！T 隊名：{tName} | CT 隊名：{ctName}");
         });
     }
 
