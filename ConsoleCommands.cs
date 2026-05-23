@@ -400,8 +400,8 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_roundknife999", "Toggles knife round for the match")]
-        [ConsoleCommand("css_rk999", "Toggles knife round for the match")]
+        [ConsoleCommand("css_roundknife", "Toggles knife round for the match")]
+        [ConsoleCommand("css_rk", "Toggles knife round for the match")]
         public void OnKnifeCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (IsPlayerAdmin(player, "css_roundknife", "@css/config"))
@@ -636,7 +636,7 @@ namespace MatchZy
             StartMatchMode();
         }
 
-        [ConsoleCommand("css_exitprac", "Starts match mode")]
+        [ConsoleCommand("css_exitprac999", "Starts match mode")]
         public void OnExitPracCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (!IsPlayerAdmin(player, "css_exitprac", "@css/map", "@custom/prac"))
