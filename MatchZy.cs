@@ -518,24 +518,24 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var message = originalMessage.ToLower();
 
                // 1. 攔截開賽指令
+// 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
-    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
+    // 判斷是否為最後一個準備的人
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
-        if (isShufflePending) 
-        {
-            ExecuteShuffleLogic(); // 執行洗牌
-            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
-        }
-        // -------------------------------------------------------
-
-        // 1. 執行原本的準備邏輯
+        // 📢 【步驟 A】先執行原本的準備邏輯：讓 MatchZy 原生去啟動 7 秒倒數、去執行它的重置
         OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
         
-        // 2. 開啟靜音開關
-        AddTimer(0.2f, () => {
-            isCountdownActive = true; 
+        // ⏱️ 【步驟 B】使用 0.1 秒極短定時器：繞過 OnPlayerReady 的變數重置地雷
+        AddTimer(0.1f, () => {
+            // 倒數已經安全啟動了，此時我們再來檢查並執行洗牌
+            if (isShufflePending) 
+            {
+                ExecuteShuffleLogic(); // 👈 執行洗牌，並將 isShuffleNameLocked 設為 true
+                UpdatePlayersMap();    // 強制更新玩家隊伍緩存
+            }
+            
+            isCountdownActive = true;  // 開啟你的靜音開關
         });
         
         return HookResult.Handled; 
