@@ -827,7 +827,7 @@ public void ExecuteShuffleLogic()
     }
 
     // 6. 輸出聊天室訊息與寫入指定格式的 Log 紀錄
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 名 將 於 刀 局 第 5 秒 自 動 生 成。");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
 
     // 洗牌與分配的核心動作已完成
