@@ -400,11 +400,11 @@ namespace MatchZy
             }
         }
 
-        [ConsoleCommand("css_roundknife", "Toggles knife round for the match")]
-        [ConsoleCommand("css_rk", "Toggles knife round for the match")]
+        [ConsoleCommand("css_roundknife999", "Toggles knife round for the match")]
+        [ConsoleCommand("css_rk999", "Toggles knife round for the match")]
         public void OnKnifeCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (IsPlayerAdmin(player, "css_roundknife", "@css/config"))
+            if (IsPlayerAdmin(player, "css_roundknife999", "@css/config"))
             {
                 isKnifeRequired = !isKnifeRequired;
                 string knifeStatus = isKnifeRequired ? Localizer["matchzy.cc.enabled"] : Localizer["matchzy.cc.disabled"];
