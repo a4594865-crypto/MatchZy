@@ -795,16 +795,16 @@ public void ExecuteShuffleLogic()
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
 
     // ============================================================
-    // 🎯 修正版：智能動態掛載（修正為 CSS 官方標準委派語法）
+    // 🎯 完美編譯版：使用 CSS 官方標準 GameEventHandler 委派型別
     // ============================================================
     
-    // 先宣告一個強型別的事件處理委派變數（解決 method group 轉換失敗問題）
-    Func<EventRoundStart, CommandInfo, HookResult> handlerDelegate = null!;
+    // 1. 用官方指定的 GameEventHandler<EventRoundStart> 來宣告變數，解決型別轉換失敗問題
+    GameEventHandler<EventRoundStart> handlerDelegate = null!;
 
-    // 實作這個委派內容
+    // 2. 實作事件內容
     handlerDelegate = (@event, info) => 
     {
-        // 🎯 只要伺服器一進入刀局（凍結時間開始），5 秒計時器準時點火！
+        // 🎯 只要一進入刀局（凍結時間開始），5 秒計時器準時點火！
         AddTimer(5.0f, () => {
             
             // 現場撈取此時此刻真正還在線、被定身在隊伍中的選手
@@ -824,7 +824,7 @@ public void ExecuteShuffleLogic()
             Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
         });
 
-        // 💡 修正錯誤 2：利用 CounterStrikeSharp 官方標準的 DeregisterEventHandler 進行銷毀
+        // 💡 註銷自身：利用剛剛對上的型別把此臨時監聽器卸載
         Server.NextFrame(() => {
             DeregisterEventHandler<EventRoundStart>(handlerDelegate);
         });
@@ -832,7 +832,7 @@ public void ExecuteShuffleLogic()
         return HookResult.Continue;
     };
 
-    // 修正錯誤 1：使用明確的委派變數來進行動態註冊
+    // 3. 正式註冊（此時傳入的型別與官方要求 100% 相同）
     RegisterEventHandler<EventRoundStart>(handlerDelegate);
     
     // ============================================================
