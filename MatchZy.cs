@@ -30,7 +30,7 @@ namespace MatchZy
         public string adminChatPrefix = $"[{ChatColors.Red}ADMIN{ChatColors.Default}]";
 
         // Plugin start phase data
-        public bool isPractice = false;
+        public bool istice = false;
         public bool isSleep = false;
         public bool readyAvailable = false;
         public bool matchStarted = false;
@@ -147,8 +147,8 @@ namespace MatchZy
                 { ".whitelist", OnWLCommand },
                 { ".globalnades", OnSaveNadesAsGlobalCommand },
                 { ".reload_admins", OnReloadAdmins },
-                { ".tactics", OnPracCommand },
-                { ".prac", OnPracCommand },
+                { ".tactics999", OnPracCommand },
+                { ".prac999", OnPracCommand },
                 { ".showspawns", OnShowSpawnsCommand },
                 { ".hidespawns", OnHideSpawnsCommand },
                 { ".dryrun", OnDryRunCommand },
