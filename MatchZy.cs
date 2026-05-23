@@ -30,7 +30,7 @@ namespace MatchZy
         public string adminChatPrefix = $"[{ChatColors.Red}ADMIN{ChatColors.Default}]";
 
         // Plugin start phase data
-        public bool istice = false;
+        public bool isPractice = false;
         public bool isSleep = false;
         public bool readyAvailable = false;
         public bool matchStarted = false;
