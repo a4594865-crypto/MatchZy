@@ -636,7 +636,7 @@ namespace MatchZy
             StartMatchMode();
         }
 
-        [ConsoleCommand("css_exitprac999", "Starts match mode")]
+        [ConsoleCommand("css_exitprac", "Starts match mode")]
         public void OnExitPracCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (!IsPlayerAdmin(player, "css_exitprac", "@css/map", "@custom/prac"))
