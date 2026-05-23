@@ -304,43 +304,41 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-           // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
 
-RegisterEventHandler<EventRoundStart>((@event, info) => {
-                
-                // 🎯 核心攔截點：必須是刀局階段，且是由隨機分隊觸發的命名鎖定
-                if (isKnifeRound && isShuffleNameLocked) 
-                {
-                    // 這才是真正的：刀局凍結時間（FreezeTime）開始後的第 5 秒！
-                    AddTimer(5.0f, () => {
-                        
-                        // 防呆：如果在凍結時間的 5 秒內發生了什麼意外（例如管理員中途關閉或切換地圖），則直接取消
-                        if (!isKnifeRound) return; 
+// 🎯 正確的攔截點：EventRoundPrestart 是每回合「重置、凍結時間開始」的第 0 秒
+RegisterEventHandler<EventRoundPrestart>((@event, info) => {
+    
+    // 只要「隨機分隊名字鎖定」還開著，就代表這是倒數結束後的「第一個刀局凍結回合」
+    if (isShuffleNameLocked) 
+    {
+        // 進入凍結時間的第 2 秒（此時所有人剛轉隊進來，生還狀態穩定，且還在 15 秒凍結內動彈不得）
+        AddTimer(2.0f, () => {
+            
+            // 現場撈取選手
+            var tCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 2);
+            var ctCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 3);
 
-                        // 現場撈取此時此刻在新隊伍中真正還在線、人在場上的選手
-                        var tCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 2);
-                        var ctCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 3);
+            string tName = (tCaptain != null && !string.IsNullOrEmpty(tCaptain.PlayerName)) 
+                            ? $"team_{tCaptain.PlayerName}" 
+                            : "team_Terrorists";
 
-                        // 轉為純文字：如果抓得到人名就用 team_玩家名；若有萬一發生極端狀況，則給予非空的預設隊名
-                        string tName = (tCaptain != null && !string.IsNullOrEmpty(tCaptain.PlayerName)) 
-                                        ? $"team_{tCaptain.PlayerName}" 
-                                        : "team_Terrorists";
+            string ctName = (ctCaptain != null && !string.IsNullOrEmpty(ctCaptain.PlayerName)) 
+                            ? $"team_{ctCaptain.PlayerName}" 
+                            : "team_CounterTerrorists";
 
-                        string ctName = (ctCaptain != null && !string.IsNullOrEmpty(ctCaptain.PlayerName)) 
-                                        ? $"team_{ctCaptain.PlayerName}" 
-                                        : "team_CounterTerrorists";
+            // 強制鎖死 ConVar
+            Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
+            Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
+            
+            // 功成身退，關閉旗標，防止往後的回合重複覆寫隊名
+            isShuffleNameLocked = false;
+            
+            Log($"[Shuffle-FreezeCheck] 已於刀局凍結時間第 2 秒完成隊名最終校正: T={tName}, CT={ctName}");
+        });
+    }
 
-                        // 用伺服器指令強制寫入！在刀局凍結時間第 5 秒徹底鎖死
-                        Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
-                        Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
-                        
-                        // 執行完命名後，關閉這場比賽的命名旗標，避免下一回合重複命名
-                        isShuffleNameLocked = false;
-                    });
-                }
-
-                return HookResult.Continue;
-            });
+    return HookResult.Continue;
+});
 // 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
 AddCommandListener("jointeam", (player, info) =>
 {
@@ -786,22 +784,20 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 }
 public void ExecuteShuffleLogic() 
 {
-    // 1. 安全檢查：如果沒有預約洗牌，則直接跳出
+    // 1. 安全檢查
     if (!isShufflePending) return;
 
-    // 2. 獲取當前所有在場上的選手（排除機器人與觀戰者）
     List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
         .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
         .ToList();
 
-    // 3. 人數檢查：至少需要 2 人才能洗牌
     if (activePlayers.Count < 2) 
     {
-        isShufflePending = false; // 失敗也要重置標記，避免狀態殘留
+        isShufflePending = false; 
         return;
     }
 
-    // 4. Fisher-Yates 洗牌演算法
+    // 2. Fisher-Yates 洗牌演算法
     Random rng = new();
     int n = activePlayers.Count;
     while (n > 1) 
@@ -811,7 +807,7 @@ public void ExecuteShuffleLogic()
         (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
     }
 
-    // 5. 分配隊伍（在此刻第 0 秒玩家收到換隊指令，進入 7 秒倒數）
+    // 3. 分配隊伍
     int half = activePlayers.Count / 2;
     for (int i = 0; i < activePlayers.Count; i++) 
     {
@@ -825,13 +821,28 @@ public void ExecuteShuffleLogic()
         }
     }
 
-    // 6. 輸出聊天室訊息與寫入指定格式的 Log 紀錄
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 名 將 於 刀 局 第 5 秒 自 動 生 成。");
-    Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
+    // === 軌道一：【記憶體預測鎖定】(解決 Demo 與 JSON 紀錄不同步) ===
+    // 不等引擎 ChangeTeam 生效，直接從我們剛剛洗牌好的 activePlayers 陣列前半段與後半段抓人名！
+    var predictedTCaptain = activePlayers.ElementAtOrDefault(0);
+    var predictedCTCaptain = activePlayers.ElementAtOrDefault(half);
 
-    // 洗牌與分配的核心動作已完成
+    string tName = (predictedTCaptain != null && !string.IsNullOrEmpty(predictedTCaptain.PlayerName)) 
+                    ? $"team_{predictedTCaptain.PlayerName}" 
+                    : "team_Terrorists";
+
+    string ctName = (predictedCTCaptain != null && !string.IsNullOrEmpty(predictedCTCaptain.PlayerName)) 
+                    ? $"team_{predictedCTCaptain.PlayerName}" 
+                    : "team_CounterTerrorists";
+
+    // 立即在第 0 秒寫入！確保 MatchZy 核心初始化與 Demo 錄製抓到這組名字
+    Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
+    Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
+
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！已預先鎖定官方隊名。");
+    Log($"[Shuffle-PreLock] 第0秒預先同步隊名: T={tName}, CT={ctName}");
+
     isShufflePending = false;
-    isShuffleNameLocked = true; // 🎯 告訴系統：等一下進入刀局後，要去抓隊名！
+    isShuffleNameLocked = true; // 開啟標記，交給刀局第 5 秒做最終校正
 }
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
