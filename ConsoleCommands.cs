@@ -190,7 +190,7 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // 🛑 核心防線 1：93秒冷卻與狀態攔截！如果是 .p 戰術暫停剛過 93 秒內，直接回絕
+            // 核心防線 1：93秒冷卻與狀態攔截！如果是 .p 戰術暫停剛過 93 秒內，直接回絕
             if (IsInTacticalPauseWindow() || techPauseAutoUnpauseTimer != null || isPaused)
             {
                 if (player != null)
@@ -200,7 +200,7 @@ namespace MatchZy
                 return; 
             }
 
-            // 🛑 核心防線 2：回合正式開始後攔截（非凍結時間、非熱身，禁止輸入暫停）
+            // 核心防線 2：回合正式開始後攔截（非凍結時間、非熱身，禁止輸入暫停）
             if (player != null)
             {
                 var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
@@ -209,7 +209,7 @@ namespace MatchZy
                     if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
                     {
                         PrintToPlayerChat(player, $" 回 合 已 開 始，無 法 使 用 {ChatColors.Default}技 術 暫 停");
-                        return; // 💥 直接封鎖，不往下執行
+                        return; 
                     }
                 }
             }
@@ -239,7 +239,7 @@ namespace MatchZy
             {
                 Log($"[.tac command sent via chat] Sent by: {player.UserId}, connectedPlayers: {connectedPlayers}");
                 
-                // 🛡️ 保留你原本檔案就有的設計：正在技術暫停（isPaused）時打 .p 就會被攔截
+                // 正在技術暫停（isPaused）時打 .p 就會被攔截
                 if (isPaused)
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.cc.matchpaused"]);
@@ -251,7 +251,7 @@ namespace MatchZy
                 {
                     if (gameRules.TerroristTimeOuts > 0)
                     {
-                        // 📝 【精準蓋章】確定要發動戰術暫停了，立刻記錄引擎時間（啟動 93 秒冷卻計時）
+                        // 確定要發動戰術暫停了，立刻記錄引擎時間（啟動 93 秒冷卻計時）
                         lastTacticalPauseTime = Server.EngineTime;
                         Server.ExecuteCommand("timeout_terrorist_start");
                     }
@@ -264,7 +264,7 @@ namespace MatchZy
                 {
                     if (gameRules.CTTimeOuts > 0)
                     {
-                        // 📝 【精準蓋章】確定要發動戰術暫停了，立刻記錄引擎時間（啟動 93 秒冷卻計時）
+                        // 動戰術暫停了，立刻記錄引擎時間（啟動 93 秒冷卻計時）
                         lastTacticalPauseTime = Server.EngineTime;
                         Server.ExecuteCommand("timeout_ct_start");
                     }
