@@ -482,27 +482,22 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
-// 1. 攔截開賽指令 (完美改進版)
+
+               // 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
     // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // 修正一：在 EventPlayerChat 事件中，@event.Userid 本身就是 CCSPlayerController 物件！
-        // 移除原本錯誤的 NativeAPI 轉換，直接抓取正確的打字玩家
-        CCSPlayerController? chattingPlayer = @event.Userid; 
-
-        // --- 在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
+        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
         if (isShufflePending) 
         {
-            ExecuteShuffleLogic(); // 執行洗牌 (內部會直接噴綠字訊息)
+            ExecuteShuffleLogic(); // 執行洗牌
             UpdatePlayersMap();    // 強制更新玩家隊伍緩存
         }
         // -------------------------------------------------------
 
-        // 1. 執行原本的準備邏輯 (修正二：直接把正確的玩家物件安全帶入，確保 10 人都能被原廠與你寫的倒數計時器抓到)
-        if (chattingPlayer != null) {
-            OnPlayerReady(chattingPlayer, null);
-        }
+        // 1. 執行原本的準備邏輯
+        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
         
         // 2. 開啟靜音開關
         AddTimer(0.2f, () => {
@@ -512,6 +507,7 @@ if (message == ".r" || message == ".ready") {
         return HookResult.Handled; 
     }
 }
+
                 // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
                 if (isCountdownActive && !originalMessage.Contains("倒數：")) {
                     return HookResult.Handled;
@@ -746,7 +742,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 
     isShufflePending = false;
-    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 隊 伍 不 變");
+    Server.PrintToChatAll($"{chatPrefix} 管理員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 隊 伍 不 變");
     
     if (player == null) {
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
