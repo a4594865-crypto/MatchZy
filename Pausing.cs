@@ -8,7 +8,7 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 配合您的 MatchZy 版本，使用字串 "matchzyTeam1" 與 "matchzyTeam2" 作為字典 Key
+    // 使用字串 "matchzyTeam1" 與 "matchzyTeam2" 作為字典 Key
     public Dictionary<string, int> techPausesLeft = new() { { "matchzyTeam1", 1 }, { "matchzyTeam2", 1 } };
 
     // 用來控制 300 秒自動解除暫停的計時器變數
@@ -20,16 +20,16 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 93秒核心時間防線：記錄玩家輸入任何戰術暫停指令的引擎時間
+    // 93秒時間防線：記錄玩家輸入任何戰術暫停指令的引擎時間
     public double lastTacticalPauseTime = 0.0;
 
-    // 93秒核心計算方法
+    // 93秒計算方法
     public bool IsInTacticalPauseWindow()
     {
         if (lastTacticalPauseTime <= 0.0) return false;
         
         double currentTime = Server.EngineTime;
-        // 93秒精準防禦
+        // 93秒防禦
         return (currentTime - lastTacticalPauseTime) <= 93.0;
     }
 
