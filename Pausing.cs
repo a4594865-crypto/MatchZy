@@ -20,10 +20,10 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 🔥 93秒核心時間防線：記錄玩家輸入任何戰術暫停指令的引擎時間
+    // 93秒核心時間防線：記錄玩家輸入任何戰術暫停指令的引擎時間
     public double lastTacticalPauseTime = 0.0;
 
-    // 🔥 93秒核心計算方法
+    // 93秒核心計算方法
     public bool IsInTacticalPauseWindow()
     {
         if (lastTacticalPauseTime <= 0.0) return false;
@@ -40,7 +40,7 @@ public partial class MatchZy
     {
         if (!isMatchLive) return;
 
-        // 🛑 防線 3：如果目前正在跑「300秒技術暫停」，禁止重複觸發
+        // 防線 3：如果目前正在跑「300秒技術暫停」，禁止重複觸發
         if (techPauseAutoUnpauseTimer != null)
         {
             if (player != null)
@@ -50,7 +50,7 @@ public partial class MatchZy
             return;
         }
 
-        // 🛑 防線 4：如果目前「已經是原生暫停狀態（.p 戰術暫停中）」，絕對禁止再開 .tech 來亂！
+        // 防線 4：如果目前「已經是原生暫停狀態（.p 戰術暫停中）」，絕對禁止再開 .tech 來亂！
         if (isPaused)
         {
             if (player != null)
