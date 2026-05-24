@@ -484,30 +484,16 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var message = originalMessage.ToLower();
 
                // 1. 攔截開賽指令
-if (message == ".r" || message == ".ready") {
-    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
-    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
-        
-        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
-        if (isShufflePending) 
-        {
-            ExecuteShuffleLogic(); // 執行洗牌
-            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
-        }
-        // -------------------------------------------------------
+RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
-        // 1. 執行原本的準備邏輯
-        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
-        
-        // 2. 開啟靜音開關
-        AddTimer(0.2f, () => {
-            isCountdownActive = true; 
-        });
-        
-        return HookResult.Handled; 
-    }
-}
+                var originalMessage = @event.Text.Trim();
+                var message = originalMessage.ToLower();
 
+                // 🛑 關於 .ready 的攔截與手動洗牌已全數移除 🛑
+                // 讓 MatchZy 官方原廠自己去處理玩家的 .ready 即可。
+
+                return HookResult.Continue;
+            });
                 // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
                 if (isCountdownActive && !originalMessage.Contains("倒數：")) {
                     return HookResult.Handled;
@@ -719,14 +705,14 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     }
 
     if (isMatchSetup) { 
-        ReplyToUserCommand(player, "正式比賽模式禁用隨機分隊！");
+        ReplyToUserCommand(player, "正 式 比 賽 模 式 禁 用 隨 機 分 隊");
         return;
     }
 
     isShufflePending = true;
     
     // 2. 執行廣播
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」將自動洗牌");
+    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
     
     // 3. 確保黑視窗有回饋
     if (player == null) {
@@ -742,7 +728,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 
     isShufflePending = false;
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」維持目前隊伍。");
+    Server.PrintToChatAll($"{chatPrefix} 管理員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 隊 伍 不 變");
     
     if (player == null) {
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
