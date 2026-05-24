@@ -257,18 +257,18 @@ namespace MatchZy
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義要發送的訊息內容
-    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
     // 2. 立即發送 (第 1 次)
     CancelMatchCountdown(disconnectMsg);
     
-    // 3. 延遲 3 秒發送 (第 2 次)
+    // 3. 延遲 4 秒發送 (第 2 次)
     AddTimer(4.0f, () => {
         Server.PrintToChatAll(disconnectMsg);
     });
 
     // 4. 延遲 6 秒發送 (第 3 次)
-    AddTimer(8.0f, () => {
+    AddTimer(10.0f, () => {
         Server.PrintToChatAll(disconnectMsg);
     });
 
@@ -338,7 +338,7 @@ AddCommandListener("jointeam", (player, info) =>
             byte currentTeam = player.TeamNum;
             if ((currentTeam == 2 || currentTeam == 3) && (targetTeam == "1" || targetTeam == "2" || targetTeam == "3"))
             {
-                player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}刀 局 期 間，禁 止 互 換 隊 伍");
+                player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}刀 局 期 間 禁 止 切 換 隊 伍 或 觀 戰");
                 return HookResult.Stop; 
             }
         }
@@ -746,7 +746,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     isShufflePending = true;
     
     // 2. 執行廣播
-    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
+    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 自 動 洗 牌");
     
     // 3. 確保黑視窗有回饋
     if (player == null) {
@@ -812,7 +812,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 
     // 6. 輸出訊息與重置標記
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}隨 機 分 隊 完 成 ！ 隊 伍 已 鎖 定。");
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
     
     isShufflePending = false;
