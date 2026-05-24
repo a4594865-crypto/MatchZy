@@ -236,7 +236,7 @@ namespace MatchZy
                         // 延遲踢除，確保訊息發送
                         AddTimer(1.5f, () => {
                             if (player != null && player.IsValid) {
-                                Server.ExecuteCommand($"kickid {player.UserId} \"伺服器白名單已開啟，您不在 whitelist.cfg 中。\"");
+                                Server.ExecuteCommand($"kickid {player.UserId} \"伺 服 器 白 名 單 已 開 啟，您 不 在 白 名 單 中。\"");
                                 Log($"[WHITELIST] 已踢出未授權玩家: {player.PlayerName}");
                             }
                         });
@@ -257,7 +257,7 @@ namespace MatchZy
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義要發送的訊息內容
-    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線，倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
     // 2. 立即發送 (第 1 次)
     CancelMatchCountdown(disconnectMsg);
@@ -363,7 +363,7 @@ AddCommandListener("jointeam", (player, info) =>
             {
                 if (player != null && isMatchSetup) 
                 {
-                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正式比賽期間，內建投票功能已被禁用！");
+                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正 式 比 賽 期 間，內 建 投 票 功 能 已 被 禁 用");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
@@ -726,7 +726,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     isShufflePending = true;
     
     // 2. 執行廣播
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」。開賽時將自動洗牌！");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」將自動洗牌");
     
     // 3. 確保黑視窗有回饋
     if (player == null) {
@@ -742,7 +742,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 
     isShufflePending = false;
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。將維持目前隊伍開賽。");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」維持目前隊伍。");
     
     if (player == null) {
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
