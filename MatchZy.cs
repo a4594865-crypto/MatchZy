@@ -494,35 +494,37 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
+// 1. 攔截開賽指令
+            if (message == ".r" || message == ".ready") 
+            {
+                // 判斷是否為最後一個準備的人（觸發開賽的關鍵瞬間）
+                if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) 
+                {
+                    // --- 核心用意：搶在開賽倒數前，立即插隊執行清理與洗牌 ---
+                    // 不管有沒有洗牌，只要確定要開賽，先執行脫水清理，確保名單無殘影
+                    ForceUpdateOnlinePlayersMap(); 
 
-            // 1. 攔截開賽指令 (完全保留你原本的精妙設計，只修正編譯型態)
-if (message == ".r" || message == ".ready") {
-    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
-    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
-        
-        // --- 核心用意：搶在開賽倒數前，立即插隊執行洗牌 ---
-        if (isShufflePending) 
-        {
-            ExecuteShuffleLogic(); // 執行洗牌
-            ForceUpdateOnlinePlayersMap(); // 改成呼叫你的新防護函數！
-        }
-        // -------------------------------------------------------
+                    if (isShufflePending) 
+                    {
+                        ExecuteShuffleLogic(); // 執行洗牌
+                    }
+                    // -------------------------------------------------------
 
-        // 1. 執行原本的準備邏輯 (保留你修正指針錯位的 +1 神操作)
-        var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
-        if (targetPlayer != null) {
-            OnPlayerReady(targetPlayer, null);
-        }
-        
-        // 2. 開啟靜音開關
-        AddTimer(0.2f, () => {
-            isCountdownActive = true; 
-        });
-        
-        return HookResult.Handled; // 攔截成功，完美掌控節奏
-    }
-}
-
+                    // 1. 執行原本的準備邏輯 (保留你修正指針錯位的 +1 神操作)
+                    var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
+                    if (targetPlayer != null) 
+                    {
+                        OnPlayerReady(targetPlayer, null);
+                    }
+                    
+                    // 2. 開啟靜音開關
+                    AddTimer(0.2f, () => {
+                        isCountdownActive = true; 
+                    });
+                    
+                    return HookResult.Handled; // 攔截成功，完美掌控節奏
+                }
+            }
                 // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
                 if (isCountdownActive && !originalMessage.Contains("倒數：")) {
                     return HookResult.Handled;
@@ -810,7 +812,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 
     // 6. 輸出訊息與重置標記
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
     
     isShufflePending = false;
