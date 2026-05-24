@@ -187,7 +187,6 @@ namespace MatchZy
     }
     else
     {
-        // 這裡同樣建議加入安全過濾，確保統計已準備人數時不會因為斷線玩家出錯
         int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true && playerData.ContainsKey(kv.Key));
         
         if (isMatchSetup)
@@ -292,7 +291,7 @@ namespace MatchZy
     Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
 
     PrintToAllChat($"{ChatColors.Green}======================");
-    PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★{ChatColors.Default}");
+    PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
     PrintToAllChat($"{ChatColors.Green}======================");
 }
         private void SendSideSelectionMessage()
