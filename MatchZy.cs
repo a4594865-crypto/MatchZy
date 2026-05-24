@@ -323,20 +323,33 @@ AddCommandListener("jointeam", (player, info) =>
         return HookResult.Stop; 
     }
 
-    // --- 以下為非倒數期間的正常比賽邏輯 ---
+   // 刀局與正賽管制期間 // --- 以下為非倒數期間的正常比賽邏輯 ---
     
-    // 如果是熱身階段（且沒在倒數），允許自由換隊
+    // 1. 如果是熱身階段（且沒在倒數），允許自由換隊、自由去觀戰
     if (isWarmup) return HookResult.Continue;
 
-    // 比賽正式開始後
+    // 2. 比賽正式開始後（包含刀局與正賽）
     if (matchStarted)
     {
+        // 🎯 【關鍵差別點一：刀局期間全面封鎖】
+        if (isKnifeRound) 
+        {
+            // 在刀局期間，不管你是要換隊（2, 3）還是去觀戰（1），只要你在場上（CT/T），一律禁止！
+            byte currentTeam = player.TeamNum;
+            if ((currentTeam == 2 || currentTeam == 3) && (targetTeam == "1" || targetTeam == "2" || targetTeam == "3"))
+            {
+                player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}刀 局 期 間，禁 止 互 換 隊 伍");
+                return HookResult.Stop; 
+            }
+        }
+
+        // 🎯 【關鍵差別點二：LIVE正賽期間（非刀局）才放行觀戰】
         // 允許去觀戰 (targetTeam "1" 是觀戰)
         if (targetTeam == "1") return HookResult.Continue;
 
-        // 禁止 CT/T 互換 (targetTeam "2" 是 T, "3" 是 CT)
-        byte currentTeam = player.TeamNum;
-        if ((targetTeam == "2" || targetTeam == "3") && (currentTeam == 2 || currentTeam == 3))
+        // 5. 正式局（LIVE後）限制：禁止 T/CT 互換 
+        byte playerTeam = player.TeamNum;
+        if ((targetTeam == "2" || targetTeam == "3") && (playerTeam == 2 || playerTeam == 3))
         {
             player.PrintToChat($"{chatPrefix} {ChatColors.Default}比 賽 已 開 始，禁 止 互 換 隊 伍");
             return HookResult.Stop; 
@@ -345,7 +358,6 @@ AddCommandListener("jointeam", (player, info) =>
 
     return HookResult.Continue;
 });
-
             // --- 修正版：攔截倒數期間的所有隊伍變動廣播 ---
             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
             {
