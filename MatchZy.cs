@@ -317,7 +317,7 @@ AddCommandListener("jointeam", (player, info) =>
     if (matchStartCountdownTimer != null || isCountdownActive)
     {
         // 顯示警告訊息給該玩家
-        player.PrintToChat($"{chatPrefix} {ChatColors.Default}倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
+        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
         
         // 返回 HookResult.Stop 就能直接吃掉這個指令，讓玩家留在原地
         return HookResult.Stop; 
@@ -351,7 +351,7 @@ AddCommandListener("jointeam", (player, info) =>
         byte playerTeam = player.TeamNum;
         if ((targetTeam == "2" || targetTeam == "3") && (playerTeam == 2 || playerTeam == 3))
         {
-            player.PrintToChat($"{chatPrefix} {ChatColors.Default}比 賽 已 開 始，禁 止 互 換 隊 伍");
+            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比 賽 已 開 始，禁 止 互 換 隊 伍");
             return HookResult.Stop; 
         }
     }
