@@ -483,12 +483,12 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-               // 1. 攔截開賽指令
+            // 1. 攔截開賽指令 (完全保留你原本的精妙設計，只修正編譯型態)
 if (message == ".r" || message == ".ready") {
     // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
+        // --- 核心用意：搶在開賽倒數前，立即插隊執行洗牌 ---
         if (isShufflePending) 
         {
             ExecuteShuffleLogic(); // 執行洗牌
@@ -496,15 +496,18 @@ if (message == ".r" || message == ".ready") {
         }
         // -------------------------------------------------------
 
-        // 1. 執行原本的準備邏輯
-        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
+        // 1. 執行原本的準備邏輯 (保留你修正指針錯位的 +1 神操作)
+        var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
+        if (targetPlayer != null) {
+            OnPlayerReady(targetPlayer, null);
+        }
         
         // 2. 開啟靜音開關
         AddTimer(0.2f, () => {
             isCountdownActive = true; 
         });
         
-        return HookResult.Handled; 
+        return HookResult.Handled; // 攔截成功，完美掌控節奏
     }
 }
 
