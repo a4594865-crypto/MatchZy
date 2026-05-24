@@ -757,7 +757,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 
     isShufflePending = false;
-    Server.PrintToChatAll($"{chatPrefix} 管理員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 隊 伍 不 變");
+    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 隊 伍 不 變");
     
     if (player == null) {
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
