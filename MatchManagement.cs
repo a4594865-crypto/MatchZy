@@ -26,7 +26,6 @@ namespace MatchZy
           if (@event.Team == 1) // 進入觀戰
 {
     // 關鍵修正：不再只是設為 false，而是直接從名單中「擦除」
-    // 這樣系統點名提示（Timer）就完全找不到這個人，不會再跳出訊息騷擾
     playerReadyStatus.Remove(userId); 
     return HookResult.Continue; 
 }
