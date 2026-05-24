@@ -816,35 +816,5 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     isShufflePending = false;
 }
 
-  // 【請把 UpdatePlayersMap() 函數貼在這一區！】
-public void UpdatePlayersMap()
-{
-    // 1. 清空舊的準備狀態與數據（防止鬼魂殘留）
-    playerData.Clear();
-
-    // 2. 重新遍歷全伺服器，只抓「真正有在線」的活人
-    foreach (var player in Utilities.GetPlayers())
-    {
-        if (player != null && 
-            player.IsValid && 
-            !player.IsBot && 
-            player.Connected == PlayerConnectedState.PlayerConnected) 
-        {
-            int userId = (int)(player.UserId ?? -1);
-            if (userId != -1)
-            {
-                playerData[userId] = player;
-            }
-        }
-    }
-
-    // 3. 同步清理準備狀態名單：如果有人不在線上了，立刻從準備名單踢除
-    var offlineUserIds = playerReadyStatus.Keys.Where(id => !playerData.ContainsKey(id)).ToList();
-    foreach (var id in offlineUserIds)
-    {
-        playerReadyStatus.Remove(id);
-    }
-} // 👈 這是 UpdatePlayersMap 的結束大括號
-
     } // 結束 public partial class MatchZy (整個檔案倒數第 2 個大括號)
 } // 結束 namespace MatchZy (整個檔案最後 1 個大括號)
