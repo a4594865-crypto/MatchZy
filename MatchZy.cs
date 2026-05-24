@@ -303,8 +303,6 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-           // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
-// 修正版：處理換隊、觀戰以及倒數中止邏輯
 // 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
 AddCommandListener("jointeam", (player, info) =>
 {
@@ -494,7 +492,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
-// 1. 攔截開賽指令
+               // 1. 攔截開賽指令
             if (message == ".r" || message == ".ready") 
             {
                 // 判斷是否為最後一個準備的人（觸發開賽的關鍵瞬間）
@@ -510,7 +508,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     }
                     // -------------------------------------------------------
 
-                    // 1. 執行原本的準備邏輯 (保留你修正指針錯位的 +1 神操作)
+                    // 1. 執行原本的準備邏輯 (修正指針錯位的 +1 神操作)
                     var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
                     if (targetPlayer != null) 
                     {
@@ -718,7 +716,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 if (entry.Value == true)
                 {
                     var player = Utilities.GetPlayerFromUserid(entry.Key);
-                    // 🎯 超強防護網：必須「IsValid 且在線 (PlayerConnected) 且在 T/CT 隊上」才算人數
+                    // 超強防護網：必須「IsValid 且在線 (PlayerConnected) 且在 T/CT 隊上」才算人數
                     if (player != null && 
                         player.IsValid && 
                         player.Connected == PlayerConnectedState.PlayerConnected && 
