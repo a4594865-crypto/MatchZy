@@ -707,24 +707,27 @@ if (message == ".r" || message == ".ready") {
         // --- 指令函數與核心修正代碼 ---
         // ==========================================
 
-        // --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者 ---
+       // --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者與離線玩家 ---
         public int GetReadyPlayersCount()
-{
-    int count = 0;
-    foreach (var entry in playerReadyStatus)
-    {
-        if (entry.Value == true)
         {
-            var player = Utilities.GetPlayerFromUserid(entry.Key);
-            // 雙重保險：即使在名單內是 True，也必須人在場上才給分
-            if (player != null && player.IsValid && (player.TeamNum == 2 || player.TeamNum == 3))
+            int count = 0;
+            foreach (var entry in playerReadyStatus)
             {
-                count++;
+                if (entry.Value == true)
+                {
+                    var player = Utilities.GetPlayerFromUserid(entry.Key);
+                    // 🎯 超強防護網：必須「IsValid 且在線 (PlayerConnected) 且在 T/CT 隊上」才算人數
+                    if (player != null && 
+                        player.IsValid && 
+                        player.Connected == PlayerConnectedState.PlayerConnected && 
+                        (player.TeamNum == 2 || player.TeamNum == 3))
+                    {
+                        count++;
+                    }
+                }
             }
+            return count;
         }
-    }
-    return count;
-}
 [ConsoleCommand("css_shuffle", "預約隨機分隊")]
 [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)] // 強制宣告客戶端與伺服器皆可執行
 public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
@@ -813,5 +816,35 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     isShufflePending = false;
 }
 
-    } // 結束 public partial class MatchZy
-} // 結束 namespace MatchZy
+  // 【請把 UpdatePlayersMap() 函數貼在這一區！】
+public void UpdatePlayersMap()
+{
+    // 1. 清空舊的準備狀態與數據（防止鬼魂殘留）
+    playerData.Clear();
+
+    // 2. 重新遍歷全伺服器，只抓「真正有在線」的活人
+    foreach (var player in Utilities.GetPlayers())
+    {
+        if (player != null && 
+            player.IsValid && 
+            !player.IsBot && 
+            player.Connected == PlayerConnectedState.PlayerConnected) 
+        {
+            int userId = (int)(player.UserId ?? -1);
+            if (userId != -1)
+            {
+                playerData[userId] = player;
+            }
+        }
+    }
+
+    // 3. 同步清理準備狀態名單：如果有人不在線上了，立刻從準備名單踢除
+    var offlineUserIds = playerReadyStatus.Keys.Where(id => !playerData.ContainsKey(id)).ToList();
+    foreach (var id in offlineUserIds)
+    {
+        playerReadyStatus.Remove(id);
+    }
+} // 👈 這是 UpdatePlayersMap 的結束大括號
+
+    } // 結束 public partial class MatchZy (整個檔案倒數第 2 個大括號)
+} // 結束 namespace MatchZy (整個檔案最後 1 個大括號)
