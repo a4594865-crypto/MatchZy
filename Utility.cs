@@ -22,7 +22,6 @@ namespace MatchZy
         public const string liveCfgPath = "MatchZy/live.cfg";
         public const string liveWingmanCfgPath = "MatchZy/live_wingman.cfg";
 
-       // --- 保持現狀：這段不需要動 ---
         private void PrintToAllChat(string message)
         {
             // 只要訊息不含「倒數：」，在倒數期間一律封鎖
@@ -307,15 +306,15 @@ namespace MatchZy
             ExecWarmupCfg();
             knifeWinnerName = knifeWinner == 3 ? reverseTeamSides["CT"].teamName : reverseTeamSides["TERRORIST"].teamName;
             
-            // 💡 將刀局贏家的隊伍名稱強制洗乾淨（不分大小寫洗掉 team_）
+            // 將刀局贏家的隊伍名稱強制洗乾淨（不分大小寫洗掉 team_）
             string cleanKnifeWinnerName = System.Text.RegularExpressions.Regex.Replace(knifeWinnerName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             
-            // 💡 在名字的最後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
+            // 在名字的最後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
             if (!cleanKnifeWinnerName.EndsWith("隊伍")) cleanKnifeWinnerName += " 隊伍";
             
             ShowDamageInfo();
             
-            // 💡 把清洗後且在名字後面加了「 隊伍」的乾淨名稱送進翻譯檔案
+            // 把清洗後且在名字後面加了「 隊伍」的乾淨名稱送進翻譯檔案
             PrintToAllChat(Localizer["matchzy.knife.sidedecisionpending", cleanKnifeWinnerName]);
             
             // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{knifeWinnerName}{ChatColors.Default} Won the knife. Waiting for them to type {ChatColors.Green}.stay{ChatColors.Default} or {ChatColors.Green}.switch{ChatColors.Default}");
@@ -1074,7 +1073,7 @@ namespace MatchZy
                     string cleanRoundTeam1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
                     string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
 
-                    // 💡 在名字的後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
+                    // 在名字的後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
                     if (!cleanRoundTeam1.EndsWith("隊伍")) cleanRoundTeam1 += " 隊伍";
                     if (!cleanRoundTeam2.EndsWith("隊伍")) cleanRoundTeam2 += " 隊伍";
 
