@@ -37,7 +37,6 @@ namespace MatchZy
         public bool isWarmup = false;
         public bool isCountdownActive = false; // 加入這一行，宣告全域開關
         public bool isShufflePending = false; // A方案：預約隨機分隊標記
-        public bool isShuffleNameLocked = false; // 新增：隨機分隊完成後，等待刀局開局命名的標記
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
         public bool isMatchLive = false;
@@ -132,7 +131,7 @@ namespace MatchZy
                 { ".fup", OnForceUnpauseCommand },
                 { ".tac", OnTacCommand },
                 { ".roundknife", OnKnifeCommand },
-                { ".rk999", OnKnifeCommand },
+                { ".rk", OnKnifeCommand },
                 { ".playout", OnPlayoutCommand },
                 { ".start", OnStartCommand },
                 { ".force", OnStartCommand },
@@ -237,7 +236,7 @@ namespace MatchZy
                         // 延遲踢除，確保訊息發送
                         AddTimer(1.5f, () => {
                             if (player != null && player.IsValid) {
-                                Server.ExecuteCommand($"kickid {player.UserId} \"伺 服 器 白 名 單 已 開 啟，您 不 在 白 名 單 中。\"");
+                                Server.ExecuteCommand($"kickid {player.UserId} \"伺服器白名單已開啟，您不在 whitelist.cfg 中。\"");
                                 Log($"[WHITELIST] 已踢出未授權玩家: {player.PlayerName}");
                             }
                         });
@@ -258,7 +257,7 @@ namespace MatchZy
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義要發送的訊息內容
-    string disconnectMsg = $"{chatPrefix} {ChatColors.Default}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.Default}斷 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.Default}準 備";
+    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線，倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
     // 2. 立即發送 (第 1 次)
     CancelMatchCountdown(disconnectMsg);
@@ -304,55 +303,8 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-
-// 🎯 正確的攔截點：EventRoundPrestart 是每回合「重置、凍結時間開始」的第 0 秒
-RegisterEventHandler<EventRoundPrestart>((@event, info) => {
-    
-    // 【第一道保險】：隨機分隊名字鎖定開著，代表這是倒數結束後的「第一個回合」
-    if (isShuffleNameLocked) 
-    {
-        // 進入凍結時間的第 2 秒
-        AddTimer(2.0f, () => {
-            
-            // 🔥【第二道終極保險】：實時檢查，如果現在「不是」刀局，立刻退出並解鎖！
-            if (!isKnifeRound) 
-            {
-                isShuffleNameLocked = false;
-                return;
-            }
-            
-            // 現場撈取選手（安全過濾：必須有效、非機器人、且確實待在 T(2) 或 CT(3) 隊伍中）
-            var tCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 2);
-            var ctCaptain = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && !p.IsBot && p.TeamNum == 3);
-
-            string tName = (tCaptain != null && !string.IsNullOrEmpty(tCaptain.PlayerName)) 
-                            ? $"team_{tCaptain.PlayerName}" 
-                            : "team_Terrorists";
-
-            string ctName = (ctCaptain != null && !string.IsNullOrEmpty(ctCaptain.PlayerName)) 
-                            ? $"team_{ctCaptain.PlayerName}" 
-                            : "team_CounterTerrorists";
-
-            // 強制鎖死 ConVar
-            Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
-            Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
-            
-            // 功成身退，關閉旗標
-            isShuffleNameLocked = false;
-        });
-    }
-
-    return HookResult.Continue;
-});
-// 請插入到 Load 函數的結尾處
-RegisterEventHandler<EventRoundPrestart>((@event, info) => {
-    // 當倒數結束、準備進入第一回合的瞬間
-    if (isShufflePending && !matchStarted && isWarmup) 
-    {
-        ExecuteShuffleLogic(); // 執行分隊
-    }
-    return HookResult.Continue;
-});
+           // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
+// 修正版：處理換隊、觀戰以及倒數中止邏輯
 // 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
 AddCommandListener("jointeam", (player, info) =>
 {
@@ -365,7 +317,7 @@ AddCommandListener("jointeam", (player, info) =>
     if (matchStartCountdownTimer != null || isCountdownActive)
     {
         // 顯示警告訊息給該玩家
-        player.PrintToChat($"{chatPrefix} 倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
+        player.PrintToChat($"{chatPrefix} {ChatColors.Default}倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
         
         // 返回 HookResult.Stop 就能直接吃掉這個指令，讓玩家留在原地
         return HookResult.Stop; 
@@ -386,7 +338,7 @@ AddCommandListener("jointeam", (player, info) =>
         byte currentTeam = player.TeamNum;
         if ((targetTeam == "2" || targetTeam == "3") && (currentTeam == 2 || currentTeam == 3))
         {
-            player.PrintToChat($"{chatPrefix} 比 賽 已 開 始，禁 止 互 換 隊 伍");
+            player.PrintToChat($"{chatPrefix} {ChatColors.Default}比 賽 已 開 始，禁 止 互 換 隊 伍");
             return HookResult.Stop; 
         }
     }
@@ -411,7 +363,7 @@ AddCommandListener("jointeam", (player, info) =>
             {
                 if (player != null && isMatchSetup) 
                 {
-                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正 式 比 賽 期 間，內 建 投 票 功 能 已 被 禁 用");
+                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正式比賽期間，內建投票功能已被禁用！");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
@@ -531,21 +483,28 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-// 1. 攔截開賽指令 (修正版)
+               // 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
-    // 判斷是否為最後一個準備的人
+    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // 執行原本的準備邏輯
+        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
+        if (isShufflePending) 
+        {
+            ExecuteShuffleLogic(); // 執行洗牌
+            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
+        }
+        // -------------------------------------------------------
+
+        // 1. 執行原本的準備邏輯
         OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
         
-        // 【核心修改】：不要用 Handled，改用 Continue 讓系統廣播恢復運作
-        // 並刪除 AddTimer 裡面的洗牌邏輯，將其轉移到 EventRoundPrestart
+        // 2. 開啟靜音開關
         AddTimer(0.2f, () => {
             isCountdownActive = true; 
         });
         
-        return HookResult.Continue; // 👈 關鍵改動：必須是 Continue
+        return HookResult.Handled; 
     }
 }
 
@@ -767,7 +726,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     isShufflePending = true;
     
     // 2. 執行廣播
-    Server.PrintToChatAll($"{chatPrefix} 管理員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將自動洗牌");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}管理員已開啟「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green}」。開賽時將自動洗牌！");
     
     // 3. 確保黑視窗有回饋
     if (player == null) {
@@ -783,28 +742,31 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 
     isShufflePending = false;
-    Server.PrintToChatAll($"{chatPrefix} 管理員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維持目前隊伍");
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}管理員已取消「 {ChatColors.Yellow}隨 機 隊 伍 分 配 {ChatColors.Green} 」。將維持目前隊伍開賽。");
     
     if (player == null) {
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-public void ExecuteShuffleLogic() 
+        public void ExecuteShuffleLogic() 
 {
-    // 1. 安全檢查
+    // 1. 安全檢查：如果沒有預約洗牌，則直接跳出
     if (!isShufflePending) return;
 
+    // 2. 獲取當前所有在場上的選手（排除機器人與觀戰者）
     List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
         .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
         .ToList();
 
+    // 3. 人數檢查：至少需要 2 人才能洗牌
     if (activePlayers.Count < 2) 
     {
-        isShufflePending = false; 
+        Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
+        isShufflePending = false; // 失敗也要重置標記，避免狀態殘留
         return;
     }
 
-    // 2. Fisher-Yates 洗牌演算法
+    // 4. Fisher-Yates 洗牌演算法
     Random rng = new();
     int n = activePlayers.Count;
     while (n > 1) 
@@ -814,10 +776,11 @@ public void ExecuteShuffleLogic()
         (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
     }
 
-    // 3. 分配隊伍
+    // 5. 分配隊伍
     int half = activePlayers.Count / 2;
     for (int i = 0; i < activePlayers.Count; i++) 
     {
+        // 為了確保 ChangeTeam 成功，建議在下一幀或立即執行時確保狀態一致
         if (i < half) 
         {
             activePlayers[i].ChangeTeam(CsTeam.Terrorist);
@@ -828,23 +791,12 @@ public void ExecuteShuffleLogic()
         }
     }
 
-    // === 關鍵升級：強制名稱同步 ===
-    // 透過 Server.NextFrame，確保引擎分配完隊伍後，我們在下一幀立刻寫入名稱
-    Server.NextFrame(() => {
-        var tCaptain = activePlayers.ElementAtOrDefault(0);
-        var ctCaptain = activePlayers.ElementAtOrDefault(half);
-        
-        string tName = (tCaptain != null) ? $"team_{tCaptain.PlayerName}" : "team_Terrorists";
-        string ctName = (ctCaptain != null) ? $"team_{ctCaptain.PlayerName}" : "team_CounterTerrorists";
-
-        Server.ExecuteCommand($"mp_teamname_1 \"{tName}\"");
-        Server.ExecuteCommand($"mp_teamname_2 \"{ctName}\"");
-        
-        // 此時才發出完成廣播，確保玩家看到訊息時，隊伍已經切換完畢
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-    });
-
+    // 6. 輸出訊息與重置標記
+    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+    Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
+    
     isShufflePending = false;
 }
+
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
