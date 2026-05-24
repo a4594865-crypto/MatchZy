@@ -504,7 +504,7 @@ if (message == ".r" || message == ".ready") {
         if (isShufflePending) 
         {
             ExecuteShuffleLogic(); // 執行洗牌
-            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
+            ForceUpdateOnlinePlayersMap(); // 改成呼叫你的新防護函數！
         }
         // -------------------------------------------------------
 
@@ -815,6 +815,33 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     
     isShufflePending = false;
 }
+// 這是你專屬的超級過濾網，專門在開賽微秒間超車使用，跟原廠 private 不衝突
+        public void ForceUpdateOnlinePlayersMap()
+        {
+            try
+            {
+                playerData.Clear();
+                foreach (var player in Utilities.GetPlayers())
+                {
+                    if (player != null && 
+                        player.IsValid && 
+                        !player.IsBot && 
+                        player.Connected == PlayerConnectedState.PlayerConnected) 
+                    {
+                        int userId = (int)(player.UserId ?? -1);
+                        if (userId != -1) playerData[userId] = player;
+                    }
+                }
+                
+                // 立即同步清理準備名單，拔除斷線殘影
+                var offlineUserIds = playerReadyStatus.Keys.Where(id => !playerData.ContainsKey(id)).ToList();
+                foreach (var id in offlineUserIds)
+                {
+                    playerReadyStatus.Remove(id);
+                }
+            }
+            catch (Exception) { /* 靜默忽略錯誤 */ }
+        }
 
     } // 結束 public partial class MatchZy (整個檔案倒數第 2 個大括號)
 } // 結束 namespace MatchZy (整個檔案最後 1 個大括號)
