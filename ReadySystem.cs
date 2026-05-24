@@ -156,7 +156,7 @@ namespace MatchZy
 
         // --- 核心改動 ---
         // 刪掉原本的 PrintToAllChat(reason); 
-        // 因為那會自動幫你加一次 {chatPrefix}
+        // 因為會自動幫你加一次 {chatPrefix}
         
         // 改用這行，它會原封不動印出你傳過來的「整句話」
         Server.PrintToChatAll($"{reason}");
