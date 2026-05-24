@@ -344,6 +344,15 @@ RegisterEventHandler<EventRoundPrestart>((@event, info) => {
 
     return HookResult.Continue;
 });
+// 請插入到 Load 函數的結尾處
+RegisterEventHandler<EventRoundPrestart>((@event, info) => {
+    // 當倒數結束、準備進入第一回合的瞬間
+    if (isShufflePending && !matchStarted && isWarmup) 
+    {
+        ExecuteShuffleLogic(); // 執行分隊
+    }
+    return HookResult.Continue;
+});
 // 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
 AddCommandListener("jointeam", (player, info) =>
 {
