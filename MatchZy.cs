@@ -303,7 +303,7 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-// 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
+// 2. 倒數期間絕對禁止換隊與觀戰
 AddCommandListener("jointeam", (player, info) =>
 {
     if (player == null || player.IsBot || isSleep) return HookResult.Continue;
@@ -508,7 +508,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     }
                     // -------------------------------------------------------
 
-                    // 1. 執行原本的準備邏輯 (修正指針錯位的 +1 神操作)
+                    // 1. 執行原本的準備邏輯 (修正指針錯位的 +1 操作)
                     var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
                     if (targetPlayer != null) 
                     {
@@ -815,7 +815,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     
     isShufflePending = false;
 }
-// 這是你專屬的超級過濾網，專門在開賽微秒間超車使用，跟原廠 private 不衝突
+// 開賽微秒間超車使用，跟原廠 private 不衝突
         public void ForceUpdateOnlinePlayersMap()
         {
             try
@@ -843,5 +843,5 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             catch (Exception) { /* 靜默忽略錯誤 */ }
         }
 
-    } // 結束 public partial class MatchZy (整個檔案倒數第 2 個大括號)
-} // 結束 namespace MatchZy (整個檔案最後 1 個大括號)
+    } // 結束 public partial class MatchZy 
+} // 結束 namespace MatchZy 
