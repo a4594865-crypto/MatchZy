@@ -516,11 +516,11 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     }
                     
                     // 2. 開啟靜音開關
-                    AddTimer(0.2f, () => {
+                    AddTimer(0.3f, () => {
                         isCountdownActive = true; 
                     });
                     
-                    return HookResult.Handled; // 攔截成功，完美掌控節奏
+                    return HookResult.Handled; // 攔截成功
                 }
             }
                 // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
