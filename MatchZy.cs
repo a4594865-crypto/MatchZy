@@ -329,7 +329,7 @@ AddCommandListener("jointeam", (player, info) =>
     // 2. 比賽正式開始後（包含刀局與正賽）
     if (matchStarted)
     {
-        // 🎯 【關鍵差別點一：刀局期間全面封鎖】
+        // 刀局期間全面封鎖】
         if (isKnifeRound) 
         {
             // 在刀局期間，不管你是要換隊（2, 3）還是去觀戰（1），只要你在場上（CT/T），一律禁止！
@@ -341,7 +341,7 @@ AddCommandListener("jointeam", (player, info) =>
             }
         }
 
-        // 🎯 【關鍵差別點二：LIVE正賽期間（非刀局）才放行觀戰】
+        // LIVE正賽期間（非刀局）才放行觀戰】
         // 允許去觀戰 (targetTeam "1" 是觀戰)
         if (targetTeam == "1") return HookResult.Continue;
 
