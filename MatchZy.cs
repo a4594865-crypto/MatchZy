@@ -493,7 +493,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-         // 1. 攔截開賽指令 (🌟 真正修正全數死結、保證 100% 倒數與刀局選邊復活的終極完全體)
+         // 1. 攔截開賽指令 (修正全數死結、保證 100% 倒數與刀局選邊復活的終極完全體)
             if (message == ".r" || message == ".ready") {
                 // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
                 if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
@@ -517,7 +517,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                             var targetPlayer = playerData[targetUserId];
                             
                             if (targetPlayer != null && targetPlayer.IsValid) {
-                                // 🚀 100% 精準手動點火，原廠倒數與音效絕對「碰」的一聲噴出來！
+                                // 原廠倒數與音效絕對「碰」的一聲噴出來！
                                 OnPlayerReady(targetPlayer, null);
                             }
                         }
