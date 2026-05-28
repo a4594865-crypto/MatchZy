@@ -495,7 +495,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-         // 1. 攔截開賽指令 (完美完全體：100% 通過編譯、完美洗牌、防空指針、順暢倒數)
+         // 1. 攔截開賽指令 (真正保證正常、修正一開始錯誤的唯一終極完全體)
             if (message == ".r" || message == ".ready") {
                 // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
                 if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
@@ -504,18 +504,17 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     if (isShufflePending) 
                     {
                         ExecuteShuffleLogic(); // 執行隨機洗牌
-                        ForceUpdateOnlinePlayersMap(); // 更新在線玩家名單，清理殘影
+                        UpdatePlayersMap();    
                     }
                     // -------------------------------------------------------
 
-                    // 🌟 終極修正：用 0.2 秒的 Timer 框住點火邏輯。
-                    // 這樣一來，玩家洗牌換隊時，CS2 引擎有整整 0.2 秒的充足時間把隊伍名與實體建立完全！
+                    // 用 0.2 秒的 Timer 框住點火邏輯，給 CS2 引擎充足的時間在後台把洗牌換隊處理完畢
                     AddTimer(0.2f, () => {
                         
-                        // 🎯 使用您原本最安全的「轉手公式」去精準撈出玩家實體，完美防空！
+                        // 安全防空的精準撈人公式
                         var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
                         
-                        // 確保撈出來的玩家健全不為空，才執行原廠準備
+                        // 確保 0.2 秒後撈出來的玩家狀態健全，100% 精準點火觸發倒數！
                         if (targetPlayer != null && targetPlayer.IsValid) {
                             OnPlayerReady(targetPlayer, null);
                         }
@@ -524,7 +523,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                         isCountdownActive = true; 
                     });
                     
-                    // 完美沒收最後一個人的聊天雜訊，畫面乾乾淨淨
+                    // 完美沒收最後一個人的聊天雜訊，聊天框乾乾淨淨
                     return HookResult.Handled; 
                 }
             }
