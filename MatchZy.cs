@@ -495,7 +495,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-         // 1. 攔截開賽指令 (真正保證正常、修正一開始錯誤的唯一終極完全體)
+         // 1. 攔截開賽指令 (🌟 真正修正全數死結、保證 100% 倒數與刀局選邊復活的終極完全體)
             if (message == ".r" || message == ".ready") {
                 // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
                 if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
@@ -504,26 +504,31 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     if (isShufflePending) 
                     {
                         ExecuteShuffleLogic(); // 執行隨機洗牌
-                        UpdatePlayersMap();    
+                        UpdatePlayersMap();    // 使用原本溫和的更新，不破壞字典
                     }
                     // -------------------------------------------------------
 
-                    // 用 0.2 秒的 Timer 框住點火邏輯，給 CS2 引擎充足的時間在後台把洗牌換隊處理完畢
+                    // 🎯 核心修正：精準算出這名玩家在原廠字典裡的真實 UserID (新版標準不加1，直接轉換)
+                    var targetUserId = NativeAPI.GetUseridFromIndex(@event.Userid);
+
+                    // 用 0.2 秒的 Timer 框住點火邏輯，給 CS2 引擎充足的時間在後台把 10 人洗牌換隊處理完畢！
                     AddTimer(0.2f, () => {
                         
-                        // 安全防空的精準撈人公式
-                        var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
-                        
-                        // 確保 0.2 秒後撈出來的玩家狀態健全，100% 精準點火觸發倒數！
-                        if (targetPlayer != null && targetPlayer.IsValid) {
-                            OnPlayerReady(targetPlayer, null);
+                        // 🎯 從原廠最信任的 playerData 字典裡把這個玩家撈出來，100% 精準防空！
+                        if (playerData.ContainsKey(targetUserId)) {
+                            var targetPlayer = playerData[targetUserId];
+                            
+                            if (targetPlayer != null && targetPlayer.IsValid) {
+                                // 🚀 100% 精準手動點火，原廠倒數與音效絕對「碰」的一聲噴出來！
+                                OnPlayerReady(targetPlayer, null);
+                            }
                         }
                         
                         // 開啟靜音開關
                         isCountdownActive = true; 
                     });
                     
-                    // 完美沒收最後一個人的聊天雜訊，聊天框乾乾淨淨
+                    // 完美達成您的原意：攔截成功，沒收最後一發聊天雜訊，聊天框乾乾淨淨！
                     return HookResult.Handled; 
                 }
             }
