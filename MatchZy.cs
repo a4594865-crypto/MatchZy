@@ -42,8 +42,6 @@ namespace MatchZy
         public bool isMatchLive = false;
         public long liveMatchId = -1;
         public int autoStartMode = 1;
-        public int maxTeamPlayers = 5;
-        public bool isCustomLimitSet = false;
         
         public bool mapReloadRequired = false;
 
@@ -209,7 +207,6 @@ namespace MatchZy
                 { ".savepos", OnSavePosCommand},
                 { ".shuffle", OnShuffleCommand },
                 { ".unshuffle", OnUnshuffleCommand },
-                { ".maxplayers", OnMaxPlayersCommand },
                 { ".loadpos", OnLoadPosCommand}
             };
 
@@ -359,47 +356,6 @@ AddCommandListener("jointeam", (player, info) =>
 
     return HookResult.Continue;
 });
-
-// ===================================================================
-// 新增：獨立的人數上限檢查（平常熱身完全不限，玩家隨意跳隊找隊友）
-// ===================================================================
-AddCommandListener("jointeam", (player, info) =>
-{
-    // 基礎安全過濾
-    if (player == null || player.IsBot || isSleep) return HookResult.Continue;
-
-    // 🌟 核心開關判斷：
-    // 狀況 A：如果現在是正式比賽或刀局 (!isWarmup) -> 啟動人數管制
-    // 狀況 B：雖然在熱身，但管理員在聊天框下了指令 (isCustomLimitSet) -> 提早啟動人數管制
-    // 狀況 C (平常熱身找隊友)：以上兩者皆不成立 -> 直接 Continue 放行，玩家愛怎麼跳就怎麼跳，找隊友最自由！
-    if (!isWarmup || isCustomLimitSet) 
-    {
-        string targetTeam = info.ArgByIndex(1); 
-        
-        if (targetTeam == "2" || targetTeam == "3") 
-        {
-            byte targetTeamNum = byte.Parse(targetTeam);
-            
-            // 關鍵防禦：只有當玩家真的要「換到不同隊伍」才計算人數
-            if (player.TeamNum != targetTeamNum) 
-            {
-                // 統計目標隊伍當前的真人選手數量
-                int currentTeamCount = Utilities.GetPlayers()
-                    .Count(p => p.IsValid && !p.IsBot && p.TeamNum == targetTeamNum);
-
-                // 如果人數已經達到或超過上限
-                if (currentTeamCount >= maxTeamPlayers) 
-                {
-                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}該隊伍人數已達上限 ({maxTeamPlayers}人)，無法加入！");
-                    return HookResult.Stop; // 滿人直接阻斷換隊
-                }
-            }
-        }
-    }
-
-    // 放行給下一道牆（也就是您原本寫的舊邏輯：倒數禁止、正賽禁止互換等）
-    return HookResult.Continue; 
-});
             // --- 修正版：攔截倒數期間的所有隊伍變動廣播 ---
             RegisterEventHandler<EventPlayerTeam>((@event, info) =>
             {
@@ -477,10 +433,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     AddTimer(1.0f, () => {
         // 核心修正：清理緩存，但不手動指定 CT/T
         ResetTeamDataCaches(); 
-
-        // 🌟 補上自動重置機制：換地圖時，自動將人數上限還原為 5 人，並解除熱身限制大鎖
-        maxTeamPlayers = 5;
-        isCustomLimitSet = false;
 
         if (!isMatchSetup) {
             // 一般路人局：自動啟動
@@ -812,53 +764,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     
     if (player == null) {
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
-    }
-}
-//===================================================================
-// 🌟 這裡就是您要貼上 [ConsoleCommand("css_maxplayers", ...)] 的位置
-// ===================================================================
-[ConsoleCommand("css_maxplayers", "修改每隊可容納人數上限（最高至 7 人）")]
-[CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
-public void OnMaxPlayersCommand(CCSPlayerController? player, CommandInfo command) 
-{
-    // 🔒 1. 權限大鎖：非管理員直接阻斷
-    if (player != null && !IsPlayerAdmin(player)) return;
-
-    // 🔒 2. 比賽模式大鎖：BO1 / BO3 / 正式約戰模式下，此指令完全無效
-    if (isMatchSetup) {
-        ReplyToUserCommand(player, "正式比賽模式 (BO1/BO3) 禁用修改隊伍人數指令！");
-        return;
-    }
-
-    // 🔒 3. 狀態大鎖：只能在熱身階段修改
-    if (!isWarmup) {
-        ReplyToUserCommand(player, "該指令「 只能在熱身階段 」使用！");
-        return;
-    }
-
-    if (command.ArgCount < 2) {
-        ReplyToUserCommand(player, $"使用格式錯誤。正確用法: .maxplayers <人數> (目前上限: {maxTeamPlayers}人)");
-        return;
-    }
-
-    string arg = command.ArgByIndex(1);
-    if (int.TryParse(arg, out int newLimit)) {
-        if (newLimit > 7) {
-            ReplyToUserCommand(player, "不支援此設定！每隊人數上限「 最高只能修改為 7 人 」。");
-            return;
-        }
-        if (newLimit <= 0) {
-            ReplyToUserCommand(player, "請輸入有效的人數正整數！");
-            return;
-        }
-
-        // 成功修改設定
-        maxTeamPlayers = newLimit;
-        isCustomLimitSet = true; // ⚡ 激活標記，讓熱身賽也立刻開啟人數限制
-        
-        Server.PrintToChatAll($"{chatPrefix} 管理員已將每隊人數上限修改為: {ChatColors.Lime}{maxTeamPlayers}{ChatColors.Default} 人");
-    } else {
-        ReplyToUserCommand(player, "請輸入有效的人數數字！");
     }
 }
         public void ExecuteShuffleLogic() 
