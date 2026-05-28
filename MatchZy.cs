@@ -303,8 +303,6 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
             RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawnedHandler);
 
-           // 2. 修正版：處理換隊、觀戰以及倒數中止邏輯
-// 修正版：處理換隊、觀戰以及倒數中止邏輯
 // 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
 AddCommandListener("jointeam", (player, info) =>
 {
@@ -331,7 +329,7 @@ AddCommandListener("jointeam", (player, info) =>
     // 2. 比賽正式開始後（包含刀局與正賽）
     if (matchStarted)
     {
-        // 🎯 【關鍵差別點一：刀局期間全面封鎖】
+        // 【關鍵差別點一：刀局期間全面封鎖】
         if (isKnifeRound) 
         {
             // 在刀局期間，不管你是要換隊（2, 3）還是去觀戰（1），只要你在場上（CT/T），一律禁止！
@@ -343,7 +341,7 @@ AddCommandListener("jointeam", (player, info) =>
             }
         }
 
-        // 🎯 【關鍵差別點二：LIVE正賽期間（非刀局）才放行觀戰】
+        // 【關鍵差別點二：LIVE正賽期間（非刀局）才放行觀戰】
         // 允許去觀戰 (targetTeam "1" 是觀戰)
         if (targetTeam == "1") return HookResult.Continue;
 
@@ -508,13 +506,13 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     }
                     // -------------------------------------------------------
 
-                    // 🎯 核心修正：精準算出這名玩家在原廠字典裡的真實 UserID (新版標準不加1，直接轉換)
+                    // 核心修正：精準算出這名玩家在原廠字典裡的真實 UserID (新版標準不加1，直接轉換)
                     var targetUserId = NativeAPI.GetUseridFromIndex(@event.Userid);
 
                     // 用 0.2 秒的 Timer 框住點火邏輯，給 CS2 引擎充足的時間在後台把 10 人洗牌換隊處理完畢！
                     AddTimer(0.2f, () => {
                         
-                        // 🎯 從原廠最信任的 playerData 字典裡把這個玩家撈出來，100% 精準防空！
+                        //  playerData 字典裡把這個玩家撈出來，100% 精準防空！
                         if (playerData.ContainsKey(targetUserId)) {
                             var targetPlayer = playerData[targetUserId];
                             
@@ -752,7 +750,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
 
     // 【熱身階段檢查】防線
     if (!isWarmup) {
-        ReplyToUserCommand(player, $"{chatPrefix} {ChatColors.LightRed}只 能 在 熱 身 階 段 使 用 隨 機 分 隊 指 令！");
+        ReplyToUserCommand(player, $"{chatPrefix} {ChatColors.LightRed}只 能 在 熱 身 階 段 使 用 隨 機 分 隊 指 令");
         return;
     }
 
