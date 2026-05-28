@@ -757,7 +757,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     isShufflePending = true;
     
     // 2. 執行全服廣播
-    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
+    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 自 動 洗 牌");
     
     // 3. 確保伺服器後台黑視窗有回饋
     if (player == null) {
