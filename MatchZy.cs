@@ -391,7 +391,7 @@ AddCommandListener("jointeam", (player, info) =>
                 if (currentTeamCount >= maxTeamPlayers) 
                 {
                     player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}該隊伍人數已達上限 ({maxTeamPlayers}人)，無法加入！");
-                    return HookResult.Stop; // 🚧 滿人直接阻斷換隊
+                    return HookResult.Stop; // 滿人直接阻斷換隊
                 }
             }
         }
@@ -817,10 +817,16 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
 public void OnMaxPlayersCommand(CCSPlayerController? player, CommandInfo command) 
 {
-    // 🔒 權限大鎖：非管理員直接阻斷
+    // 🔒 1. 權限大鎖：非管理員直接阻斷
     if (player != null && !IsPlayerAdmin(player)) return;
 
-    // 🔒 狀態大鎖：非熱身期間直接拒絕
+    // 🔒 2. 比賽模式大鎖：BO1 / BO3 / 正式約戰模式下，此指令完全無效
+    if (isMatchSetup) {
+        ReplyToUserCommand(player, "正式比賽模式 (BO1/BO3) 禁用修改隊伍人數指令！");
+        return;
+    }
+
+    // 🔒 3. 狀態大鎖：只能在熱身階段修改
     if (!isWarmup) {
         ReplyToUserCommand(player, "該指令「 只能在熱身階段 」使用！");
         return;
@@ -844,9 +850,9 @@ public void OnMaxPlayersCommand(CCSPlayerController? player, CommandInfo command
 
         // 成功修改設定
         maxTeamPlayers = newLimit;
-        isCustomLimitSet = true; // ⚡ 激活標記，讓熱身賽也立刻套用新的人數限制！
+        isCustomLimitSet = true; // ⚡ 激活標記，讓熱身賽也立刻開啟人數限制
         
-        Server.PrintToChatAll($"{chatPrefix} 管理員將每隊人數上限改為: {ChatColors.Lime}{maxTeamPlayers}{ChatColors.Default} 人");
+        Server.PrintToChatAll($"{chatPrefix} 管理員已將每隊人數上限修改為: {ChatColors.Lime}{maxTeamPlayers}{ChatColors.Default} 人");
     } else {
         ReplyToUserCommand(player, "請輸入有效的人數數字！");
     }
