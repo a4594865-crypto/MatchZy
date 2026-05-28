@@ -815,7 +815,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-/ ===================================================================
+//===================================================================
 // 🌟 這裡就是您要貼上 [ConsoleCommand("css_maxplayers", ...)] 的位置
 // ===================================================================
 [ConsoleCommand("css_maxplayers", "修改每隊可容納人數上限（最高至 7 人）")]
@@ -829,13 +829,13 @@ public void OnMaxPlayersCommand(CCSPlayerController? player, CommandInfo command
 
     // 2. 嚴格限制：只能在熱身階段修改
     if (!isWarmup) {
-        ReplyToUserCommand(player, "該指令「 只能在熱身階段 」使用！");
+        ReplyToUserCommand(player, "該 指 令「 只 能 在 熱 身 階 段 」使 用");
         return;
     }
 
     // 3. 檢查是否有輸入參數 (例如: .maxplayers 6)
     if (command.ArgCount < 2) {
-        ReplyToUserCommand(player, $"使用格式錯誤。正確用法: .maxplayers <人數> (目前上限: {maxTeamPlayers}人)");
+        ReplyToUserCommand(player, $"格式錯誤。正確用法: .maxplayers <人數> (目前每隊上限: {maxTeamPlayers}人)");
         return;
     }
 
@@ -843,7 +843,7 @@ public void OnMaxPlayersCommand(CCSPlayerController? player, CommandInfo command
     if (int.TryParse(arg, out int newLimit)) {
         // 安全限制：最高只能修改為 7 人，最少 1 人
         if (newLimit > 7) {
-            ReplyToUserCommand(player, "不支援此設定！每隊人數上限「 最高只能修改為 7 人 」。");
+            ReplyToUserCommand(player, "不支援此設定！每隊人數上限「 最高為 7 人 」。");
             return;
         }
         if (newLimit <= 0) {
@@ -853,7 +853,7 @@ public void OnMaxPlayersCommand(CCSPlayerController? player, CommandInfo command
 
         // 成功修改全域變數，正賽時第一道牆會自動套用新變數
         maxTeamPlayers = newLimit;
-        Server.PrintToChatAll($"{chatPrefix} 管理員已將每隊人數上限修改為: {ChatColors.Lime}{maxTeamPlayers}{ChatColors.Default} 人 (正賽時生效)");
+        Server.PrintToChatAll($"{chatPrefix} 管理員已將每隊人數上限修改為: {ChatColors.Lime}{maxTeamPlayers}{ChatColors.Default} 人");
     } else {
         ReplyToUserCommand(player, "請輸入有效的人數數字！");
     }
