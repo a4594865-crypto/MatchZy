@@ -166,44 +166,42 @@ namespace MatchZy
 }
 
      public void PrintUnreadyPlayers()
-{
-    // 只要在倒數，就攔截所有準備訊息
-    if (isCountdownActive) return; 
-
-    int readyCount = GetReadyPlayersCount();
-
-    if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
-    {
-        PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
-    }
-    else if (readyAvailable && !matchStarted)
-    {
-        // 找出還沒準備的玩家名單
-        // 增加 p.UserId.HasValue 確保查詢安全
-        var unreadyPlayers = Utilities.GetPlayers()
-            .Where(p => p.IsValid && !p.IsBot && p.UserId.HasValue && (p.TeamNum == 2 || p.TeamNum == 3))
-            .Where(p => {
-                bool isReady = false;
-                // 使用正確的 UserId 對齊字典 Key，這是最穩定的做法
-                if (playerReadyStatus.TryGetValue(p.UserId.Value, out isReady)) {
-                    return !isReady;
-                }
-                // 若找不到狀態，預設視為未準備，確保準備人數不會被灌水
-                return true; 
-            })
-            .Select(p => p.PlayerName);
-    
-        string unreadyList = string.Join(", ", unreadyPlayers);
-
-        if (!string.IsNullOrEmpty(unreadyList))
         {
-            PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyList]);
+            // 只要在倒數，就攔截所有準備訊息
+            if (isCountdownActive) return; 
+
+            int readyCount = GetReadyPlayersCount();
+
+            if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
+            {
+                PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
+            }
+            else if (readyAvailable && !matchStarted)
+            {
+                // 找出還沒準備的玩家名單
+                var unreadyPlayers = Utilities.GetPlayers()
+                    .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    .Where(p => {
+                        bool isReady = false;
+                        // 關鍵修正：將 p.SteamID (ulong) 強制轉換為 (int) 以匹配 Dictionary 的 Key
+                        if (playerReadyStatus.TryGetValue((int)p.SteamID, out isReady)) {
+                            return !isReady;
+                        }
+                        return true; 
+                    })
+                    .Select(p => p.PlayerName);
+                
+                string unreadyList = string.Join(", ", unreadyPlayers);
+
+                if (!string.IsNullOrEmpty(unreadyList))
+                {
+                    PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyList]);
+                }
+            }
+            else if (!matchStarted)
+            {
+                PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
+            }
         }
-    }
-    else if (!matchStarted)
-    {
-        PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
-    }
-}
  } // MatchZy Class 結束
 } // Namespace 結束
