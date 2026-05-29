@@ -485,43 +485,43 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
-// 1. 攔截開賽指令
+// 1. 攔截開賽指令（整合：超車洗牌 + 完美提前靜音 + 100% 精準防空檢查）
 if (message == ".r" || message == ".ready") {
-    // 判斷是否為最後一個準備的人
+    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // --- 洗牌邏輯 ---
+        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
         if (isShufflePending) 
         {
-            ExecuteShuffleLogic();
-            UpdatePlayersMap();
+            ExecuteShuffleLogic(); // 執行洗牌
+            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
         }
+        // -------------------------------------------------------
 
-        // --- 獲取玩家與防斷線檢查 ---
-        var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
-        
-        // 嚴謹的檢查：確保玩家存在、有效、已連線且非機器人
-        if (targetPlayer != null && targetPlayer.IsValid && targetPlayer.Connected == PlayerConnectedState.PlayerConnected && !targetPlayer.IsBot) 
+        // 🎯 獲取真實的 targetUserId
+        int targetUserId = NativeAPI.GetUseridFromIndex(@event.Userid + 1);
+
+        // 🛡️ 雙重防空防火牆：確保玩家物件完全有效，防止伺服器斷線崩潰 (Crash)
+        if (playerData.ContainsKey(targetUserId)) 
         {
-            // 執行準備邏輯
-            OnPlayerReady(targetPlayer, null);
+            // 撈出遊戲引擎內真正的玩家控制器物件
+            var targetPlayer = Utilities.GetPlayerFromUserid(targetUserId);
             
-            // 開啟倒數靜音開關
-            AddTimer(0.2f, () => {
+            // 檢查玩家是否存在、有效、且此時此刻「依然在線」
+            if (targetPlayer != null && targetPlayer.IsValid && targetPlayer.Connected == PlayerConnectedState.PlayerConnected) 
+            {
+                // 🔥【你的核心神作順序】提前切換為 true，徹底封死 OnPlayerReady 即將產生的原廠系統雜訊
                 isCountdownActive = true; 
-            });
+
+                // 1. 執行原本的準備邏輯（MatchZy 原廠會在此函數內自動點火啟動 7 秒倒數）
+                OnPlayerReady(targetPlayer, null);
+            }
         }
         
-        // 🔥【關鍵修正】最後一個人打 .r 時，絕對不能攔截！
-        // 必須回傳 Continue 放行，讓 MatchZy 原廠引擎收尾並觸發 StartMatchCountdown()
-        return HookResult.Continue; 
+        // 2. 沒收聊天框輸入，讓畫面達到最極致的乾淨
+        return HookResult.Handled; 
     }
 }
-// 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
-if (isCountdownActive && !originalMessage.Contains("倒數：")) {
-    return HookResult.Handled;
-}
-
 // --- [第一步結束] ---
 int currentVersion = Api.GetVersion();
 int index = @event.Userid + 1;
