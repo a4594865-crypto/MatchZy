@@ -184,7 +184,7 @@ namespace MatchZy
                     .Where(p => {
                         bool isReady = false;
                         // 關鍵修正：將 p.SteamID (ulong) 強制轉換為 (int) 以匹配 Dictionary 的 Key
-                        if (playerReadyStatus.TryGetValue((int)p.SteamID, out isReady)) {
+                        if (playerReadyStatus.TryGetValue((int)(p.UserId ?? -1), out isReady)) {
                             return !isReady;
                         }
                         return true; 
