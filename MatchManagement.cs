@@ -47,7 +47,7 @@ if (!isWarmup && (matchStarted || isKnifeRequired))
     }
 }
 return HookResult.Continue;
-
+}
         public MatchConfig matchConfig = new();
 
         public bool isMatchSetup = false;
