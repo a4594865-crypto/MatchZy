@@ -493,28 +493,30 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-           // 1. 攔截開賽指令
+         // 使用這段整合後的邏輯
 if (message == ".r" || message == ".ready") {
-    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
-        if (isShufflePending) 
-        {
-            ExecuteShuffleLogic(); // 執行洗牌
-            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
+        // 1. 洗牌邏輯保持不變
+        if (isShufflePending) {
+            ExecuteShuffleLogic();
+            UpdatePlayersMap();
         }
-        // -------------------------------------------------------
 
-        // 1. 執行原本的準備邏輯
-        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
+        // 2. 獲取真實玩家的穩健寫法 (修正索引偏差)
+        var player = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
         
-        // 2. 開啟靜音開關
-        AddTimer(0.2f, () => {
-            isCountdownActive = true; 
-        });
+        if (player != null && player.IsValid && !player.IsBot) {
+            // 3. 確保觸發準備事件
+            OnPlayerReady(player, null);
+            
+            // 4. 強制進入倒數
+            AddTimer(0.1f, () => {
+                isCountdownActive = true;
+            });
+        }
         
-        return HookResult.Handled; 
+        return HookResult.Handled;
     }
 }
                 // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
