@@ -527,7 +527,6 @@ if (message == ".r" || message == ".ready") {
 
                 int currentVersion = Api.GetVersion();
                 int index = @event.Userid + 1;
-                var playerUserId = NativeAPI.GetUseridFromIndex(index);
 
                 var parts = originalMessage.Split(' ');
                 var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
