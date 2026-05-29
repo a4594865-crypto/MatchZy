@@ -252,7 +252,7 @@ namespace MatchZy
                 if (player == null) return HookResult.Continue;
                 int userId = (int)(player.UserId ?? -1);
 
-             // --- A. 倒數期間斷線：中止倒數（整合：防隨機分隊衝突、強制全體重置邏輯） ---
+            // --- A. 倒數期間斷線：中止倒數（整合：100% 處理隨機分隊指令與全體重置） ---
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義您指定的專屬廣播訊息
@@ -264,15 +264,13 @@ if (matchStartCountdownTimer != null)
     isCountdownActive = false;
     matchStarted = false;
 
-    // 🔥【新增：處理隨機分隊指令】
-    // 既然倒數中止了，原本預約在開賽瞬間執行的隨機分隊必須強制取消重置！
+    // 🔥【核心修正：處理隨機分隊】如果此時有啟用隨機分隊，因有人斷線中止，必須強制將預約洗牌關閉重置！
     if (isShufflePending)
     {
-        isShufflePending = false; 
-        // 如果需要，也可以在這裡發送提示告知管理員：洗牌已因玩家斷線而取消
+        isShufflePending = false;
     }
 
-    // 3. 🔥【終極修正】不只 Clear，還要強行把「此時留在場上的所有人」通通重置為 false！
+    // 3. 🔥【終極雙重鎖定】不只 Clear 字典，還要強行把原廠 playerData 的狀態也一起殺光！
     playerReadyStatus.Clear(); 
     foreach (var p in Utilities.GetPlayers())
     {
@@ -282,10 +280,11 @@ if (matchStartCountdownTimer != null)
             int targetUserId = (int)(p.UserId ?? -1);
             if (targetUserId != -1)
             {
-                // 雙重鎖定 1：自訂字典重置為未準備
+                // 鎖定 1：強制在我們自訂的字典裡建立「未準備 (false)」的底子！
                 playerReadyStatus[targetUserId] = false; 
 
-                // 雙重鎖定 2：用正確的 playerData 字典修改原廠狀態，消滅 L284/L288 報錯
+                // 鎖定 2【致命救命行】：去 MatchZy 的 playerData 緩存字典裡，把玩家的 IsReady 屬性也強制切回 false！
+                // 這樣做才能徹底防止「隨機分隊指令」插進來更新隊伍時，誤讀到舊的已準備資料！
                 if (playerData.ContainsKey(targetUserId) && playerData[targetUserId] != null)
                 {
                     playerData[targetUserId].IsReady = false; 
