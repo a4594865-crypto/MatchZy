@@ -493,40 +493,46 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-         // 使用這段整合後的邏輯
+          // 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
+    // 判斷是否為最後一個準備的人
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // 1. 洗牌邏輯保持不變
-        if (isShufflePending) {
+        // --- 洗牌邏輯 ---
+        if (isShufflePending) 
+        {
             ExecuteShuffleLogic();
             UpdatePlayersMap();
         }
 
-        // 2. 獲取真實玩家的穩健寫法 (修正索引偏差)
-        var player = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
+        // --- 獲取玩家與防斷線檢查 ---
+        var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
         
-        if (player != null && player.IsValid && !player.IsBot) {
-            // 3. 確保觸發準備事件
-            OnPlayerReady(player, null);
+        // 嚴謹的檢查：確保玩家存在、有效、已連線且非機器人
+        if (targetPlayer != null && targetPlayer.IsValid && targetPlayer.Connected == PlayerConnectedState.PlayerConnected && !targetPlayer.IsBot) 
+        {
+            // 執行準備邏輯
+            OnPlayerReady(targetPlayer, null);
             
-            // 4. 強制進入倒數
-            AddTimer(0.1f, () => {
-                isCountdownActive = true;
+            // 開啟倒數靜音開關
+            AddTimer(0.2f, () => {
+                isCountdownActive = true; 
             });
         }
         
-        return HookResult.Handled;
+        return HookResult.Handled; 
     }
 }
-                // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
-                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
-                    return HookResult.Handled;
-                }
-                // --- [第一步結束] ---
 
-                int currentVersion = Api.GetVersion();
-                int index = @event.Userid + 1;
+// 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
+if (isCountdownActive && !originalMessage.Contains("倒數：")) {
+    return HookResult.Handled;
+}
+
+// --- [第一步結束] ---
+int currentVersion = Api.GetVersion();
+int index = @event.Userid + 1;
+var playerUserId = NativeAPI.GetUseridFromIndex(index);
 
                 var parts = originalMessage.Split(' ');
                 var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
