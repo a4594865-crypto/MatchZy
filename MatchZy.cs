@@ -495,39 +495,44 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
           // 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
-    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
+    // 判斷是否為最後一個準備的人
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
+        // --- 洗牌邏輯 ---
         if (isShufflePending) 
         {
-            ExecuteShuffleLogic(); // 執行洗牌
-            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
+            ExecuteShuffleLogic();
+            UpdatePlayersMap();
         }
-        // -------------------------------------------------------
 
-        // 1. 執行原本的準備邏輯
-        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
+        // --- 獲取玩家與防斷線檢查 ---
+        var targetPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
         
-        // 2. 開啟靜音開關
-        AddTimer(0.2f, () => {
-            isCountdownActive = true; 
-        });
+        // 嚴謹的檢查：確保玩家存在、有效、已連線且非機器人
+        if (targetPlayer != null && targetPlayer.IsValid && targetPlayer.Connected == PlayerConnectedState.PlayerConnected && !targetPlayer.IsBot) 
+        {
+            // 執行準備邏輯
+            OnPlayerReady(targetPlayer, null);
+            
+            // 開啟倒數靜音開關
+            AddTimer(0.2f, () => {
+                isCountdownActive = true; 
+            });
+        }
         
         return HookResult.Handled; 
     }
 }
 
-                // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
-                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
-                    return HookResult.Handled;
-                }
-                // --- [第一步結束] ---
+// 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
+if (isCountdownActive && !originalMessage.Contains("倒數：")) {
+    return HookResult.Handled;
+}
 
-                int currentVersion = Api.GetVersion();
-                int index = @event.Userid + 1;
-                var playerUserId = NativeAPI.GetUseridFromIndex(index);
-
+// --- [第一步結束] ---
+int currentVersion = Api.GetVersion();
+int index = @event.Userid + 1;
+var playerUserId = NativeAPI.GetUseridFromIndex(index);
                 var parts = originalMessage.Split(' ');
                 var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
                 var messageCommandArg = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
