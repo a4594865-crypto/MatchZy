@@ -252,12 +252,11 @@ namespace MatchZy
                 if (player == null) return HookResult.Continue;
                 int userId = (int)(player.UserId ?? -1);
 
-                // --- A. 倒數期間斷線：中止倒數 ---
-// --- A. 倒數期間斷線：中止倒數（內含防隨機分隊衝突、強制全體重置邏輯） ---
+               // --- A. 倒數期間斷線：中止倒數（修正版：100% 精準清空狀態） ---
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義您指定的專屬廣播訊息
-    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 倒 數 中 止 請 重 新 輸入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
     // 2. 立即停止計時器並關閉所有倒數與開賽狀態
     matchStartCountdownTimer.Kill();
@@ -265,7 +264,7 @@ if (matchStartCountdownTimer != null)
     isCountdownActive = false;
     matchStarted = false;
 
-    // 🎯 核心修正：除了清空字典，還必須把遊戲內原廠的 ready 狀態物理拔除，防止洗牌指令衝突！
+    // 🎯 核心修正：除了清空字典，還必須正確拔除 MatchZy 內部的 ready 狀態
     playerReadyStatus.Clear(); 
     
     foreach (var p in Utilities.GetPlayers())
@@ -273,24 +272,22 @@ if (matchStartCountdownTimer != null)
         // 只要是有效、不是機器人、在 T 或 CT 隊伍的玩家
         if (p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
         {
-            int uId = (int)(p.UserId ?? -1);
-            if (uId != -1)
-            {
-                // 🔥 雙重鎖定 1：強制在我們的字典裡建立「未準備 (false)」的鋼鐵底子
-                playerReadyStatus[uId] = false; 
-            }
-
-            // 🔥 雙重鎖定 2：【關鍵救命行】如果 MatchZyPlayer 物件存在，強行將原廠內部的準備狀態也切回 false！
-            // 這樣即使隨機分隊指令隨後插進來更新隊伍快取，撈到的也絕對會是「未準備」！
             int targetUserId = (int)(p.UserId ?? -1);
-            if (playerData.ContainsKey(targetUserId) && playerData[targetUserId] != null)
+            if (targetUserId != -1)
             {
-                playerData[targetUserId].IsReady = false; 
+                // 🔥 雙重鎖定 1：強制在我們自訂的字典裡建立「未準備 (false)」
+                playerReadyStatus[targetUserId] = false; 
+
+                // 🔥 雙重鎖定 2【正確寫法】：去 MatchZy 的 playerData 緩存字典裡，把這個玩家的 IsReady 屬性切回 false
+                if (playerData.ContainsKey(targetUserId) && playerData[targetUserId] != null)
+                {
+                    playerData[targetUserId].IsReady = false; 
+                }
             }
         }
     }
 
-    // 3. 發送您指定的訊息到聊天框（全場只會看到這一句）
+    // 3. 發送您指定的訊息到聊天框
     Server.PrintToChatAll(disconnectMsg); 
 }
 // --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
