@@ -252,7 +252,7 @@ namespace MatchZy
                 if (player == null) return HookResult.Continue;
                 int userId = (int)(player.UserId ?? -1);
 
-           // --- A. 倒數期間斷線：中止倒數（終極解法：利用原生重啟 100% 全體重置） ---
+// --- A. 倒數期間斷線：中止倒數（終極優雅：直接呼叫 MatchZy 核心函數，0 雜訊免管理員） ---
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義您指定的專屬廣播訊息
@@ -264,13 +264,14 @@ if (matchStartCountdownTimer != null)
     isCountdownActive = false;
     matchStarted = false;
 
-    // 3. 🔥【抓取原生重置】同時清空我們自訂的字典，並讓伺服器強制執行原生重置
+    // 3. 物理重置我們自訂的字典與洗牌預約
     playerReadyStatus.Clear(); 
-    isShufflePending = false; // 取消預約洗牌
+    isShufflePending = false; 
 
-    // 🎯 呼叫伺服器原生指令：直接執行 .restart 或是 mp_restartgame 1
-    // 這行一下去，MatchZy 官方內部的所有人 ready 狀態會被底層乾乾淨淨地強行洗白，完美解決隨機分隊衝突！
-    Server.ExecuteCommand("css_restart"); 
+    // 🎯【終極神操作】：不透過 Server.ExecuteCommand 了！
+    // 直接在程式碼裡呼叫 MatchZy 官方的重啟函數，傳入 null 讓它在後台默默重置。
+    // 這樣做 100% 擁有最高權限、免管理員、而且聊天框絕對不會噴出「1秒重開」的官方雜訊！
+    OnRestartMatchCommand(null, null); 
 
     // 4. 發送您指定的訊息到聊天框
     Server.PrintToChatAll(disconnectMsg); 
