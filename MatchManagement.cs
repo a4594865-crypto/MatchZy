@@ -37,17 +37,16 @@ else if (@event.Team == 2 || @event.Team == 3) // 進入選手隊伍
     }
 }
 
-            // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
-            if (!isWarmup && (matchStarted || isKnifeRequired))
-            {
-                if (!@event.Silent)
-                {
-                    ReplyToUserCommand(player, "刀 局 已 開 始，禁 止 互 換 隊 伍"); 
-                    return HookResult.Stop; 
-                }
-            }
-            return HookResult.Continue;
-        }
+          // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
+if (!isWarmup && (matchStarted || isKnifeRequired))
+{
+    if (!@event.Silent)
+    {
+        // 這裡刪除了 ReplyToUserCommand
+        return HookResult.Stop; // 依然保留攔截功能，讓換隊無效
+    }
+}
+return HookResult.Continue;
 
         public MatchConfig matchConfig = new();
 
