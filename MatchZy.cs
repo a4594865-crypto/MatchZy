@@ -737,7 +737,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
 
     // 【熱身階段檢查】防線
     if (!isWarmup) {
-        ReplyToUserCommand(player, $"比 賽 已 開 始，無 法 隨 機 分 隊");player.PrintToChat($
+        ReplyToUserCommand(player, $"比 賽 已 開 始，無 法 隨 機 分 隊");
         return;
     }
 
