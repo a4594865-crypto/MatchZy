@@ -256,7 +256,7 @@ namespace MatchZy
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義您指定的專屬廣播訊息
-    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
     // 2. 立即停止計時器並關閉所有外掛倒數狀態
     matchStartCountdownTimer.Kill();
@@ -268,7 +268,7 @@ if (matchStartCountdownTimer != null)
     playerReadyStatus.Clear(); 
     isShufflePending = false; 
 
-    // 🎯【終極神操作】：不透過 Server.ExecuteCommand 了！
+    // 【終極神操作】：不透過 Server.ExecuteCommand 了！
     // 直接在程式碼裡呼叫 MatchZy 官方的重啟函數，傳入 null 讓它在後台默默重置。
     // 這樣做 100% 擁有最高權限、免管理員、而且聊天框絕對不會噴出「1秒重開」的官方雜訊！
     OnRestartMatchCommand(null, null); 
@@ -737,7 +737,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
 
     // 【熱身階段檢查】防線
     if (!isWarmup) {
-        ReplyToUserCommand(player, $"{chatPrefix} {ChatColors.LightRed}只 能 在 熱 身 階 段 使 用 隨 機 分 隊 指 令");
+        ReplyToUserCommand(player, $" 只 能 在 熱 身 階 段 使 用 隨 機 分 隊 指 令");
         return;
     }
 
