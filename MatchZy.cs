@@ -493,7 +493,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-         // 1. 攔截開賽指令 (修正全數死結、保證 100% 倒數與刀局選邊復活的終極完全體)
+         // 1. 攔截開賽指令 (🌟 真正修正全數死結、保證 100% 倒數與刀局選邊復活的終極完全體)
             if (message == ".r" || message == ".ready") {
                 // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
                 if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
@@ -517,7 +517,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                             var targetPlayer = playerData[targetUserId];
                             
                             if (targetPlayer != null && targetPlayer.IsValid) {
-                                // 原廠倒數與音效絕對「碰」的一聲噴出來！
+                                // 🚀 100% 精準手動點火，原廠倒數與音效絕對「碰」的一聲噴出來！
                                 OnPlayerReady(targetPlayer, null);
                             }
                         }
@@ -536,8 +536,9 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 }
                 // --- [第一步結束] ---
 
-               int currentVersion = Api.GetVersion();
-               var playerUserId = NativeAPI.GetUseridFromIndex(@event.Userid);
+                int currentVersion = Api.GetVersion();
+                int index = @event.Userid + 1;
+                var playerUserId = NativeAPI.GetUseridFromIndex(index);
 
                 var parts = originalMessage.Split(' ');
                 var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
@@ -756,7 +757,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     isShufflePending = true;
     
     // 2. 執行全服廣播
-    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 自 動 洗 牌");
+    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
     
     // 3. 確保伺服器後台黑視窗有回饋
     if (player == null) {
