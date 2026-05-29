@@ -536,9 +536,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 }
                 // --- [第一步結束] ---
 
-                int currentVersion = Api.GetVersion();
-                int index = @event.Userid + 1;
-                var playerUserId = NativeAPI.GetUseridFromIndex(index);
+               int currentVersion = Api.GetVersion();
+               var playerUserId = NativeAPI.GetUseridFromIndex(@event.Userid);
 
                 var parts = originalMessage.Split(' ');
                 var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
