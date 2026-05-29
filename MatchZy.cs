@@ -265,16 +265,11 @@ if (matchStartCountdownTimer != null)
     isCountdownActive = false;
     matchStarted = false;
 
-    // 3. 清空全體準備狀態，讓留下來的 A 與等等重進的 B 通通都必須重新準備
+    // 3. 🔥【最核心】只要有這一行，全體準備狀態就已經清空重置了！
     playerReadyStatus.Clear(); 
 
-    // 4. 發送您指定的訊息到聊天框（只發送這一句）
+    // 4. 發送您指定的訊息到聊天框（全場只會看到這一句）
     Server.PrintToChatAll(disconnectMsg); 
-
-    // 5. 給引擎 0.5 秒緩衝時間，直接執行 MatchZy 的官方重置指令 (.restart)
-    AddTimer(0.5f, () => {
-        Server.ExecuteCommand("css_restart"); 
-    });
 }
 // --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
 if (!isWarmup && !matchStarted && !isPractice)
