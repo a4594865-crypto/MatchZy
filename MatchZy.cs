@@ -252,46 +252,25 @@ namespace MatchZy
                 if (player == null) return HookResult.Continue;
                 int userId = (int)(player.UserId ?? -1);
 
-            // --- A. 倒數期間斷線：中止倒數（整合：100% 處理隨機分隊指令與全體重置） ---
+           // --- A. 倒數期間斷線：中止倒數（終極解法：利用原生重啟 100% 全體重置） ---
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義您指定的專屬廣播訊息
     string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
-    // 2. 立即停止計時器並關閉所有倒數與開賽狀態
+    // 2. 立即停止計時器並關閉所有外掛倒數狀態
     matchStartCountdownTimer.Kill();
     matchStartCountdownTimer = null;
     isCountdownActive = false;
     matchStarted = false;
 
-    // 🔥【核心修正：處理隨機分隊】如果此時有啟用隨機分隊，因有人斷線中止，必須強制將預約洗牌關閉重置！
-    if (isShufflePending)
-    {
-        isShufflePending = false;
-    }
-
-    // 3. 🔥【終極雙重鎖定】不只 Clear 字典，還要強行把原廠 playerData 的狀態也一起殺光！
+    // 3. 🔥【抓取原生重置】同時清空我們自訂的字典，並讓伺服器強制執行原生重置
     playerReadyStatus.Clear(); 
-    foreach (var p in Utilities.GetPlayers())
-    {
-        // 只要是有效、不是機器人、在 T 或 CT 隊伍的玩家
-        if (p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-        {
-            int targetUserId = (int)(p.UserId ?? -1);
-            if (targetUserId != -1)
-            {
-                // 鎖定 1：強制在我們自訂的字典裡建立「未準備 (false)」的底子！
-                playerReadyStatus[targetUserId] = false; 
+    isShufflePending = false; // 取消預約洗牌
 
-                // 鎖定 2【致命救命行】：去 MatchZy 的 playerData 緩存字典裡，把玩家的 IsReady 屬性也強制切回 false！
-                // 這樣做才能徹底防止「隨機分隊指令」插進來更新隊伍時，誤讀到舊的已準備資料！
-                if (playerData.ContainsKey(targetUserId) && playerData[targetUserId] != null)
-                {
-                    playerData[targetUserId].IsReady = false; 
-                }
-            }
-        }
-    }
+    // 🎯 呼叫伺服器原生指令：直接執行 .restart 或是 mp_restartgame 1
+    // 這行一下去，MatchZy 官方內部的所有人 ready 狀態會被底層乾乾淨淨地強行洗白，完美解決隨機分隊衝突！
+    Server.ExecuteCommand("css_restart"); 
 
     // 4. 發送您指定的訊息到聊天框
     Server.PrintToChatAll(disconnectMsg); 
