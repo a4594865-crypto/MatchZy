@@ -313,7 +313,7 @@ AddCommandListener("jointeam", (player, info) =>
     if (matchStartCountdownTimer != null || isCountdownActive)
     {
         // 顯示警告訊息給該玩家
-        player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
+        player.PrintToChat($"{chatPrefix} 倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
         
         // 返回 HookResult.Stop 就能直接吃掉這個指令，讓玩家留在原地
         return HookResult.Stop; 
@@ -334,7 +334,7 @@ AddCommandListener("jointeam", (player, info) =>
             byte currentTeam = player.TeamNum;
             if ((currentTeam == 2 || currentTeam == 3) && (targetTeam == "1" || targetTeam == "2" || targetTeam == "3"))
             {
-                player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}刀 局 期 間，禁 止 互 換 隊 伍");
+                player.PrintToChat($"{chatPrefix} 刀 局 期 間，禁 止 互 換 隊 伍");
                 return HookResult.Stop; 
             }
         }
@@ -347,7 +347,7 @@ AddCommandListener("jointeam", (player, info) =>
         byte playerTeam = player.TeamNum;
         if ((targetTeam == "2" || targetTeam == "3") && (playerTeam == 2 || playerTeam == 3))
         {
-            player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}比 賽 已 開 始，禁 止 互 換 隊 伍");
+            player.PrintToChat($"{chatPrefix} 比 賽 已 開 始，禁 止 互 換 隊 伍");
             return HookResult.Stop; 
         }
     }
@@ -371,7 +371,7 @@ AddCommandListener("jointeam", (player, info) =>
             {
                 if (player != null && isMatchSetup) 
                 {
-                    player.PrintToChat($"{chatPrefix} {ChatColors.LightRed}正 式 比 賽 期 間，內 建 投 票 功 能 已 被 禁 用");
+                    player.PrintToChat($"{chatPrefix} 正 式 比 賽 期 間，內 建 投 票 功 能 已 被 禁 用");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
@@ -731,13 +731,13 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     }
 
     if (isMatchSetup) { 
-        ReplyToUserCommand(player, "正 式 比 賽 模 式 禁 用 隨 機 分 隊");
+        ReplyToUserCommand(player, "比 賽 已 開 始，無 法 隨 機 分 隊");
         return;
     }
 
     // 【熱身階段檢查】防線
     if (!isWarmup) {
-        ReplyToUserCommand(player, $" 只 能 在 熱 身 階 段 使 用 隨 機 分 隊 指 令");
+        ReplyToUserCommand(player, $"比 賽 已 開 始，無 法 隨 機 分 隊");player.PrintToChat($
         return;
     }
 
