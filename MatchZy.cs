@@ -246,40 +246,29 @@ namespace MatchZy
                 return EventPlayerConnectFullHandler(@event, info);
             });
             
-         // 1. 斷線事件處理：強制清理與倒數中止
-RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
-    var player = @event.Userid;
-    if (player == null) return HookResult.Continue;
-    
-    // 使用與 .r 指令完全對齊的 ID 計算方式
-    int userId = NativeAPI.GetUseridFromIndex(player.Index + 1);
+            // 1. 斷線事件處理：整合「倒數中止」與「刀場斷線自動移除名單」
+            RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
+                var player = @event.Userid;
+                if (player == null) return HookResult.Continue;
+                int userId = (int)(player.UserId ?? -1);
 
-    // --- 【修正關鍵】：確保 B 斷線後一定被從名單剔除 ---
-    if (playerReadyStatus.ContainsKey(userId)) 
-    {
-        playerReadyStatus.Remove(userId);
-    }
-    
-    // --- A. 倒數期間斷線：中止倒數 ---
-    if (isCountdownActive || matchStartCountdownTimer != null)
-    {
-        string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+                // --- A. 倒數期間斷線：中止倒數 ---
+// --- A. 倒數期間斷線：中止倒數 ---
+if (matchStartCountdownTimer != null)
+{
+    // 1. 定義要發送的訊息內容
+    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 倒 數 中 止 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
-        // 1. 立即停止並重置計時器
-        CancelMatchCountdown(disconnectMsg);
-        
-        // 2. 清理所有倒數標記
-        matchStartCountdownTimer = null;
-        isCountdownActive = false; 
-        matchStarted = false; // 強制解鎖比賽，確保 A 可以重新輸入 .r
-        
-        // 3. 廣播通知所有人
-        Server.PrintToChatAll(disconnectMsg);
-    }
+    // 2. 立即停止計時器並廣播通知
+    CancelMatchCountdown(disconnectMsg);
+    Server.PrintToChatAll(disconnectMsg); 
 
-    return HookResult.Continue;
-});
-
+    // 3. 清空狀態與計時器邏輯
+    playerReadyStatus.Clear(); 
+    matchStartCountdownTimer = null;
+    isCountdownActive = false;
+    matchStarted = false; // 強制解鎖比賽，讓 A 可以重新準備
+}
 // --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
 if (!isWarmup && !matchStarted && !isPractice)
 {
