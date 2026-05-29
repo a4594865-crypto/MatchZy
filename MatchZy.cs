@@ -485,8 +485,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
-
-         // 1. 攔截開賽指令
+// 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
     // 判斷是否為最後一個準備的人
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
@@ -513,10 +512,11 @@ if (message == ".r" || message == ".ready") {
             });
         }
         
-        return HookResult.Handled; 
+        // 🔥【關鍵修正】最後一個人打 .r 時，絕對不能攔截！
+        // 必須回傳 Continue 放行，讓 MatchZy 原廠引擎收尾並觸發 StartMatchCountdown()
+        return HookResult.Continue; 
     }
 }
-
 // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
 if (isCountdownActive && !originalMessage.Contains("倒數：")) {
     return HookResult.Handled;
