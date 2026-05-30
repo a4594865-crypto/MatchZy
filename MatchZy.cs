@@ -826,7 +826,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     if (player != null && 
                         player.IsValid && 
                         !player.IsBot && 
-                        player.Connected == PlayerConnectedState.PlayerConnected) 
+                        player.Connected == PlayerConnectedState.Connected)
                     {
                         int userId = (int)(player.UserId ?? -1);
                         if (userId != -1) playerData[userId] = player;
