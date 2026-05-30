@@ -23,15 +23,13 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'  # 🎯 升級到 .NET 10
-          dotnet-quality: 'preview' # 🎯 確保能夠順利撈到微軟目前的 .NET 10 預覽版環境
+          dotnet-version: '8.0'
 
       - name: Get MatchZy Version
         id: MATCHZY_VERSION
         run: |
             MATCHZY_VERSION=$(grep -oP 'ModuleVersion\s*=>\s*"\K[^"]*' MatchZy.cs)
             echo "MATCHZY_VERSION=$MATCHZY_VERSION" >> $GITHUB_ENV
-            
       - name: Build and Release Artifacts
         run: |
           CSSHARP_VERSION=$(grep -Po '<PackageReference Include="CounterStrikeSharp.API" Version="\K\d+(\.\d+)*' MatchZy.csproj)
@@ -39,7 +37,7 @@ jobs:
           dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
           cp -r cfg package 
           cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION.zip * && cd ..
-     
+    
           echo "Creating package with CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION for Linux"
           cd package/
           echo "Installing CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION"
@@ -48,7 +46,8 @@ jobs:
               grep "/counterstrikesharp-with-runtime-linux-$CSSHARP_VERSION" |
               cut -d : -f 2,3 |
               tr -d \" |
-              get -O cssharp-linux.zip -qi - || wget -O cssharp-linux.zip -qi - # 備用相容
+              head -n 1 |
+              wget -O cssharp-linux.zip -qi -
           unzip -o cssharp-linux.zip -d .
           rm cssharp-linux.zip
           cd ../
