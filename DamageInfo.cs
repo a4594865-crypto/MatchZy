@@ -93,7 +93,7 @@ namespace MatchZy
                         {
                             if (!attackerController.IsValid || !targetController.IsValid) continue;
                             if (attackerController.Connected != PlayerConnectedState.PlayerConnected) continue;
-                            if (targetController.Connected != PlayerConnectedState.PlayerConnected) continue;
+                            if (targetController.Connected != PlayerConnectedState.Connected) continue;
                             if (!attackerController.PlayerPawn.IsValid || !targetController.PlayerPawn.IsValid) continue;
                             if (attackerController.PlayerPawn.Value == null || targetController.PlayerPawn.Value == null) continue;
 
