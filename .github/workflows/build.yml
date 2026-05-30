@@ -23,8 +23,8 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'   # 🎯 直升 .NET 10 
-          dotnet-quality: 'preview'  # 🎯 強制開啟預覽版通道
+          dotnet-version: '10.0.x' 
+          dotnet-quality: 'preview'
 
       - name: Get MatchZy Version
         id: MATCHZY_VERSION
@@ -49,7 +49,7 @@ jobs:
               cut -d : -f 2,3 |
               tr -d \" |
               head -n 1 |
-              wget -O cssharp-linux.zip -qi - # 🎯 修正原廠 get 變成 wget 的錯誤
+              wget -O cssharp-linux.zip -qi - # 
           unzip -o cssharp-linux.zip -d .
           rm cssharp-linux.zip
           cd ../
