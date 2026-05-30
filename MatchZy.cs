@@ -713,7 +713,7 @@ var playerUserId = NativeAPI.GetUseridFromIndex(index);
                     // 超強防護網：必須「IsValid 且在線 (PlayerConnected) 且在 T/CT 隊上」才算人數
                     if (player != null && 
                         player.IsValid && 
-                        player.Connected == PlayerConnectedState.PlayerConnected && 
+                        player.Connected == PlayerConnectedState.Connected &&
                         (player.TeamNum == 2 || player.TeamNum == 3))
                     {
                         count++;
