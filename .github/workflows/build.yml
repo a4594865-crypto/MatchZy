@@ -5,17 +5,17 @@ on:
     paths-ignore:
         - "documentation/**"
     branches:
-      - misterya
+      - main
   workflow_dispatch:
 
 jobs:
   build:
     permissions:
-        contents: write
+      contents: write
     name: Build and Release
     runs-on: ubuntu-latest
     outputs:
-        MMS_VERSION: ${{ steps.MMS_VERSION.outputs.MMS_VERSION }}
+        MATCHZY_VERSION: ${{ steps.get_version.outputs.VERSION }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -25,22 +25,24 @@ jobs:
         with:
           dotnet-version: '10.0'
 
-      - name: Get MMS Version
-        id: MMS_VERSION
+      - name: Get MatchZy Version
+        id: get_version
         run: |
-            MMS_VERSION=$(grep -oP 'ModuleVersion\s*=>\s*"\K[^"]*' MatchZy.cs)
-            echo "MMS_VERSION=$MMS_VERSION" >> $GITHUB_ENV
+            MATCHZY_VERSION=$(grep -oP 'ModuleVersion\s*=>\s*"\K[^"]*' MatchZy.cs)
+            echo "VERSION=$MATCHZY_VERSION" >> $GITHUB_OUTPUT
+            echo "MATCHZY_VERSION=$MATCHZY_VERSION" >> $GITHUB_ENV
 
       - name: Build and Release Artifacts
         run: |
           CSSHARP_VERSION=$(grep -Po '<PackageReference Include="CounterStrikeSharp.API" Version="\K\d+(\.\d+)*' MatchZy.csproj)
-          echo "Creating MMS base package with version: $MMS_VERSION"
-          dotnet publish -o package/addons/counterstrikesharp/plugins/MMS
+          echo "Creating MatchZy base package with version: $MATCHZY_VERSION"
+          dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
           cp -r cfg package 
-          cd package && zip -q -r ../MMS-$MMS_VERSION.zip * && cd ..
-
+          cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION.zip * && cd ..
+    
           echo "Creating package with CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION for Linux"
           cd package/
+          echo "Installing CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION"
           [ -e addons/counterstrikesharp ] && rm -rf addons/counterstrikesharp && echo "CounterStrikeSharp removed" || echo "old CounterStrikeSharp not found"
           curl -s https://api.github.com/repos/roflmuffin/CounterStrikeSharp/releases/tags/v$CSSHARP_VERSION |
               grep "/counterstrikesharp-with-runtime-linux-$CSSHARP_VERSION" |
@@ -52,9 +54,30 @@ jobs:
           rm cssharp-linux.zip
           cd ../
 
-          dotnet publish -o package/addons/counterstrikesharp/plugins/MMS
+          dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
 
-          cd package && zip -q -r ../MMS-$MMS_VERSION-with-cssharp-linux.zip * && cd ..
+          cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION-with-cssharp-linux.zip * && cd ..
+
+          rm -r package/*
+
+          echo "Creating package with CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION for Windows"
+          cp -r cfg package
+          cd package/
+          echo "Installing CounterStrikeSharp (CSSharp) v$CSSHARP_VERSION"
+          [ -e addons/counterstrikesharp ] && rm -rf addons/counterstrikesharp && echo "CounterStrikeSharp removed" || echo "old CounterStrikeSharp not found"
+          curl -s https://api.github.com/repos/roflmuffin/CounterStrikeSharp/releases/tags/v$CSSHARP_VERSION |
+              grep "/counterstrikesharp-with-runtime-windows-$CSSHARP_VERSION" |
+              cut -d : -f 2,3 |
+              tr -d \" |
+              head -n 1 |
+              wget -O cssharp-windows.zip -qi -
+          unzip -o cssharp-windows.zip -d .
+          rm cssharp-windows.zip
+          cd ../
+
+          dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
+
+          cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION-with-cssharp-windows.zip * && cd ..
 
       - name: Create Release
         id: create_release
@@ -62,18 +85,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: MMS ${{ env.MMS_VERSION }}
-          tag_name: ${{ env.MMS_VERSION }}
+          name: MatchZy ${{ steps.get_version.outputs.VERSION }}
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
           body: |
-            Voir [`CHANGELOG.md`](https://github.com/c3drick0s/MisteryA-Match-System/blob/misterya/CHANGELOG.md) pour le détail des modifications.
-
-            **Installation :**
-            Extraire le contenu de `MMS-${{ env.MMS_VERSION }}.zip` dans le répertoire `csgo/` du serveur.
-            Prérequis : Metamod et CounterStrikeSharp doivent être installés.
-
-            Le zip `MMS-${{ env.MMS_VERSION }}-with-cssharp-linux.zip` inclut CounterStrikeSharp pour Linux.
-          draft: false
-          prerelease: false
-          files: |
-            MMS-${{ env.MMS_VERSION }}.zip
-            MMS-${{ env.MMS_VERSION }}-with-cssharp-linux.zip
+            Please see the [`CHANGELOG.md`](
