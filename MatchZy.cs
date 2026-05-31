@@ -36,7 +36,7 @@ namespace MatchZy
         public bool matchStarted = false;
         public bool isWarmup = false;
         public bool isCountdownActive = false; // 加入這一行，宣告全域開關
-        public bool isShufflePending = false; // A方案：預約隨機分隊標記
+        public bool isShufflePending = false; // 預約隨機分隊標記
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
         public bool isMatchLive = false;
@@ -252,7 +252,7 @@ namespace MatchZy
                 if (player == null) return HookResult.Continue;
                 int userId = (int)(player.UserId ?? -1);
 
-// --- A. 倒數期間斷線：中止倒數（終極優雅：直接呼叫 MatchZy 核心函數，0 雜訊免管理員） ---
+// --- A. 倒數期間斷線：中止倒數 ---
 if (matchStartCountdownTimer != null)
 {
     // 1. 定義您指定的專屬廣播訊息
@@ -267,10 +267,6 @@ if (matchStartCountdownTimer != null)
     // 3. 物理重置我們自訂的字典與洗牌預約
     playerReadyStatus.Clear(); 
     isShufflePending = false; 
-
-    // 【終極神操作】：不透過 Server.ExecuteCommand 了！
-    // 直接在程式碼裡呼叫 MatchZy 官方的重啟函數，傳入 null 讓它在後台默默重置。
-    // 這樣做 100% 擁有最高權限、免管理員、而且聊天框絕對不會噴出「1秒重開」的官方雜訊！
     OnRestartMatchCommand(null, null); 
 
     // 4. 發送您指定的訊息到聊天框
@@ -289,7 +285,7 @@ if (!isWarmup && !matchStarted && !isPractice)
     UpdatePlayersMap();
 }
 
-                // 呼叫原本可能定義在其他檔案的處理程序 (保持原架構相容)
+                // 呼叫原本可能定義在其他檔案的處理程序
                 return EventPlayerDisconnectHandler(@event, info);
             });
 
@@ -491,7 +487,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-             // 1. 攔截開賽指令（用你最放心的這段，完全不需要改動！）
+             // 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
@@ -507,7 +503,7 @@ if (message == ".r" || message == ".ready") {
     }
 }
 
-                // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
+                // 2. 如果倒數已經在跑，擋掉所有一般發話
                 if (isCountdownActive && !originalMessage.Contains("倒數：")) {
                     return HookResult.Handled;
                     }
