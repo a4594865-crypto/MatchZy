@@ -519,6 +519,7 @@ if (message == ".r" || message == ".ready") {
                 // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
                 if (isCountdownActive && !originalMessage.Contains("倒數：")) {
                     return HookResult.Handled;
+                    }
                 // --- [第一步結束] ---
 int currentVersion = Api.GetVersion();
 int index = @event.Userid + 1;
@@ -806,13 +807,11 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         }
     }
 
-    // 6. 輸出訊息與重置標記
+   // 6. 輸出訊息與重置標記
     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
     Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
     
     isShufflePending = false;
-}
-
 } // 這是 ExecuteShuffleLogic 的結束括號
 
 } // 這是 class MatchZy 的結束括號
