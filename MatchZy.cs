@@ -519,7 +519,7 @@ if (message == ".r" || message == ".ready") {
         }
         
         // 3. 沒收聊天框輸入，讓畫面達到最極致的乾淨
-        return HookResult.Handled; 
+        return HookResult.Continue; 
     }
 }
 // --- [第一步結束] ---
