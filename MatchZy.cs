@@ -813,5 +813,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     isShufflePending = false;
 }
 
-    } // 結束 public partial class MatchZy (整個檔案倒數第 2 個大括號)
-} // 結束 namespace MatchZy (整個檔案最後 1 個大括號)
+} // 這是 ExecuteShuffleLogic 的結束括號
+
+} // 這是 class MatchZy 的結束括號
+} // 這是 namespace MatchZy 的結束括號
