@@ -190,10 +190,8 @@ public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
 {
     if (!isMatchLive) return;
 
-    // 🎯 1. 直接去抓 CS2 官方引擎的「戰術暫停狀態」
     var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
     
-    // 🎯 2. 拋棄 93 秒！直接用原生狀態檢查：
     // 如果官方正處於戰術暫停中（T或CT正在倒數），或者外掛已經是技術暫停狀態，一律不准用！
     if ((gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive)) || isPaused || techPauseAutoUnpauseTimer != null)
     {
@@ -201,7 +199,7 @@ public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         {
             PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 使 用 {ChatColors.Default}技 術 暫 停");
         }
-        return; // ❌ 100% 擋退，絕對不會往下走到 TechPause，技術暫停次數就不會被連扣！
+        return; // 
     }
 
     // 核心防線 2：回合正式開始後攔截（維持你原本的寫法）
@@ -251,7 +249,6 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (gameRules.TerroristTimeOuts > 0)
             {
-                // 🎯 刪除原本的 lastTacticalPauseTime，直接呼叫官方指令
                 Server.ExecuteCommand("timeout_terrorist_start");
             }
             else
@@ -263,7 +260,6 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (gameRules.CTTimeOuts > 0)
             {
-                // 🎯 刪除原本的 lastTacticalPauseTime，直接呼叫官方指令
                 Server.ExecuteCommand("timeout_ct_start");
             }
             else
