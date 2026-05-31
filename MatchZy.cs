@@ -713,7 +713,7 @@ var playerUserId = NativeAPI.GetUseridFromIndex(index);
                     // 超強防護網：必須「IsValid 且在線 (PlayerConnected) 且在 T/CT 隊上」才算人數
                     if (player != null && 
                         player.IsValid && 
-                        player.Connected == PlayerConnectedState.Connected &&
+                        player.Connected == PlayerConnectedState.PlayerConnected && 
                         (player.TeamNum == 2 || player.TeamNum == 3))
                     {
                         count++;
@@ -826,7 +826,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     if (player != null && 
                         player.IsValid && 
                         !player.IsBot && 
-                        player.Connected == PlayerConnectedState.Connected)
+                        player.Connected == PlayerConnectedState.PlayerConnected) 
                     {
                         int userId = (int)(player.UserId ?? -1);
                         if (userId != -1) playerData[userId] = player;
