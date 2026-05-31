@@ -491,28 +491,19 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-             
-               // 1. 攔截開賽指令
+             // 1. 攔截開賽指令（用你最放心的這段，完全不需要改動！）
 if (message == ".r" || message == ".ready") {
-    // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        // --- 新增：在正式倒數開始前，如果玩家有預約洗牌，立即執行 ---
+        // 洗牌超車
         if (isShufflePending) 
         {
             ExecuteShuffleLogic(); // 執行洗牌
+            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
         }
-        // -------------------------------------------------------
 
-        // 1. 執行原本的準備邏輯
         OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
-        
-        // 2. 開啟靜音開關
-        AddTimer(0.2f, () => {
-            isCountdownActive = true; 
-        });
-        
-        return HookResult.Handled; 
+         return HookResult.Handled; 
     }
 }
 
