@@ -15,6 +15,7 @@ jobs:
     name: Build and Release
     runs-on: ubuntu-latest
     outputs:
+        # ✅ 正確將步驟的 VERSION 輸出給 Job 全域使用
         MATCHZY_VERSION: ${{ steps.get_version.outputs.VERSION }}
     steps:
       - name: Checkout Repository
@@ -23,11 +24,13 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
+          # ✅ 升級為 .NET 10.0，以支援最新版 CounterStrikeSharp 的編譯
           dotnet-version: '10.0'
 
       - name: Get MatchZy Version
         id: get_version
         run: |
+            # ✅ 同時寫入 $GITHUB_OUTPUT (跨步驟用) 與 $GITHUB_ENV (同步驟用)，確保雙重安全不丟失版本號
             MATCHZY_VERSION=$(grep -oP 'ModuleVersion\s*=>\s*"\K[^"]*' MatchZy.cs)
             echo "VERSION=$MATCHZY_VERSION" >> $GITHUB_OUTPUT
             echo "MATCHZY_VERSION=$MATCHZY_VERSION" >> $GITHUB_ENV
@@ -36,7 +39,9 @@ jobs:
         run: |
           CSSHARP_VERSION=$(grep -Po '<PackageReference Include="CounterStrikeSharp.API" Version="\K\d+(\.\d+)*' MatchZy.csproj)
           echo "Creating MatchZy base package with version: $MATCHZY_VERSION"
-          dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
+          
+          # 強制指定編譯根目錄的專案，避免路徑錯亂
+          dotnet publish *.csproj -o package/addons/counterstrikesharp/plugins/MatchZy
           cp -r cfg package 
           cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION.zip * && cd ..
     
@@ -54,7 +59,7 @@ jobs:
           rm cssharp-linux.zip
           cd ../
 
-          dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
+          dotnet publish *.csproj -o package/addons/counterstrikesharp/plugins/MatchZy
 
           cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION-with-cssharp-linux.zip * && cd ..
 
@@ -75,7 +80,7 @@ jobs:
           rm cssharp-windows.zip
           cd ../
 
-          dotnet publish -o package/addons/counterstrikesharp/plugins/MatchZy
+          dotnet publish *.csproj -o package/addons/counterstrikesharp/plugins/MatchZy
 
           cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION-with-cssharp-windows.zip * && cd ..
 
@@ -85,7 +90,29 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          # ✅ 修正：全部改用安全傳遞的變數，防止 Release 名稱變空或找不到檔案
           name: MatchZy ${{ steps.get_version.outputs.VERSION }}
           tag_name: ${{ steps.get_version.outputs.VERSION }}
           body: |
-            Please see the [`CHANGELOG.md`](
+            Please see the [`CHANGELOG.md`](https://github.com/shobhit-pathak/MatchZy/blob/main/CHANGELOG.md) for details on changes.
+
+            Installation:
+            There are 3 files attached here:
+            One is the MatchZy-${{ steps.get_version.outputs.VERSION }}.zip which only contains the MatchZy plugin files. Extract its contents in csgo/ directory of the server. (Prerequisite: Metamod and CounterStrikeSharp should be already installed on the server)
+            
+            Second one is MatchZy-${{ steps.get_version.outputs.VERSION }}-with-cssharp-linux.zip which contains MatchZy plugin file as well as CounterStrikeSharp files (for linux) so that you don't have to install CounterStrikeSharp separately. Simply extract its contents in csgo/ directory of the server. 
+            Third one is MatchZy-${{ steps.get_version.outputs.VERSION }}-with-cssharp-windows.zip which is same as above, but for Windows.
+            (Prerequisite: Metamod should be already installed on the server, rest CounterStrikeSharp and MatchZy will be installed once you extract the contents) (WITH CSSHARP RELEASE IS RECOMMENDED FOR FIRST TIME INSTALLERS)
+          draft: false
+          prerelease: false
+          files: |
+            MatchZy-${{ steps.get_version.outputs.VERSION }}.zip
+            MatchZy-${{ steps.get_version.outputs.VERSION }}-with-cssharp-linux.zip
+            MatchZy-${{ steps.get_version.outputs.VERSION }}-with-cssharp-windows.zip
+
+      - name: Publish Discord Notification
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        uses: Ilshidur/action-discord@0.3.2
+        with:
+          args: "A new release of MatchZy is here! MatchZy v${{ steps.get_version.outputs.VERSION }} (${{ steps.create_release.outputs.url }})"
