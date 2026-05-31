@@ -20,19 +20,6 @@ public partial class MatchZy
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    // 93秒時間防線：記錄玩家輸入任何戰術暫停指令的引擎時間
-    public double lastTacticalPauseTime = 0.0;
-
-    // 93秒計算方法
-    public bool IsInTacticalPauseWindow()
-    {
-        if (lastTacticalPauseTime <= 0.0) return false;
-        
-        double currentTime = Server.EngineTime;
-        // 93秒防禦
-        return (currentTime - lastTacticalPauseTime) <= 93.0;
-    }
-
     /// <summary>
     /// 技術暫停 (.tech) 的核心實作方法
     /// </summary>
@@ -50,12 +37,15 @@ public partial class MatchZy
             return;
         }
 
-        // 防線 4：如果目前「已經是原生暫停狀態（.p 戰術暫停中）」，絕對禁止再開 .tech 來亂！
-        if (isPaused)
+        // 
+        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        bool isOfficialTacActive = gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
+
+        if (isPaused || isOfficialTacActive)
         {
             if (player != null)
-                PrintToPlayerChat(player, $" 正 處 於【 戰 術 暫 停 】中，無 法 啟 用 技 術 暫 停");
-            return;
+                PrintToPlayerChat(player, $" 正 處 於【 暫 停 狀 態 】中，無 法 啟 用 技 術 暫 停");
+            return; // 
         }
 
         if (player == null)
@@ -138,7 +128,7 @@ public partial class MatchZy
             else
             {
                 int remaining = 300 - techPauseElapsedTime;
-                PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 除 還 剩 \u0004{remaining} 秒\u0001 ");
+                PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 解 還 剩 \u0004{remaining} 秒\u0001 ");
             }
         }, TimerFlags.REPEAT);
     }
