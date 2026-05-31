@@ -15,7 +15,7 @@ jobs:
     name: Build and Release
     runs-on: ubuntu-latest
     outputs:
-        # ✅ 正確將步驟的 VERSION 輸出給 Job 全域使用
+
         MATCHZY_VERSION: ${{ steps.get_version.outputs.VERSION }}
     steps:
       - name: Checkout Repository
@@ -24,13 +24,11 @@ jobs:
       - name: Set up .NET
         uses: actions/setup-dotnet@v4
         with:
-          # ✅ 升級為 .NET 10.0，以支援最新版 CounterStrikeSharp 的編譯
           dotnet-version: '10.0'
 
       - name: Get MatchZy Version
         id: get_version
         run: |
-            # ✅ 同時寫入 $GITHUB_OUTPUT (跨步驟用) 與 $GITHUB_ENV (同步驟用)，確保雙重安全不丟失版本號
             MATCHZY_VERSION=$(grep -oP 'ModuleVersion\s*=>\s*"\K[^"]*' MatchZy.cs)
             echo "VERSION=$MATCHZY_VERSION" >> $GITHUB_OUTPUT
             echo "MATCHZY_VERSION=$MATCHZY_VERSION" >> $GITHUB_ENV
@@ -40,7 +38,6 @@ jobs:
           CSSHARP_VERSION=$(grep -Po '<PackageReference Include="CounterStrikeSharp.API" Version="\K\d+(\.\d+)*' MatchZy.csproj)
           echo "Creating MatchZy base package with version: $MATCHZY_VERSION"
           
-          # 強制指定編譯根目錄的專案，避免路徑錯亂
           dotnet publish *.csproj -o package/addons/counterstrikesharp/plugins/MatchZy
           cp -r cfg package 
           cd package && zip -q -r ../MatchZy-$MATCHZY_VERSION.zip * && cd ..
@@ -90,7 +87,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # ✅ 修正：全部改用安全傳遞的變數，防止 Release 名稱變空或找不到檔案
           name: MatchZy ${{ steps.get_version.outputs.VERSION }}
           tag_name: ${{ steps.get_version.outputs.VERSION }}
           body: |
