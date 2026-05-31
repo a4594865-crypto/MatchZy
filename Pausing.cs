@@ -128,7 +128,7 @@ public partial class MatchZy
             else
             {
                 int remaining = 300 - techPauseElapsedTime;
-                PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 解 還 剩 \u0004{remaining} 秒\u0001 ");
+                PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 除 還 剩 \u0004{remaining} 秒\u0001 ");
             }
         }, TimerFlags.REPEAT);
     }
