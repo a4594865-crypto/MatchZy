@@ -165,7 +165,7 @@ namespace MatchZy
     }
 }
 
-     public void PrintUnreadyPlayers()
+    public void PrintUnreadyPlayers()
         {
             // 只要在倒數，就攔截所有準備訊息
             if (isCountdownActive) return; 
@@ -182,11 +182,19 @@ namespace MatchZy
                 var unreadyPlayers = Utilities.GetPlayers()
                     .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     .Where(p => {
+                        // ⚙️ 穩定性鎖 1：如果 UserId 為空（加載中的玩家），直接排除，防止後台隨機洗牌邏輯計算崩潰
+                        if (p.UserId == null) return false;
+
+                        // ⚙️ 穩定性鎖 2：如果玩家不在 playerData 在線名單中（已斷線），直接排除，拔除斷線殘影
+                        if (!playerData.ContainsKey((int)p.UserId)) return false;
+
                         bool isReady = false;
-                        // 關鍵修正：將 p.SteamID (ulong) 強制轉換為 (int) 以匹配 Dictionary 的 Key
-                        if (playerReadyStatus.TryGetValue((int)(p.UserId ?? -1), out isReady)) {
+                        // 完美與你的 MatchZy.cs 核心 UserId 字典對接，不再使用不穩定的 SteamID 或硬轉
+                        if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) {
                             return !isReady;
                         }
+                        
+                        // 若字典找不到該玩家狀態，代表他人在場上但確實還沒打 .r，納入未準備名單
                         return true; 
                     })
                     .Select(p => p.PlayerName);
