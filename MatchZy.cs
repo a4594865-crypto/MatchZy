@@ -491,6 +491,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
+             
                // 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
     // 判斷是否為最後一個準備的人（例如 10 人房的第 9 人）
@@ -500,7 +501,6 @@ if (message == ".r" || message == ".ready") {
         if (isShufflePending) 
         {
             ExecuteShuffleLogic(); // 執行洗牌
-            ForceUpdateOnlinePlayersMap();    // 強制更新玩家隊伍緩存
         }
         // -------------------------------------------------------
 
@@ -519,7 +519,6 @@ if (message == ".r" || message == ".ready") {
                 // 2. 如果倒數已經在跑，擋掉所有一般發話 (除了系統發出的「倒數：」)
                 if (isCountdownActive && !originalMessage.Contains("倒數：")) {
                     return HookResult.Handled;
-                }
                 // --- [第一步結束] ---
 int currentVersion = Api.GetVersion();
 int index = @event.Userid + 1;
@@ -813,33 +812,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     
     isShufflePending = false;
 }
-// 這是你專屬的超級過濾網，專門在開賽微秒間超車使用，跟原廠 private 不衝突
-        public void ForceUpdateOnlinePlayersMap()
-{
-    try
-    {
-        playerData.Clear();
-        foreach (var player in Utilities.GetPlayers())
-        {
-            // 不要限制一定要是 Connected，這樣換隊瞬間的飄移就不會被過濾掉
-            if (player != null && 
-                player.IsValid && 
-                !player.IsBot && 
-                player.Connected != PlayerConnectedState.Disconnected) 
-            {
-                int userId = (int)(player.UserId ?? -1);
-                if (userId != -1) playerData[userId] = player;
-            }
-        }
-        
-        // 繼續保持清理準備名單的功能，這對防止 9/10 人卡死非常重要
-        var offlineUserIds = playerReadyStatus.Keys.Where(id => !playerData.ContainsKey(id)).ToList();
-        foreach (var id in offlineUserIds)
-        {
-            playerReadyStatus.Remove(id);
-        }
-    }
-    catch (Exception) { /* 靜默忽略錯誤 */ }
-}
+
     } // 結束 public partial class MatchZy (整個檔案倒數第 2 個大括號)
 } // 結束 namespace MatchZy (整個檔案最後 1 個大括號)
