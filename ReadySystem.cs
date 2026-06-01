@@ -161,47 +161,50 @@ namespace MatchZy
     }
 }
 
-    public void PrintUnreadyPlayers()
+   public void PrintUnreadyPlayers()
+    {
+        // 只要在倒數，就攔截所有準備訊息
+        if (isCountdownActive) return; 
+
+        int readyCount = GetReadyPlayersCount();
+
+        if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
         {
-            // 只要在倒數，就攔截所有準備訊息
-            if (isCountdownActive) return; 
+            PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
+        }
+        else if (readyAvailable && !matchStarted)
+        {
+            // 找出還沒準備的玩家名單
+            var unreadyPlayers = Utilities.GetPlayers()
+                .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                .Where(p => {
+                    if (p.UserId == null) return false;
 
-            int readyCount = GetReadyPlayersCount();
+                    // 1. 這裡維持你原本的 UID 檢查（對應 playerData 字典）
+                    if (!playerData.ContainsKey((int)p.UserId)) return false;
 
-            if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
+                    // 2. 核心修正：改用玩家的「UID (int)」去 playerReadyStatus 查資料！
+                    // 這樣就能完美搭配你在這三個檔案裡宣告的 private Dictionary<int, bool> playerReadyStatus
+                    bool isReady = false;
+                    if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) {
+                        return !isReady;
+                    }
+                    
+                    return true; 
+                })
+                .Select(p => p.PlayerName);
+            
+            string unreadyList = string.Join(", ", unreadyPlayers);
+
+            if (!string.IsNullOrEmpty(unreadyList))
             {
-                PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
-            }
-            else if (readyAvailable && !matchStarted)
-            {
-                // 找出還沒準備的玩家名單
-                var unreadyPlayers = Utilities.GetPlayers()
-                    .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                    .Where(p => {
-                        if (p.UserId == null) return false;
-
-                        if (!playerData.ContainsKey((int)p.UserId)) return false;
-
-                        bool isReady = false;
-                        if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) {
-                            return !isReady;
-                        }
-                        
-                        return true; 
-                    })
-                    .Select(p => p.PlayerName);
-                
-                string unreadyList = string.Join(", ", unreadyPlayers);
-
-                if (!string.IsNullOrEmpty(unreadyList))
-                {
-                    PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyList]);
-                }
-            }
-            else if (!matchStarted)
-            {
-                PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
+                PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyList]);
             }
         }
+        else if (!matchStarted)
+        {
+            PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
+        }
+    }
  } // MatchZy Class 結束
 } // Namespace 結束
