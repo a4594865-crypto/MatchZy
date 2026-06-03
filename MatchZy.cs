@@ -490,23 +490,30 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-            // 1. 攔截開賽指令
+             // 1. 攔截開賽指令
 if (message == ".r" || message == ".ready") {
-    // 只有在還沒開賽、且系統允許準備時才進行判斷
-    if (!matchStarted && readyAvailable) {
+    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
         var triggeringPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
 
-        // 只有管理員開啟了「隨機分隊預約」，並且人數達到最後一人開賽門檻時，才進行強行攔截！
-        if (isShufflePending && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) 
+        // 如果啟用了隨機分隊預約，改走防衝突執行緒安全延遲流程
+        if (isShufflePending) 
         {
             ExecuteShuffleLogicWithReady(triggeringPlayer);
-            return HookResult.Handled; // 只有這時才吃掉事件，改走我們寫的安全洗牌開賽流程
         }
+        else
+        {
+            OnPlayerReady(triggeringPlayer, null);
+        }
+        return HookResult.Handled; 
     }
-    // 如果「沒開隨機分隊」或是「人數還沒滿」，直接不做任何 return，
-    // 讓程式自然滑下去走原廠的所有點名、說話與開賽時序，這樣普通開賽就絕對不會卡住！
 }
+
+                // 2. 如果倒數已經在跑，擋掉所有一般發話
+                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
+                    return HookResult.Handled;
+                    }
+                // --- [第一步結束] ---
 
                 // 2. 如果倒數已經在跑，擋掉所有一般發話
                 if (isCountdownActive && !originalMessage.Contains("倒數：")) {
