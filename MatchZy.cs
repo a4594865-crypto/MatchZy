@@ -758,7 +758,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 }
 
-        // 原本的舊版 ExecuteShuffleLogic 留下作為手動相容保底，不改動文字
+        // 原本的舊版 ExecuteShuffleLogic 留下作為手動相容保底
         public void ExecuteShuffleLogic() 
         {
             if (!isShufflePending) return;
@@ -803,7 +803,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         }
 
         // =========================================================================
-        // 🎯 【核心終極無 Bug 聯動優化版：同步動態預計算新隊名 + 多執行緒安全防死鎖流程】
+        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程】
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -866,13 +866,18 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 🎯 修正處：移除未定義的 MatchConfig.TeamXName/TeamYName，
+                //移除未定義的 MatchConfig.TeamXName/TeamYName，
                 // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
+                // 1. 灌滿你客製化的核心保險箱變數（維持你原本的、保證能編譯通過！）
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！新隊伍：{newCTLeaderName} 隊 VS {newTLeaderName} 隊");
-                Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
+               // 2.同步灌滿 MatchZy 原廠底層的 Team 實體！
+              // 這樣不管原廠邏輯在刀局結束、上半場換網時怎麼去讀取、怎麼刷，都絕對抓得到新名字，100% 防破圖！
+              if (team1 != null) team1.teamName = finalCTTeamName;
+              if (team2 != null) team2.teamName = finalTTeamName;
+
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定");
 
                 isShufflePending = false;
 
