@@ -910,10 +910,11 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             {
                 Log($"[Shuffle護航機制] 原發言玩家在搬移中離線，自動由 {fallbackPlayer.PlayerName} 代理觸發開賽。");
                 OnPlayerReady(fallbackPlayer, null);
+                        }
+                    }
+                });
             }
         }
-    });
-}
 
     } // 這是 class MatchZy 的結束括號
 } // 這是 namespace MatchZy 的結束括號
