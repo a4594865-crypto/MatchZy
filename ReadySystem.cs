@@ -110,6 +110,16 @@ namespace MatchZy
         {
             if (matchStartCountdownTimer != null) return;
 
+            // ⚡【核心修改：倒數第 1 秒立刻全體回巢重生】
+            // 只要一跨入倒數階段，不論玩家原本在哪、有沒有換隊，通通送回各自新陣營的出生點！
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                {
+                    p.Respawn(); // 強制 CS2 引擎將玩家原位蒸發，重生在正確的出生點
+                }
+            }
+
             isCountdownActive = true; 
             countdownRemaining = 7; // 設定為 5 秒
 
