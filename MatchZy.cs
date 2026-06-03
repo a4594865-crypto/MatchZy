@@ -870,6 +870,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
+                Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
+                Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！新隊伍：{newCTLeaderName} 隊 VS {newTLeaderName} 隊");
                 Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
