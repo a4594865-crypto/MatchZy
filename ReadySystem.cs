@@ -105,7 +105,7 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-// --- 直接開始 5 秒音效倒數 ---
+// --- 直接開始 7 秒音效倒數 ---
         public void StartMatchCountdown()
         {
             if (matchStartCountdownTimer != null) return;
@@ -129,7 +129,7 @@ namespace MatchZy
                 Server.NextFrame(() => {
                     if (countdownRemaining > 0)
                     {
-                        // 顏色邏輯：3, 2, 1 秒顯示紅色，5, 4 秒顯示綠色
+                        // 3, 2, 1 秒顯示紅色，7, 6, 5, 4 秒顯示綠色
                         string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                         
                         // 這裡噴出的訊息包含「倒數：」，所以會穿過 MatchZy.cs 與 Utility.cs 的防火牆
@@ -142,9 +142,23 @@ namespace MatchZy
                         }
                         
                         countdownRemaining--;
+
+                        // 當倒數扣到 0 的當下，不需要再等下一秒，直接在這一影格暴力點火開賽！
+                        if (countdownRemaining == 0)
+                        {
+                            matchStartCountdownTimer?.Kill();
+                            matchStartCountdownTimer = null;
+                            isCountdownActive = false; 
+
+                            if (!matchStarted)
+                            {
+                                HandleMatchStart(); // 突破防火牆，強制開賽！
+                            }
+                        }
                     }
                     else
                     {
+                        // 保險機制：萬一上面有漏網之魚，這裡會做二次防禦
                         matchStartCountdownTimer?.Kill();
                         matchStartCountdownTimer = null;
                         isCountdownActive = false; 
