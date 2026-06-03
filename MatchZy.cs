@@ -866,10 +866,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 暴力灌滿 MatchZy 所有核心與相依聯動檔案的隊名變數，徹底杜絕 team_ 空白化
-                MatchConfig.TeamXName = finalCTTeamName;
+                // 🎯 修正處：移除未定義的 MatchConfig.TeamXName/TeamYName，
+                // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
                 matchzyTeam1.teamName = finalCTTeamName;
-                MatchConfig.TeamYName = finalTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
 
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！新隊伍：{newCTLeaderName} 隊 VS {newTLeaderName} 隊");
