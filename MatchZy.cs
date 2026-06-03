@@ -764,7 +764,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 }
 
-        // 原本的舊版 ExecuteShuffleLogic 留下作為手動相容保底，不改動文字
+       // 原本的舊版 ExecuteShuffleLogic 留下作為手動相容保底
         public void ExecuteShuffleLogic() 
         {
             if (!isShufflePending) return;
@@ -780,6 +780,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 return;
             }
 
+            // Fisher-Yates 洗牌
             Random rng = new();
             int n = activePlayers.Count;
             while (n > 1) 
@@ -792,22 +793,38 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             int half = activePlayers.Count / 2;
             for (int i = 0; i < activePlayers.Count; i++) 
             {
+                // 將 ChangeTeam 全部改成 SwitchTeam！
+                // 這樣不管是點名開賽，還是管理員中途手動強行洗牌，玩家都絕對不會死掉發出慘叫。
                 if (i < half) 
                 {
-                    activePlayers[i].ChangeTeam(CsTeam.Terrorist);
+                    activePlayers[i].SwitchTeam(CsTeam.Terrorist);
                 }
                 else 
                 {
-                    activePlayers[i].ChangeTeam(CsTeam.CounterTerrorist);
+                    activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
                 }
             }
+
+            // 因為手動流程沒有像點名那樣去計算「誰是隊長」，
+            // 這裡我們給予固定的繁體中文預設安全隊名，並同時灌入記憶體變數與 CS2 官方引擎核心！
+            string backupCTName = "反恐精英";
+            string backupTName = "恐怖份子";
+
+            matchzyTeam1.teamName = backupCTName;
+            matchzyTeam2.teamName = backupTName;
+            
+            // 尚方寶劍直接焊死引擎 ConVars，確保不管之後怎麼換邊，名字絕對不會洗白！
+            Server.ExecuteCommand($"mp_teamname_1 \"{backupCTName}\"");
+            Server.ExecuteCommand($"mp_teamname_2 \"{backupTName}\"");
+
+            // 刷新 MatchZy 的全域玩家位置快取地圖，避免資料不同步
+            UpdatePlayersMap();
 
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
             Log($"[Shuffle] 已完成隨機分隊，共分配 {activePlayers.Count} 名玩家。");
             
             isShufflePending = false;
         }
-
         // =========================================================================
         // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程
         // =========================================================================
@@ -879,7 +896,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！新隊伍：{newCTLeaderName} 隊 VS {newTLeaderName} 隊");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
                 Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
 
                 isShufflePending = false;
@@ -911,7 +928,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                         
                         if (fallbackPlayer != null)
                         {
-                            Log($"[Shuffle護航機制] 原發言玩家在搬移中離線，自動由 {fallbackPlayer.PlayerName} 代理觸發開賽。");
                             OnPlayerReady(fallbackPlayer, null);
                         }
                     }
