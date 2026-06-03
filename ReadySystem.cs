@@ -110,7 +110,7 @@ namespace MatchZy
         {
             if (matchStartCountdownTimer != null) return;
 
-            // ⚡【核心修改：倒數第 1 秒立刻全體回巢重生】
+            // 倒數第 1 秒立刻全體回巢重生
             // 只要一跨入倒數階段，不論玩家原本在哪、有沒有換隊，通通送回各自新陣營的出生點！
             foreach (var p in Utilities.GetPlayers())
             {
@@ -121,7 +121,7 @@ namespace MatchZy
             }
 
             isCountdownActive = true; 
-            countdownRemaining = 7; // 設定為 5 秒
+            countdownRemaining = 7; // 設定為 7 秒
 
             // 已拿掉：PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！...");
 
@@ -135,7 +135,7 @@ namespace MatchZy
                         // 這裡噴出的訊息包含「倒數：」，所以會穿過 MatchZy.cs 與 Utility.cs 的防火牆
                         PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                        // 每一秒都播音效 (5, 4, 3, 2, 1)
+                        // 每一秒都播音效 (7, 6, 5, 4, 3, 2, 1)
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
