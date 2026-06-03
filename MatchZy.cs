@@ -794,7 +794,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             for (int i = 0; i < activePlayers.Count; i++) 
             {
                 // 將 ChangeTeam 全部改成 SwitchTeam！
-                // 這樣不管是點名開賽，還是管理員中途手動強行洗牌，玩家都絕對不會死掉發出慘叫。
                 if (i < half) 
                 {
                     activePlayers[i].SwitchTeam(CsTeam.Terrorist);
@@ -805,8 +804,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
             }
 
-            // 因為手動流程沒有像點名那樣去計算「誰是隊長」，
-            // 這裡我們給予固定的繁體中文預設安全隊名，並同時灌入記憶體變數與 CS2 官方引擎核心！
+            // 手動流程沒有像點名那樣去計算「誰是隊長」，
+            // 繁體中文預設安全隊名，並同時灌入記憶體變數與 CS2 官方引擎核心！
             string backupCTName = "反恐精英";
             string backupTName = "恐怖份子";
 
