@@ -92,7 +92,7 @@ namespace MatchZy
         // SQLite/MySQL Database 
         private Database database = new();
 
-        // 🎯 執行緒安全保護鎖，防止並發洗牌衝突
+        // 執行緒安全保護鎖，防止並發洗牌衝突
         private static readonly object _shuffleLock = new object();
     
         public override void Load(bool hotReload) {
@@ -496,7 +496,7 @@ if (message == ".r" || message == ".ready") {
         
         var triggeringPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
 
-        // 🎯 核心聯動修正：如果啟用了隨機分隊預約，改走防衝突執行緒安全延遲流程
+        // 如果啟用了隨機分隊預約，改走防衝突執行緒安全延遲流程
         if (isShufflePending) 
         {
             ExecuteShuffleLogicWithReady(triggeringPlayer);
@@ -803,7 +803,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         }
 
         // =========================================================================
-        // 🎯 【核心終極無 Bug 聯動優化版：同步動態預計算新隊名 + 多執行緒安全防死鎖流程】
+        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -866,7 +866,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 🎯 修正處：移除未定義的 MatchConfig.TeamXName/TeamYName，
+                // 移除未定義的 MatchConfig.TeamXName/TeamYName，
                 // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
