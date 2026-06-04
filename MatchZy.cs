@@ -825,7 +825,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             isShufflePending = false;
         }
      // =========================================================================
-        // 同步動態預計算新隊名 + 下一幀無延遲解耦開賽流程（徹底根除 AddTimer 隱患）
+        // 同步動態預計算新隊名 + 下一幀無延遲解耦開賽流程（回復正常倒數版）
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -894,25 +894,22 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
                 Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
 
-                // 【鐵壁防護第一步】：洗牌一完成，立刻將開關全面鎖定
-                // 這樣可以確保這隻定時器還沒吐出 OnPlayerReady 之前，場上沒有任何一個 .r 能夠再次穿透進來！
+                // 🌟【精準修正】：這裡只留下關閉洗牌 pending，把剛剛干擾倒數的 isCountdownActive = true 徹底拿掉！
                 isShufflePending = false;
-                isCountdownActive = true; 
 
+                // 使用 NextFrame 確保無延遲解耦，100% 根除走動卡 1 秒
                 Server.NextFrame(() => {
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍快取
                     
-                    if (isCountdownActive)
+                    // 隨機撈取一位目前在線、最健康的活人作為點火探針
+                    var validPlayer = Utilities.GetPlayers().FirstOrDefault(p => 
+                        p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && p.Connected == PlayerConnectedState.Connected
+                    );
+                    
+                    if (validPlayer != null)
                     {
-                        // 隨機撈取一位目前在線、最健康的活人作為點火探針
-                        var validPlayer = Utilities.GetPlayers().FirstOrDefault(p => 
-                            p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && p.Connected == PlayerConnectedState.Connected
-                        );
-                        
-                        if (validPlayer != null)
-                        {
-                            OnPlayerReady(validPlayer, null); 
-                        }
+                        // ⚡【重回正軌】：把乾淨的活人送進去，讓 MatchZy 官方自己去激活 isCountdownActive 並噴出倒數！
+                        OnPlayerReady(validPlayer, null); 
                     }
                 });
             }
