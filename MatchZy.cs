@@ -825,7 +825,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             isShufflePending = false;
         }
 // =========================================================================
-        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程（雙影格安全對齊版）
+        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程（0.1秒黃金平衡全名版）
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -867,7 +867,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     {
                         activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
                         
-                        // 保留原廠邏輯：將準備狀態歸零
                         if (uId != -1) {
                             playerReadyStatus[uId] = false;
                         }
@@ -881,7 +880,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     {
                         activePlayers[i].SwitchTeam(CsTeam.Terrorist);
                         
-                        // 保留原廠邏輯：將準備狀態歸零
                         if (uId != -1) {
                             playerReadyStatus[uId] = false;
                         }
@@ -904,15 +902,15 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
-               Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！倒 數 開 啟。");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！倒 數 開 啟。");
                 isShufflePending = false;
 
                 int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
                 // =========================================================================
                 // ⚖️【0.1秒黃金平衡點火】：徹底兼顧「速度」與「安全」
-                // 讓引擎有 100 毫秒（約 12 個 Tick）的充裕時間去重構玩家實體、清空封包
-                // 人類體感完全無感（秒開倒數），但對伺服器來說是 100% 安全的安全結界！
+                // 修正：尾端改成全名 CounterStrikeSharp.API.Modules.Timers.TimerFlags.ONE_SHOT
+                // 徹底消滅 GitHub Actions 找不到「計時旗（TimerFlags）」的編譯錯誤！
                 // =========================================================================
                 AddTimer(0.1f, () => {
                     Server.NextFrame(() => {
@@ -941,7 +939,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                             }
                         }
                     });
-                }, TimerFlags.ONE_SHOT); // ONE_SHOT 代表只執行一次，絕對不重複
+                }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.ONE_SHOT); // 👈 這裡改成 100% 穩過編譯的全名！
             } // lock 結束
         } // 方法結束
     } // 這是 class MatchZy 的結束括號
