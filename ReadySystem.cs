@@ -59,12 +59,15 @@ namespace MatchZy
             return 0;
         }
 
-public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
+// =========================================================================
+        // 【動態對齊修正版】直接抓取遊戲內活玩家的動態隊伍，徹底解決玩家移動卡1秒的萬年Bug
+        // =========================================================================
+        public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
         {
             int playerCount = 0;
             int readyCount = 0;
 
-            // 🟢 終極修正：直接遍歷伺服器內活生生的在線玩家，徹底拋棄 playerData 舊字典的隊伍快取震盪
+            // 🟢 核心修正：直接遍歷伺服器內活生生的在線玩家，拋棄老舊的 playerData 隊伍快取
             foreach (var player in Utilities.GetPlayers())
             {
                 if (player == null || !player.IsValid || player.IsBot) continue;
@@ -72,7 +75,7 @@ public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
 
                 int uId = (int)player.UserId;
 
-                // 直接抓取玩家在遊戲引擎裡的實時動態隊伍 (TeamNum)
+                // 直接抓取玩家目前在 CS2 遊戲引擎裡的「實時動態隊伍 (TeamNum)」
                 if (player.TeamNum == team) 
                 {
                     playerCount++;
@@ -87,6 +90,9 @@ public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
             return (playerCount, readyCount);
         }
 
+        public bool IsTeamForcedReady(CsTeam team) {
+            return teamReadyOverride[team];
+        }
         [ConsoleCommand("css_forceready", "Force-readies the team")]
         public void OnForceReadyCommandCommand(CCSPlayerController? player, CommandInfo? command)
         {
