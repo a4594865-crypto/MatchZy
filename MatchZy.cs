@@ -490,21 +490,31 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-             // 1. 攔截開賽指令
+            // 1. 攔截開賽指令（內建洗牌與防走動定身鎖）
 if (message == ".r" || message == ".ready") {
     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
         
-        var triggeringPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
-
-        // 如果啟用了隨機分隊預約，改走防衝突執行緒安全延遲流程
+        // 洗牌超車
         if (isShufflePending) 
         {
-            ExecuteShuffleLogicWithReady(triggeringPlayer);
+            ExecuteShuffleLogic(); // 執行洗牌
+            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
+
+            // 洗完牌的瞬間，趁玩家還沒開始走動，立刻把全場玩家釘死在原地！
+            // 這樣在接下來的 7 秒倒數期間，不論大家怎麼按鍵盤，都不會產生移動雜訊干擾引擎，100% 根除 1 秒卡死 Bug！
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                {
+                    if (p.PlayerPawn.Value != null)
+                    {
+                        p.PlayerPawn.Value.MoveType = MoveType_t.MOVETYPE_NONE; // 鎖死移動
+                    }
+                }
+            }
         }
-        else
-        {
-            OnPlayerReady(triggeringPlayer, null);
-        }
+
+        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
         return HookResult.Handled; 
     }
 }
