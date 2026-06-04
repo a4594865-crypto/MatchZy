@@ -110,8 +110,8 @@ namespace MatchZy
         {
             if (matchStartCountdownTimer != null) return;
 
-            isCountdownActive = true; 
-            countdownRemaining = 7; // 設定為 5 秒
+            isCountdownActive = false; // 倒數激活開關
+            countdownRemaining = 7; // 設定為 7 秒
 
             // 已拿掉：PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！...");
 
