@@ -903,15 +903,20 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 // 數值解耦：只把 UserId 轉成整數送進 Lambda 閉包，防範 GC 記憶體滯留異常
                 int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
-                // 延遲 0.2 秒：讓 CS2 底層引擎有充足時間完成非同步網路實體位置搬移，再激活 MatchZy 的開賽快取鎖定
+               // 延遲 0.2 秒：讓 CS2 底層引擎有充足時間完成非同步網路實體位置搬移，再激活 MatchZy 的開賽快取鎖定
                 AddTimer(0.2f, () => {
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    CCSPlayerController? targetReadyPlayer = null;
-                    if (savedUserId != -1)
+                    // 🟢 徹底關閉並鎖死這份檔案的倒數開關與秒數
+                    isCountdownActive = false; 
+                    countdownRemaining = 0;
+
+                    // 🚀 關鍵核心：洗牌分配完成 0.2 秒後，不呼叫舊邏輯，直接執行開賽！
+                    if (!matchStarted) 
                     {
-                        targetReadyPlayer = Utilities.GetPlayerFromUserid(savedUserId);
+                        HandleMatchStart(); 
                     }
+                });
 
                     // 檢查原準備玩家是否依然有效待在線上
                     if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
