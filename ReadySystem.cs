@@ -105,21 +105,12 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-        // =========================================================================
-        // 【優化】瞬發開賽機制（已徹底拔除 7 秒倒數音效計時器）
+       // =========================================================================
+        // 【優化】瞬發開賽機制（已徹底拔除倒數計時器與多餘的 Respawn）
         // =========================================================================
         public void StartMatchCountdown()
         {
             if (matchStarted) return;
-
-            // 觸發開賽的瞬間，利索地將場上所有人重置回各自新陣營的出生點
-            foreach (var p in Utilities.GetPlayers())
-            {
-                if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                {
-                    p.Respawn(); // 強制 CS2 引擎將玩家原位蒸發，重生在正確的出生點
-                }
-            }
 
             // 清理定時器狀態與標記
             matchStartCountdownTimer?.Kill();
@@ -127,10 +118,9 @@ namespace MatchZy
             isCountdownActive = false; 
             countdownRemaining = 0;
 
-            // 【終極瞬發】不等定時器，在當前影格直接暴力點火、強行進入刀局！
+            // 【終極瞬發】順暢點火，直接執行開賽邏輯，讓原廠 mp_restartgame 接管重生！
             HandleMatchStart(); 
         }
-
         public void CancelMatchCountdown(string reason)
         {
             matchStartCountdownTimer?.Kill();
