@@ -824,8 +824,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             
             isShufflePending = false;
         }
-        // =========================================================================
-        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程
+       // =========================================================================
+        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程（純淨影格對齊正道版）
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -888,7 +888,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 移除未定義的 MatchConfig.TeamXName/TeamYName，
                 // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
@@ -903,21 +902,22 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 // 數值解耦：只把 UserId 轉成整數送進 Lambda 閉包，防範 GC 記憶體滯留異常
                 int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
-               // 延遲 0.2 秒：讓 CS2 底層引擎有充足時間完成非同步網路實體位置搬移，再激活 MatchZy 的開賽快取鎖定
-                AddTimer(0.2f, () => {
+                // =========================================================================
+                // 🛑【正道優化】：徹底移除原本的 AddTimer(0.2f) 被動死等
+                // 改用 Server.NextFrame 讓換隊指令在下一影格完成底層記憶體改寫與同步，
+                // 這能 100% 確保「非自殺換隊」並讓 MatchZy 的快取（UpdatePlayersMap）讀到正確隊伍。
+                // =========================================================================
+                Server.NextFrame(() => {
+                    
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    // 🟢 1. 在這裡把倒數開關鎖死關掉
-                    isCountdownActive = false; 
-                    countdownRemaining = 0;
-
-                    // 🚀 2. 改成直接呼叫這行：洗牌分配完成 0.2 秒後，直接執行開賽！
-                    if (!matchStarted) 
+                    CCSPlayerController? targetReadyPlayer = null;
+                    if (savedUserId != -1)
                     {
-                        HandleMatchStart(); 
+                        targetReadyPlayer = Utilities.GetPlayerFromUserid(savedUserId);
                     }
 
-                    /* 🟡 舊代碼關閉：把原本會去觸發倒數的舊邏輯用註解包起來（不執行、不刪除）
+                    // 檢查原準備玩家是否依然有效待在線上，並順利觸發 7 秒倒數點火
                     if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
                     {
                         OnPlayerReady(targetReadyPlayer, null);
@@ -934,10 +934,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                             OnPlayerReady(fallbackPlayer, null);
                         }
                     }
-                    */ // 🟡 舊代碼註解結束
-                }); // 👈 這是 AddTimer 的完整結束括號
-            } // 👈 這是 lock (_shuffleLock) 的結束括號
-        } // 👈 這是 ExecuteShuffleLogicWithReady 方法的結束括號
-
+                }); // NextFrame 結束
+            }
+        }
     } // 這是 class MatchZy 的結束括號
 } // 這是 namespace MatchZy 的結束括號
