@@ -825,7 +825,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 
             // 7. 輸出訊息與重置標記
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-            Log($"[Shuffle] 純淨洗牌成功！CT隊名(mp_1): {finalCTTeamName} | T隊名(mp_2): {finalTTeamName}");
+            Log($"[Shuffle] 洗牌成功！CT隊名 : {finalCTTeamName} | T隊名 : {finalTTeamName}");
             
             isShufflePending = false;
         } // 這是 ExecuteShuffleLogic 的結束括號
