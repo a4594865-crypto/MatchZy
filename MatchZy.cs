@@ -904,18 +904,17 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！倒 數 開 啟。");
+               Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！倒 數 開 啟。");
                 isShufflePending = false;
 
                 int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
                 // =========================================================================
-                // 🛑【雙影格對齊安全控火】：徹底取代 AddTimer(0.2f)
-                // 影格 1：送出換隊指令。
-                // 影格 2 (第一層 NextFrame)：讓 CS2 引擎在後台完成 SwitchTeam 的記憶體搬移。
-                // 影格 3 (第二層 NextFrame)：此時玩家數據已 100% 安全寫入，立刻刷新快取字典並 100% 點火倒數！
+                // ⚖️【0.1秒黃金平衡點火】：徹底兼顧「速度」與「安全」
+                // 讓引擎有 100 毫秒（約 12 個 Tick）的充裕時間去重構玩家實體、清空封包
+                // 人類體感完全無感（秒開倒數），但對伺服器來說是 100% 安全的安全結界！
                 // =========================================================================
-                Server.NextFrame(() => {
+                AddTimer(0.1f, () => {
                     Server.NextFrame(() => {
                         
                         UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
@@ -926,7 +925,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                             targetReadyPlayer = Utilities.GetPlayerFromUserid(savedUserId);
                         }
 
-                        // 鐵血保證點火：由絕對在線上的合法活人玩家去觸發 7 秒倒數流程
                         if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
                         {
                             OnPlayerReady(targetReadyPlayer, null);
@@ -942,8 +940,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                                 OnPlayerReady(fallbackPlayer, null);
                             }
                         }
-                    }); // 第二層 NextFrame 結束
-                }); // 第一層 NextFrame 結束
+                    });
+                }, TimerFlags.ONE_SHOT); // ONE_SHOT 代表只執行一次，絕對不重複
             } // lock 結束
         } // 方法結束
     } // 這是 class MatchZy 的結束括號
