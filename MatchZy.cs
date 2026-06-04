@@ -752,7 +752,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 }
         // =========================================================================
-        // 【有倒數版本】同步動態預計算新隊名 + 非自殺安全換隊機制 (SwitchTeam)
+        // 【有倒數完美防卡死版】同步動態預計算新隊名 + 非自殺安全換隊機制 (SwitchTeam)
         // =========================================================================
         public void ExecuteShuffleLogic() 
         {
@@ -768,7 +768,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             if (activePlayers.Count < 2) 
             {
                 Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
-                isShufflePending = false; // 失敗也要重置標記，避免狀態殘留
+                isShufflePending = false; 
                 return;
             }
 
@@ -792,7 +792,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             {
                 if (i < half) 
                 {
-                    // 🟢 核心改動：使用 SwitchTeam 進行「非自殺安全換隊」，完全不吃效能、不觸發玩家自殺
+                    // 🟢 使用 SwitchTeam 進行「非自殺安全換隊」
                     activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
                     
                     // 擷取即將去 CT 的第一個合法玩家名字
@@ -803,7 +803,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 } 
                 else 
                 {
-                    // 🟢 核心改動：使用 SwitchTeam 進行「非自殺安全換隊」
+                    // 🟢 使用 SwitchTeam 進行「非自殺安全換隊」
                     activePlayers[i].SwitchTeam(CsTeam.Terrorist);
                     
                     // 擷取即將去 T 的第一個合法玩家名字
@@ -814,7 +814,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
             }
 
-            // 🟢 保底防護：萬一極端網路問題真的抓不到名字，直接用預設隊名，絕對不噴出殘缺的 team_
+            // 保底防護：萬一極端網路問題真的抓不到名字，直接用預設隊名，絕對不噴出殘缺的 team_
             if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
             if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
@@ -830,9 +830,14 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
             Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
+            // 🟢 【核心修正：防卡1秒特效鎖】
+            // 在執行完 SwitchTeam 的當下，強制命令 MatchZy 刷新全伺服器的玩家隊伍分佈圖快取（UpdatePlayersMap）
+            // 這樣可以確保隨後 7 秒倒數結束、計時器呼叫 HandleMatchStart() 時，所有玩家的隊伍資料已經 100% 寫入官方核心，絕對不會再卡死在 1 秒！
+            UpdatePlayersMap();
+
             // 8. 全服聊天室公告
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定");
-            Log($"[Shuffle] 洗牌隊名動態計算成功！CT 隊名: {finalCTTeamName} | T 隊名: {finalTTeamName}");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定，準 備 開 賽。");
+            Log($"[Shuffle] 洗牌隊名動態計算成功並已強制對齊快取！CT 隊名: {finalCTTeamName} | T 隊名: {finalTTeamName}");
 
             // 9. 洗牌完成，重置標記
             isShufflePending = false;
