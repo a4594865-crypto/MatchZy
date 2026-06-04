@@ -3,176 +3,169 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
-using System.Collections.Generic;
-using System.Linq;
+using CounterStrikeSharp.API.Modules.Timers; 
 
-namespace MatchZy;
-
-public partial class MatchZy
+namespace MatchZy
 {
-    public Dictionary<CsTeam, bool> teamReadyOverride = new() {
-        {CsTeam.Terrorist, false},
-        {CsTeam.CounterTerrorist, false},
-        {CsTeam.Spectator, false}
-    };
-
-    public bool allowForceReady = true;
-
-    public bool IsTeamsReady()
+    public partial class MatchZy
     {
-        return IsTeamReady((int)CsTeam.CounterTerrorist) && IsTeamReady((int)CsTeam.Terrorist);
-    }
+        // --- 核心宣告 ---
 
-    public bool IsSpectatorsReady()
-    {
-        return IsTeamReady((int)CsTeam.Spectator);
-    }
+        public Dictionary<CsTeam, bool> teamReadyOverride = new() {
+            {CsTeam.Terrorist, false},
+            {CsTeam.CounterTerrorist, false},
+            {CsTeam.Spectator, false}
+        };
 
-    public bool IsTeamReady(int team)
-    {
-        // if (matchStarted) return true;
+        public bool allowForceReady = true;
 
-        int minPlayers = GetPlayersPerTeam(team);
-        int minReady = GetTeamMinReady(team);
-        (int playerCount, int readyCount) = GetTeamPlayerCount(team, false);
-
-        Log($"[IsTeamReady] team: {team} minPlayers:{minPlayers} minReady:{minReady} playerCount:{playerCount} readyCount:{readyCount}");
-
-        if (team == (int)CsTeam.Spectator && minReady == 0)
+        public bool IsTeamsReady()
         {
-            return true;
+            return IsTeamReady((int)CsTeam.CounterTerrorist) && IsTeamReady((int)CsTeam.Terrorist);
         }
 
-        if (readyAvailable && playerCount == 0)
+        public bool IsSpectatorsReady()
         {
-            // We cannot ready for veto with no players, regardless of force status or min_players_to_ready.
+            return IsTeamReady((int)CsTeam.Spectator);
+        }
+
+        public bool IsTeamReady(int team)
+        {
+            int minPlayers = GetPlayersPerTeam(team);
+            int minReady = GetTeamMinReady(team);
+            (int playerCount, int readyCount) = GetTeamPlayerCount(team, false);
+
+            if (team == (int)CsTeam.Spectator && minReady == 0) return true;
+            if (readyAvailable && playerCount == 0) return false;
+
+            if (playerCount == readyCount && playerCount >= minPlayers) return true;
+
+            if (IsTeamForcedReady((CsTeam)team) && readyCount >= minReady) return true;
+
             return false;
         }
 
-        if (playerCount == readyCount && playerCount >= minPlayers)
+        public int GetPlayersPerTeam(int team)
         {
-            return true;
+            if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.PlayersPerTeam;
+            if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
+            return 0;
         }
 
-        if (IsTeamForcedReady((CsTeam)team) && readyCount >= minReady)
+        public int GetTeamMinReady(int team)
         {
-            return true;
+            if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.MinPlayersToReady;
+            if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
+            return 0;
         }
 
-        return false;
-    }
-
-    public int GetPlayersPerTeam(int team)
-    {
-        if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.PlayersPerTeam;
-        if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
-        return 0;
-    }
-
-    public int GetTeamMinReady(int team)
-    {
-        if (team == (int)CsTeam.CounterTerrorist || team == (int)CsTeam.Terrorist) return matchConfig.MinPlayersToReady;
-        if (team == (int)CsTeam.Spectator) return matchConfig.MinSpectatorsToReady;
-        return 0;
-    }
-
-    // =========================================================================
-    // 🟢 核心搭配：完全改為您使用的 int (UserId) 字典快取對齊邏輯
-    // =========================================================================
-    public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
-    {
-        int playerCount = 0;
-        int readyCount = 0;
-        
-        // 這裡的 key 已經是 int 類型的 UserId
-        foreach (var key in playerData.Keys)
+        public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
         {
-            if (!playerData[key].IsValid) continue;
-            if (playerData[key].TeamNum == team) {
-                playerCount++;
-                
-                // 完美搭配：使用 int (UserId) 去 playerReadyStatus 檢查準備狀態
-                if (playerReadyStatus.ContainsKey(key) && playerReadyStatus[key] == true) 
-                {
-                    readyCount++;
+            int playerCount = 0;
+            int readyCount = 0;
+            foreach (var key in playerData.Keys)
+            {
+                if (!playerData[key].IsValid) continue;
+                if (playerData[key].TeamNum == team) {
+                    playerCount++;
+                    if (playerReadyStatus[key] == true) readyCount++;
                 }
             }
-        }
-        return (playerCount, readyCount);
-    }
-
-    public bool IsTeamForcedReady(CsTeam team) {
-        return teamReadyOverride[team];
-    }
-
-    // =========================================================================
-    // 🟢 核心搭配：強制準備指令也改為 int (UserId) 對齊邏輯
-    // =========================================================================
-    [ConsoleCommand("css_forceready", "Force-readies the team")]
-    public void OnForceReadyCommandCommand(CCSPlayerController? player, CommandInfo? command)
-    {
-        Log($"{readyAvailable} {isMatchSetup} {allowForceReady} {IsPlayerValid(player)}");
-        if (!readyAvailable || !isMatchSetup || !allowForceReady || !IsPlayerValid(player)) return;
-
-        int minReady = GetTeamMinReady(player!.TeamNum);
-        (int playerCount, int readyCount) = GetTeamPlayerCount(player!.TeamNum, false);
-
-        if (playerCount < minReady) 
-        {
-            ReplyToUserCommand(player, Localizer["matchzy.rs.minreadyplayers", minReady]);
-            return;
+            return (playerCount, readyCount);
         }
 
-        // 這裡的 key 已經是 int 類型的 UserId
-        foreach (var key in playerData.Keys)
+        public bool IsTeamForcedReady(CsTeam team) {
+            return teamReadyOverride[team];
+        }
+
+        [ConsoleCommand("css_forceready", "Force-readies the team")]
+        public void OnForceReadyCommandCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (!playerData[key].IsValid) continue;
-            if (playerData[key].TeamNum == player.TeamNum) {
-                
-                // 完美搭配：使用 int (UserId) 更新場上同隊玩家的準備狀態
-                playerReadyStatus[key] = true;
-                ReplyToUserCommand(playerData[key], Localizer["matchzy.rs.forcereadiedby", player.PlayerName]);
+            if (!readyAvailable || !isMatchSetup || !allowForceReady || !IsPlayerValid(player)) return;
+
+            int minReady = GetTeamMinReady(player!.TeamNum);
+            (int playerCount, int readyCount) = GetTeamPlayerCount(player!.TeamNum, false);
+
+            if (playerCount < minReady) 
+            {
+                ReplyToUserCommand(player, Localizer["matchzy.rs.minreadyplayers", minReady]);
+                return;
             }
+
+            foreach (var key in playerData.Keys)
+            {
+                if (!playerData[key].IsValid) continue;
+                if (playerData[key].TeamNum == player.TeamNum) {
+                    playerReadyStatus[key] = true;
+                    ReplyToUserCommand(playerData[key], Localizer["matchzy.rs.forcereadiedby", player.PlayerName]);
+                }
+            }
+
+            teamReadyOverride[(CsTeam)player.TeamNum] = true;
+            CheckLiveRequired();
         }
 
-        teamReadyOverride[(CsTeam)player.TeamNum] = true;
-        CheckLiveRequired();
-    }
-
-    // =========================================================================
-    // 🟢 下方為拔除倒數、拔除 Respawn 的瞬發開賽擴充邏輯 (無縫銜接)
-    // =========================================================================
-    public void StartMatchCountdown()
-    {
-        if (matchStarted) return;
-
-        // 清理計時器，不留任何背景非同步干擾
-        matchStartCountdownTimer?.Kill();
-        matchStartCountdownTimer = null;
-        isCountdownActive = false; 
-        countdownRemaining = 0;
-
-        // 【極致瞬發】當影格人滿直接炸進刀局，交給官方 mp_restartgame 接管重生位置
-        HandleMatchStart(); 
-    }
-
-    public void CancelMatchCountdown(string reason)
-    {
-        matchStartCountdownTimer?.Kill();
-        matchStartCountdownTimer = null;
-        isCountdownActive = false; 
-        countdownRemaining = 0;
-
-        if (!string.IsNullOrEmpty(reason))
+// --- 直接開始 5 秒音效倒數 ---
+        public void StartMatchCountdown()
         {
-            Server.PrintToChatAll($"{reason}");
+            if (matchStartCountdownTimer != null) return;
+
+            isCountdownActive = true; 
+            countdownRemaining = 7; // 設定為 5 秒
+
+            // 已拿掉：PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！...");
+
+            matchStartCountdownTimer = AddTimer(1.0f, () => {
+                Server.NextFrame(() => {
+                    if (countdownRemaining > 0)
+                    {
+                        // 顏色邏輯：3, 2, 1 秒顯示紅色，5, 4 秒顯示綠色
+                        string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
+                        
+                        // 這裡噴出的訊息包含「倒數：」，所以會穿過 MatchZy.cs 與 Utility.cs 的防火牆
+                        PrintToAllChat($"倒數：{color}{countdownRemaining}");
+
+                        // 每一秒都播音效 (5, 4, 3, 2, 1)
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                        {
+                            p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
+                        }
+                        
+                        countdownRemaining--;
+                    }
+                    else
+                    {
+                        matchStartCountdownTimer?.Kill();
+                        matchStartCountdownTimer = null;
+                        isCountdownActive = false; 
+
+                        if (matchStarted) return;
+                        HandleMatchStart(); 
+                    }
+                });
+            }, TimerFlags.REPEAT);
         }
+
+       public void CancelMatchCountdown(string reason)
+{
+    if (matchStartCountdownTimer != null)
+    {
+        matchStartCountdownTimer.Kill();
+        matchStartCountdownTimer = null;
+        isCountdownActive = false; 
+
+        // --- 核心改動 ---
+        Server.PrintToChatAll($"{reason}");
 
         PrintUnreadyPlayers();
     }
+}
 
-    public void PrintUnreadyPlayers()
+   public void PrintUnreadyPlayers()
     {
+        // 只要在倒數，就攔截所有準備訊息
+        if (isCountdownActive) return; 
+
         int readyCount = GetReadyPlayersCount();
 
         if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
@@ -181,17 +174,22 @@ public partial class MatchZy
         }
         else if (readyAvailable && !matchStarted)
         {
-            // 找出還沒準備的玩家名單 (同步改為您的 int UserId 字典查表邏輯)
+            // 找出還沒準備的玩家名單
             var unreadyPlayers = Utilities.GetPlayers()
                 .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                 .Where(p => {
                     if (p.UserId == null) return false;
+
+                    // 1. 這裡維持你原本的 UID 檢查（對應 playerData 字典）
                     if (!playerData.ContainsKey((int)p.UserId)) return false;
 
+                    // 2. 核心修正：改用玩家的「UID (int)」去 playerReadyStatus 查資料！
+                    // 這樣就能完美搭配你在這三個檔案裡宣告的 private Dictionary<int, bool> playerReadyStatus
                     bool isReady = false;
                     if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) {
                         return !isReady;
                     }
+                    
                     return true; 
                 })
                 .Select(p => p.PlayerName);
@@ -208,4 +206,5 @@ public partial class MatchZy
             PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
         }
     }
-}
+ } // MatchZy Class 結束
+} // Namespace 結束
