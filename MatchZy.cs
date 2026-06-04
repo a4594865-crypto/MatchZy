@@ -907,18 +907,17 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 AddTimer(0.2f, () => {
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    // 🟢 徹底關閉並鎖死這份檔案的倒數開關與秒數
+                    // 🟢 1. 在這裡把倒數開關鎖死關掉
                     isCountdownActive = false; 
                     countdownRemaining = 0;
 
-                    // 🚀 關鍵核心：洗牌分配完成 0.2 秒後，不呼叫舊邏輯，直接執行開賽！
+                    // 🚀 2. 改成直接呼叫這行：洗牌分配完成 0.2 秒後，直接執行開賽！
                     if (!matchStarted) 
                     {
                         HandleMatchStart(); 
                     }
-                });
 
-                    // 檢查原準備玩家是否依然有效待在線上
+                    /* 🟡 舊代碼關閉：把原本會去觸發倒數的舊邏輯用註解包起來（不執行、不刪除）
                     if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
                     {
                         OnPlayerReady(targetReadyPlayer, null);
@@ -935,9 +934,10 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                             OnPlayerReady(fallbackPlayer, null);
                         }
                     }
-                });
-            }
-        }
+                    */ // 🟡 舊代碼註解結束
+                }); // 👈 這是 AddTimer 的完整結束括號
+            } // 👈 這是 lock (_shuffleLock) 的結束括號
+        } // 👈 這是 ExecuteShuffleLogicWithReady 方法的結束括號
 
     } // 這是 class MatchZy 的結束括號
 } // 這是 namespace MatchZy 的結束括號
