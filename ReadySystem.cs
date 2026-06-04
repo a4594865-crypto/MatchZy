@@ -112,11 +112,11 @@ namespace MatchZy
             matchStartCountdownTimer?.Kill();
             matchStartCountdownTimer = null;
 
-            //  2. 徹底關閉並鎖死這份檔案的倒數開關與秒數
+            // 2. 徹底關閉並鎖死這份檔案的倒數開關與秒數
             isCountdownActive = false; 
             countdownRemaining = 0;
 
-            // 🚀 3. 核心關鍵：人滿或.R滿足條件時，不等待、直接呼叫開賽！
+            //  3. 核心關鍵：人滿或.R滿足條件時，不等待、直接呼叫開賽！
             if (!matchStarted)
             {
                 HandleMatchStart(); 
