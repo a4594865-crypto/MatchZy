@@ -824,8 +824,15 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             
             isShufflePending = false;
         }
-       // =========================================================================
-        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程（純淨影格對齊正道版）
+// =========================================================================
+        // 🎯 核心防護變數：利用引擎原生事件數人頭，徹底解耦非同步死鎖
+        // =========================================================================
+        private static int expectedShuffleCount = 0;
+        private static int currentShuffleSwitched = 0;
+        private static int savedTriggerUserId = -1;
+
+        // =========================================================================
+        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程（事件驅動・完美分家版）
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -855,7 +862,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
                 }
 
-                // 記憶體超前部署：在換隊當下提取即將就任的 T/CT 第一人名字
                 string? newCTLeaderName = null;
                 string? newTLeaderName = null;
 
@@ -864,7 +870,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 {
                     if (i < half) 
                     {
-                        // 使用 SwitchTeam 加速內部資料對齊
                         activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
                         if (newCTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
                         {
@@ -881,61 +886,66 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     }
                 }
 
-                // 鐵血保底：防特殊符號名字空值
                 if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
                 if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！即 將 開 啟 倒 數。");
+                
+                // 🎯 核心突破：只記錄人數，放手讓引擎專心在後台重構實體，不在此處點火
+                expectedShuffleCount = activePlayers.Count;
+                currentShuffleSwitched = 0; 
+                savedTriggerUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
                 isShufflePending = false;
+            }
+        }
 
-                // 數值解耦：只把 UserId 轉成整數送進 Lambda 閉包，防範 GC 記憶體滯留異常
-                int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
+        // =========================================================================
+        // 🎯 註冊引擎原生換隊監聽器：等所有人 100% 重建完畢，才安全點火
+        // =========================================================================
+        [GameEventHandler]
+        public HookResult OnPlayerTeamShuffleSet(EventPlayerTeam @event, GameEventInfo info)
+        {
+            if (@event == null) return HookResult.Continue;
 
-                // =========================================================================
-                // 🛑【正道優化】：徹底移除原本的 AddTimer(0.2f) 被動死等
-                // 改用 Server.NextFrame 讓換隊指令在下一影格完成底層記憶體改寫與同步，
-                // 這能 100% 確保「非自殺換隊」並讓 MatchZy 的快取（UpdatePlayersMap）讀到正確隊伍。
-                // =========================================================================
-                Server.NextFrame(() => {
-                    
-                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
-                    
-                    CCSPlayerController? targetReadyPlayer = null;
-                    if (savedUserId != -1)
-                    {
-                        targetReadyPlayer = Utilities.GetPlayerFromUserid(savedUserId);
-                    }
+            if (expectedShuffleCount > 0)
+            {
+                currentShuffleSwitched++;
 
-                    // 檢查原準備玩家是否依然有效待在線上，並順利觸發 7 秒倒數點火
-                    if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
-                    {
-                        OnPlayerReady(targetReadyPlayer, null);
-                    }
-                    else
-                    {
-                        // 極端安全機制：若原發言玩家斷線，自動由場上隨機一位合法選手護航完成開賽
-                        var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => 
+                // 當最後一個人的實體也在新陣營完全生成完畢的那一刻
+                if (currentShuffleSwitched >= expectedShuffleCount)
+                {
+                    expectedShuffleCount = 0; // 解鎖
+
+                    // 跨到下一影格，確保記憶體安全咬合後才啟動計時器
+                    Server.NextFrame(() => {
+                        UpdatePlayersMap(); 
+
+                        var livePlayer = Utilities.GetPlayers().FirstOrDefault(p => 
                             p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && p.Connected == PlayerConnectedState.Connected
                         );
-                        
-                        if (fallbackPlayer != null)
+
+                        if (livePlayer != null)
                         {
-                            OnPlayerReady(fallbackPlayer, null);
+                            OnPlayerReady(livePlayer, null); 
                         }
-                    }
-                }); // NextFrame 結束
+                        else if (savedTriggerUserId != -1)
+                        {
+                            var triggerPlayer = Utilities.GetPlayerFromUserid(savedTriggerUserId);
+                            if (triggerPlayer != null && triggerPlayer.IsValid) OnPlayerReady(triggerPlayer, null);
+                        }
+                    });
+                }
             }
+            return HookResult.Continue;
         }
     } // 這是 class MatchZy 的結束括號
 } // 這是 namespace MatchZy 的結束括號
