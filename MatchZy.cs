@@ -822,11 +822,13 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             
             isShufflePending = false;
         }
-        // =========================================================================
+       // =========================================================================
         // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
+            int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
+
             lock (_shuffleLock)
             {
                 if (!isShufflePending) return;
@@ -839,7 +841,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 {
                     Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
                     isShufflePending = false; 
-                    if (readyPlayer != null && readyPlayer.IsValid) OnPlayerReady(readyPlayer, null);
+                    
+                    var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
+                    if (originalPlayer != null && originalPlayer.IsValid) OnPlayerReady(originalPlayer, null);
                     return;
                 }
 
@@ -853,7 +857,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
                 }
 
-                // 記憶體超前部署：在換隊當下提取即將就任的 T/CT 第一人名字
                 string? newCTLeaderName = null;
                 string? newTLeaderName = null;
 
@@ -862,7 +865,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 {
                     if (i < half) 
                     {
-                        // 使用 SwitchTeam 加速內部資料對齊
                         activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
                         if (newCTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
                         {
@@ -879,15 +881,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     }
                 }
 
-                // 鐵血保底：防特殊符號名字空值
                 if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
                 if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 移除未定義的 MatchConfig.TeamXName/TeamYName，
-                // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
@@ -898,13 +897,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 
                 isShufflePending = false;
 
-                // 數值解耦：只把 UserId 轉成整數送進 Lambda 閉包，防範 GC 記憶體滯留異常
-                int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
-
-               // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網路封包對齊
+                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網路封包對齊
                 AddTimer(0.2f, () => {
-                    // 🟢 【終極煞車鎖】0.2秒醒來後，如果發現剛剛有人斷線（導致準備名單被清空為0人），或者比賽已經開了
-                    // 立刻退出（return），絕對不可以強行呼叫 HandleMatchStart()！
+                    // 🟢 【終極煞車鎖】如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
 
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
@@ -916,28 +911,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     {
                         HandleMatchStart(); 
                     }
-                }); // 👈 這是 AddTimer 的完整結束括號
-                    /* 舊代碼關閉：把原本會去觸發倒數的舊邏輯用註解包起來（不執行、不刪除）
-                    if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
-                    {
-                        OnPlayerReady(targetReadyPlayer, null);
-                    }
-                    else
-                    {
-                        // 極端安全機制：若原發言玩家斷線，自動由場上隨機一位合法選手護航完成開賽
-                        var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => 
-                            p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && p.Connected == PlayerConnectedState.Connected
-                        );
-                        
-                        if (fallbackPlayer != null)
-                        {
-                            OnPlayerReady(fallbackPlayer, null);
-                        }
-                    }
-                    */ //  舊代碼註解結束
-                }); //  這是 AddTimer 的完整結束括號
-            } //  這是 lock (_shuffleLock) 的結束括號
-        } // 這是 ExecuteShuffleLogicWithReady 方法的結束括號
+                }); // 👈 結束 AddTimer
+            } // 👈 結束 lock (_shuffleLock)
+        } // 👈 結束 ExecuteShuffleLogicWithReady 方法
 
-    } // 這是 class MatchZy 的結束括號
-} // 這是 namespace MatchZy 的結束括號
+    } // 👈 結束 class MatchZy
+} // 👈 結束 namespace MatchZy
