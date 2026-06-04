@@ -824,7 +824,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             
             isShufflePending = false;
         }
-        // =========================================================================
+       // =========================================================================
         // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
@@ -888,8 +888,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 移除未定義的 MatchConfig.TeamXName/TeamYName，
-                // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
+                // 寫入 MatchZy 的核心全域隊伍實體
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
@@ -900,59 +899,44 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 
                 isShufflePending = false;
 
-                // 數值解耦：只把 UserId 轉成整數送進 Lambda 閉包，防範 GC 記憶體滯留異常
-                int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
-
-               // 延遲 0.2 秒：讓 CS2 底層引擎有充足時間完成非同步網路實體位置搬移，再激活 MatchZy 的開賽快取鎖定
+                // 延遲 0.2 秒：讓 CS2 底層引擎有充足時間完成非同步網路實體位置搬移
                 AddTimer(0.2f, () => {
-                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
+                    UpdatePlayersMap(); 
                     
-                    // 1. 在這裡把倒數開關鎖死關掉
                     isCountdownActive = false; 
                     countdownRemaining = 0;
 
-                    // 🚀 2. 改成直接呼叫這行：洗牌分配完成 0.2 秒後，直接執行開賽！
+                    // 執行開賽！
                     if (!matchStarted) 
                     {
                         HandleMatchStart(); 
                     }
+                });
+            }
+        }
 
-                    /* 舊代碼關閉：把原本會去觸發倒數的舊邏輯用註解包起來（不執行、不刪除）
-                    if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
-                    {
-                        OnPlayerReady(targetReadyPlayer, null);
-                    }
-                    else
-                    {
-                        // 極端安全機制：若原發言玩家斷線，自動由場上隨機一位合法選手護航完成開賽
-                        var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => 
-                            p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && p.Connected == PlayerConnectedState.Connected
-                        );
-                        
-                        if (fallbackPlayer != null)
-                        {
-                            OnPlayerReady(fallbackPlayer, null);
-                        }
-                    }
-                    */ // 舊代碼註解結束
-                }); //  這是 AddTimer 的完整結束括號
-            } // 這是 lock (_shuffleLock) 的結束括號
-        } // 這是 ExecuteShuffleLogicWithReady 方法的結束括號
-public void HandleMatchStart()
+        // ==========================================
+        // 核心開賽控制邏輯
+        // ==========================================
+        public void HandleMatchStart()
         {
+            // 1. 強制解除暖場鎖定
             Server.ExecuteCommand("mp_warmup_end"); 
             Server.ExecuteCommand("mp_warmuptime 0"); 
             Server.ExecuteCommand("mp_warmup_pausetimer 0");
 
+            // 2. 設定原廠開賽凍結時間：7 秒
             Server.ExecuteCommand("mp_freezetime 7"); 
 
+            // 3. 正式進入 Live 狀態
             matchStarted = true;
             isWarmup = false;
 
-            Server.ExecuteCommand("mp_restartgame 1");
+            // 4. 強制執行 7 秒重啟 (觸發官方倒數畫面)
+            Server.ExecuteCommand("mp_restartgame 7");
 
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}暖 場 結 束，比 賽 正 式 啟 動！");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}暖 場 結 束，比 賽 正 式 啟 動 (官方 7 秒倒數中...)");
         }
 
-    } // 這是 MatchZy 類別 (Class) 的結尾大括號，請確保代碼在他上面
-} // 這是 namespace 的結尾大括號
+    } // 這是 class MatchZy 的結尾
+} // 這是 namespace MatchZy 的結尾
