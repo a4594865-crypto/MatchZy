@@ -751,12 +751,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-        // =========================================================================
-        // 【有倒數完美防卡死版】同步動態預計算新隊名 + 非自殺安全換隊機制 (SwitchTeam)
+       // =========================================================================
+        // 【防玩家移動卡死版】隨機分隊 + 記憶體鎖定 + 強制對齊所有準備狀態
         // =========================================================================
         public void ExecuteShuffleLogic() 
         {
-            // 1. 安全檢查：如果沒有預約洗牌，則直接跳出
+            // 1. 安全檢查
             if (!isShufflePending) return;
 
             // 2. 獲取當前所有在場上的選手（排除機器人與觀戰者）
@@ -764,7 +764,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                 .ToList();
 
-            // 3. 人數檢查：至少需要 2 人才能洗牌
+            // 3. 人數檢查
             if (activePlayers.Count < 2) 
             {
                 Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
@@ -782,7 +782,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
             }
 
-            // 🟢 【記憶體超前部署】在執行 SwitchTeam 換隊、指針最安全的當下，先抓出兩隊未來隊長的名字並凍結！
+            // 🟢 【記憶體超前部署】先抓出兩隊未來隊長的名字並凍結！
             string? newCTLeaderName = null;
             string? newTLeaderName = null;
 
@@ -790,35 +790,48 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             int half = activePlayers.Count / 2;
             for (int i = 0; i < activePlayers.Count; i++) 
             {
+                var player = activePlayers[i];
+                if (player == null || !player.IsValid) continue;
+
                 if (i < half) 
                 {
-                    // 🟢 使用 SwitchTeam 進行「非自殺安全換隊」
-                    activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
+                    // 執行非自殺安全換隊
+                    player.SwitchTeam(CsTeam.CounterTerrorist);
                     
-                    // 擷取即將去 CT 的第一個合法玩家名字
-                    if (newCTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
+                    if (newCTLeaderName == null && !string.IsNullOrWhiteSpace(player.PlayerName))
                     {
-                        newCTLeaderName = string.Copy(activePlayers[i].PlayerName); 
+                        newCTLeaderName = string.Copy(player.PlayerName); 
                     }
                 } 
                 else 
                 {
-                    // 🟢 使用 SwitchTeam 進行「非自殺安全換隊」
-                    activePlayers[i].SwitchTeam(CsTeam.Terrorist);
+                    // 執行非自殺安全換隊
+                    player.SwitchTeam(CsTeam.Terrorist);
                     
-                    // 擷取即將去 T 的第一個合法玩家名字
-                    if (newTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
+                    if (newTLeaderName == null && !string.IsNullOrWhiteSpace(player.PlayerName))
                     {
-                        newTLeaderName = string.Copy(activePlayers[i].PlayerName); 
+                        newTLeaderName = string.Copy(player.PlayerName); 
+                    }
+                }
+
+                // 🟢 【鐵血核心修正 1：鎖死所有人的準備狀態】
+                // 不管玩家換隊後引擎怎麼震盪、不管玩家怎麼移動，
+                // 在這裡直接把他的 UserId 強制寫入 MatchZy 的準備字典，設為 true！
+                if (player.UserId != null)
+                {
+                    int uId = (int)player.UserId;
+                    if (playerReadyStatus.ContainsKey(uId)) {
+                        playerReadyStatus[uId] = true;
+                    } else {
+                        playerReadyStatus.Add(uId, true);
                     }
                 }
             }
 
-            // 保底防護：萬一極端網路問題真的抓不到名字，直接用預設隊名，絕對不噴出殘缺的 team_
+            // 保底防護
             if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
             if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
-            // 用剛剛深拷貝保存好的乾淨字串來生成隊名
             string finalCTTeamName = "team_" + newCTLeaderName;
             string finalTTeamName = "team_" + newTLeaderName;
 
@@ -826,22 +839,25 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             matchzyTeam1.teamName = finalCTTeamName;
             matchzyTeam2.teamName = finalTTeamName;
 
-            // 7. 同步下達 CS2 伺服器指令，更改遊戲內 HUD 上顯示的隊伍名稱
+            // 7. 同步下達 CS2 伺服器指令
             Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
             Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
-            // 🟢 【核心修正：防卡1秒特效鎖】
-            // 在執行完 SwitchTeam 的當下，強制命令 MatchZy 刷新全伺服器的玩家隊伍分佈圖快取（UpdatePlayersMap）
-            // 這樣可以確保隨後 7 秒倒數結束、計時器呼叫 HandleMatchStart() 時，所有玩家的隊伍資料已經 100% 寫入官方核心，絕對不會再卡死在 1 秒！
+            // 🟢 【鐵血核心修正 2：覆寫全域隊伍強制就緒鎖】
+            // 這是 MatchZy 官方專門用來跳過玩家移動檢查的最高權限鎖
+            // 直接把 CT 和 T 的強制就緒狀態設為 true，這樣不論倒數期間玩家怎麼移動，HandleMatchStart 只要看到這兩個鎖是 true，就會無視任何干擾直接開賽！
+            if (teamReadyOverride.ContainsKey(CsTeam.CounterTerrorist)) teamReadyOverride[CsTeam.CounterTerrorist] = true;
+            if (teamReadyOverride.ContainsKey(CsTeam.Terrorist)) teamReadyOverride[CsTeam.Terrorist] = true;
+
+            // 刷新全伺服器的玩家隊伍分佈圖快取
             UpdatePlayersMap();
 
             // 8. 全服聊天室公告
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定，準 備 開 賽。");
-            Log($"[Shuffle] 洗牌隊名動態計算成功並已強制對齊快取！CT 隊名: {finalCTTeamName} | T 隊名: {finalTTeamName}");
+            Log($"[Shuffle] 洗牌成功！已全面鎖定準備狀態防卡死。CT: {finalCTTeamName} | T: {finalTTeamName}");
 
             // 9. 洗牌完成，重置標記
             isShufflePending = false;
         }
-
 } // 這是 class MatchZy 的結束括號
 } // 這是 namespace MatchZy 的結束括號
