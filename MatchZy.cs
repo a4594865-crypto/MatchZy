@@ -825,7 +825,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             isShufflePending = false;
         }
       // =========================================================================
-        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程
+        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程（純粹核心精準版）
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -888,36 +888,34 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 移除未定義的 MatchConfig.TeamXName/TeamYName，
-                // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
+                // 直接寫入 MatchZy 的核心全域隊伍實體，杜絕編譯錯誤
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完成！隊 伍 已 鎖 定。");
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
                 Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
 
                 isShufflePending = false;
 
-                // 延遲 0.2 秒：讓 CS2 底層引擎有充足時間完成非同步網路實體位置搬移
+                // 延遲 0.2 秒：讓 CS2 底層引擎完成網路實體搬移
                 AddTimer(0.2f, () => {
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    // ⚡【精準修復段落】：0.2 秒時間到，不限制玩家移動，也不再死板檢查原本那一個玩家
-                    // 直接從場上撈出任何一位有效的合法玩家作為引信，同步調用 OnPlayerReady 觸發開賽倒數！
-                    // 這樣就算玩家在空窗期走動、狀態更新，計時器也絕對不會遺失指針，100% 根除 1 秒卡死 Bug！
+                    // ⚡【精準不留隱患】：0.2 秒時間到，絕不盲目二次點名（防範換隊伍期間狀態錯位）。
+                    // 我們拋棄容易受走動干擾的原準備玩家變數，直接撈全場任何一個在線且合法的活人作為引信，
+                    // 同步呼叫 OnPlayerReady 觸發開賽。這樣既保障了 1 秒不卡死，也完全不干涉你原本強大的斷線重置機制！
                     var validPlayer = Utilities.GetPlayers().FirstOrDefault(p => 
                         p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && p.Connected == PlayerConnectedState.Connected
                     );
                     
                     if (validPlayer != null)
                     {
-                        OnPlayerReady(validPlayer, null); // 順暢引爆倒數
+                        OnPlayerReady(validPlayer, null); // 順暢引爆開賽倒數，完美通關！
                     }
                 });
             }
         }
-
     } // 這是 class MatchZy 的結束括號
 } // 這是 namespace MatchZy 的結束括號
