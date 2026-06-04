@@ -105,66 +105,54 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-// --- 直接開始 7 秒音效倒數 ---
+// --- 直接開始 7 秒音效倒數（真正數到0才開賽完美版） ---
         public void StartMatchCountdown()
         {
             if (matchStartCountdownTimer != null) return;
 
-            // 倒數第 1 秒立刻全體回巢重生
-            // 只要一跨入倒數階段，不論玩家原本在哪、有沒有換隊，通通送回各自新陣營的出生點！
+            // 倒數開始立刻全體回巢重生
             foreach (var p in Utilities.GetPlayers())
             {
                 if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                 {
-                    p.Respawn(); // 強制 CS2 引擎將玩家原位蒸發，重生在正確的出生點
+                    p.Respawn(); 
                 }
             }
 
             isCountdownActive = true; 
-            countdownRemaining = 7; // 設定為 7 秒
-
-            // 已拿掉：PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！...");
+            countdownRemaining = 7; 
 
             matchStartCountdownTimer = AddTimer(1.0f, () => {
                 Server.NextFrame(() => {
                     if (countdownRemaining > 0)
                     {
-                        // 3, 2, 1 秒顯示紅色，7, 6, 5, 4 秒顯示綠色
                         string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                         
-                        // 這裡噴出的訊息包含「倒數：」，所以會穿過 MatchZy.cs 與 Utility.cs 的防火牆
+                        // 先印出當前秒數 (7, 6, 5, 4, 3, 2, 1)
                         PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                        // 每一秒都播音效 (7, 6, 5, 4, 3, 2, 1)
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
                         
+                        // 扣除秒數
                         countdownRemaining--;
-
-                        // 當倒數扣到 0 的當下，不需要再等下一秒，直接在這一影格暴力點火開賽！
-                        if (countdownRemaining == 0)
-                        {
-                            matchStartCountdownTimer?.Kill();
-                            matchStartCountdownTimer = null;
-                            isCountdownActive = false; 
-
-                            if (!matchStarted)
-                            {
-                                HandleMatchStart(); // 突破防火牆，強制開賽！
-                            }
-                        }
                     }
-                    else
+                    else 
                     {
-                        // 保險機制：萬一上面有漏網之魚，這裡會做二次防禦
+                        // 🎯 當 countdownRemaining 已經是 0 的這一秒，代表 1 秒已經完整走完！
                         matchStartCountdownTimer?.Kill();
                         matchStartCountdownTimer = null;
                         isCountdownActive = false; 
 
-                        if (matchStarted) return;
-                        HandleMatchStart(); 
+                        if (!matchStarted)
+                        {
+                            // 留下一影格的緩衝時間，讓 CS2 引擎徹底清空暖場所有的垃圾封包
+                            Server.NextFrame(() => {
+                                HandleMatchStart(); // 絲滑切換進入刀局！
+                            });
+                        }
                     }
                 });
             }, TimerFlags.REPEAT);
