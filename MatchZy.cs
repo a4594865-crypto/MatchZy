@@ -938,6 +938,21 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }); //  這是 AddTimer 的完整結束括號
             } // 這是 lock (_shuffleLock) 的結束括號
         } // 這是 ExecuteShuffleLogicWithReady 方法的結束括號
+public void HandleMatchStart()
+        {
+            Server.ExecuteCommand("mp_warmup_end"); 
+            Server.ExecuteCommand("mp_warmuptime 0"); 
+            Server.ExecuteCommand("mp_warmup_pausetimer 0");
 
-    } // 這是 class MatchZy 的結束括號
-} // 這是 namespace MatchZy 的結束括號
+            Server.ExecuteCommand("mp_freezetime 7"); 
+
+            matchStarted = true;
+            isWarmup = false;
+
+            Server.ExecuteCommand("mp_restartgame 1");
+
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}暖 場 結 束，比 賽 正 式 啟 動！");
+        }
+
+    } // 這是 MatchZy 類別 (Class) 的結尾大括號，請確保代碼在他上面
+} // 這是 namespace 的結尾大括號
