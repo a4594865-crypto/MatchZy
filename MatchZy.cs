@@ -824,8 +824,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             
             isShufflePending = false;
         }
-        // =========================================================================
-        // 同步動態預計算新隊名 + 官方環境級強制立定 7 秒（完美防副作用安全版）
+       // =========================================================================
+        // 同步動態預計算新隊名 + C# 強制沒收按鍵 0.2 秒防走動干擾流程
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -862,21 +862,32 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 int half = activePlayers.Count / 2;
                 for (int i = 0; i < activePlayers.Count; i++) 
                 {
+                    var p = activePlayers[i];
                     if (i < half) 
                     {
-                        activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
-                        if (newCTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
+                        p.SwitchTeam(CsTeam.CounterTerrorist);
+                        if (newCTLeaderName == null && p != null && !string.IsNullOrWhiteSpace(p.PlayerName))
                         {
-                            newCTLeaderName = string.Copy(activePlayers[i].PlayerName); 
+                            newCTLeaderName = string.Copy(p.PlayerName); 
                         }
                     } 
                     else 
                     {
-                        activePlayers[i].SwitchTeam(CsTeam.Terrorist);
-                        if (newTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
+                        p.SwitchTeam(CsTeam.Terrorist);
+                        if (newTLeaderName == null && p != null && !string.IsNullOrWhiteSpace(p.PlayerName))
                         {
-                            newTLeaderName = string.Copy(activePlayers[i].PlayerName); 
+                            newTLeaderName = string.Copy(p.PlayerName); 
                         }
+                    }
+
+                    // 🌟【真正物理定身】：在換隊的當下，強行將玩家的物理速度歸零，並加上凍結狀態
+                    // 這能保證這 0.2 秒內，不論他們怎麼敲 WASD 鍵，伺服器都不會處理他們的物理位移
+                    if (p != null && p.IsValid && p.PlayerPawn.Value != null)
+                    {
+                        p.PlayerPawn.Value.Velocity.X = 0;
+                        p.PlayerPawn.Value.Velocity.Y = 0;
+                        p.PlayerPawn.Value.Velocity.Z = 0;
+                        p.PlayerPawn.Value.MoveType = MoveType_t.MOVETYPE_NONE; // 關閉所有移動能力
                     }
                 }
 
@@ -894,30 +905,27 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
                 Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
 
-                // 🌟【防護一：防線前移】
-                // 在進入 AddTimer 之前，提早把開關與結束標記做對齊，防止 0.2 秒內斷線漏勾
                 isShufflePending = false;
                 isCountdownActive = true; 
 
-                // 🌟【防護二：物理鎖焊死】
-                // 玩家移入出生點落地瞬間，直接執行官方指令強制將 freezetime 鎖定 7 秒，玩家 WASD 完全作廢！
-                Server.ExecuteCommand("mp_freezetime 7");
-
                 int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
-                // 延遲 0.2 秒安全跨越非同步實體搬移空窗期
+                // 延遲 0.2 秒：保護非同步實體搬移空窗期
                 AddTimer(0.2f, () => {
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍快取
-                    
-                    // 🌟【防護三：安全解凍還原】
-                    // 0.2 秒時間到，在呼叫 OnPlayerReady 點火的這一瞬間，立刻將 mp_freezetime 歸零！
-                    // 這樣一來，官方的倒數機制會無縫接手這 7 秒定身，且絕對不留後遺症、不卡死後續正賽！
-                    Server.ExecuteCommand("mp_freezetime 0");
 
-                    // 如果在 0.2 秒內有人不幸斷線，EventPlayerDisconnect 會把開關關掉，這裡就安全死火攔截不開賽
+                    // 🌟【解除暫時凍結】：0.2 秒過後，把移動權限還給玩家，讓接下來官方的 7 秒倒數接管定身
+                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3)))
+                    {
+                        if (p.PlayerPawn.Value != null && p.PlayerPawn.Value.MoveType == MoveType_t.MOVETYPE_NONE)
+                        {
+                            p.PlayerPawn.Value.MoveType = MoveType_t.MOVETYPE_WALK; // 還原正常走路狀態
+                        }
+                    }
+
+                    // 如果在 0.2 秒內有人斷線，EventPlayerDisconnect 會把開關關掉，這裡就安全死火攔截
                     if (!isCountdownActive) return;
 
-                    // 重設開關，讓 OnPlayerReady 內部能順利通過檢查並初始化 matchStartCountdownTimer
                     isCountdownActive = false; 
 
                     CCSPlayerController? targetReadyPlayer = null;
