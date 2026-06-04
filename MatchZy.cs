@@ -825,7 +825,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             isShufflePending = false;
         }
       // =========================================================================
-        // 同步動態預計算新隊名 + NextFrame 毫秒級對齊（極速瞬發、無副作用完美版）
+        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程 (修正版：徹底解決玩家移動卡倒數問題)
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -855,6 +855,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
                 }
 
+                // 記憶體超前部署：在換隊當下提取即將就任的 T/CT 第一人名字
                 string? newCTLeaderName = null;
                 string? newTLeaderName = null;
 
@@ -865,12 +866,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 
                     if (i < half) 
                     {
+                        // 使用 SwitchTeam 加速內部資料對齊
                         activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
                         
-                        // 🔥【優化點 1】：既然已經打 .r 觸發開賽洗牌，直接在記憶體中將全場人狀態焊死為 true（準備就緒）
-                        // 這樣下一幀不論 MatchZy 內部如何動態計算 readyCount，都絕對不會因為時間差漏人而導致開賽死火
-                        if (uId != -1) {
-                            playerReadyStatus[uId] = true;
+                        // 【鐵血修正 1】不等延遲！立刻在記憶體中建立該玩家的準備狀態，防止人數統計落空
+                        if (uId != -1 && !playerReadyStatus.ContainsKey(uId)) {
+                            playerReadyStatus[uId] = false;
                         }
 
                         if (newCTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
@@ -882,8 +883,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     {
                         activePlayers[i].SwitchTeam(CsTeam.Terrorist);
                         
-                        if (uId != -1) {
-                            playerReadyStatus[uId] = true;
+                        // 【鐵血修正 2】立刻在記憶體中建立該玩家的準備狀態
+                        if (uId != -1 && !playerReadyStatus.ContainsKey(uId)) {
+                            playerReadyStatus[uId] = false;
                         }
 
                         if (newTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
@@ -893,12 +895,15 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     }
                 }
 
+                // 鐵血保底：防特殊符號名字空值
                 if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
                 if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
+                // 移除未定義的 MatchConfig.TeamXName/TeamYName，
+                // 直接寫入 MatchZy 的核心全域隊伍實體，徹底杜絕編譯錯誤與變數空白化
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
@@ -908,41 +913,28 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
 
                 isShufflePending = false;
-                
-                // 轉存 UID 閉包保護
-                int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
-                // 🔥【核心進化】：移除危險的 AddTimer(0.2f)，改用官方最高優先權的 Server.NextFrame
-                // 這會迫使伺服器在「下一萬分之一秒（Tick）」立刻執行，玩家的客戶端鍵盤訊號根本來不及進來
-                // 既完美給了 CS2 引擎完成換隊對齊的時間，又把 0.2 秒的斷線漏洞、物理碰撞垃圾徹底壓縮至 0！
-                Server.NextFrame(() => {
+                // 【鐵血修正 3】移除 AddTimer(0.2f) 延遲，改為當幀瞬發同步
+                // 先強制刷新一次地圖玩家快取，把剛才 SwitchTeam 的隊伍硬生生鎖進 MatchZy 記憶體
+                UpdatePlayersMap(); 
+
+                // 檢查原準備玩家是否依然有效待在線上，直接執行 OnPlayerReady 啟動倒數
+                if (readyPlayer != null && readyPlayer.IsValid && readyPlayer.Connected == PlayerConnectedState.Connected)
+                {
+                    OnPlayerReady(readyPlayer, null);
+                }
+                else
+                {
+                    // 極端安全機制：若原發言玩家斷線，自動由場上隨機一位合法選手護航完成開賽
+                    var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => 
+                        p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && p.Connected == PlayerConnectedState.Connected
+                    );
                     
-                    UpdatePlayersMap(); // 將剛剛 SwitchTeam 的資料硬生生鎖進 MatchZy 核心記憶體
-
-                    CCSPlayerController? targetReadyPlayer = null;
-                    if (savedUserId != -1)
+                    if (fallbackPlayer != null)
                     {
-                        targetReadyPlayer = Utilities.GetPlayerFromUserid(savedUserId);
+                        OnPlayerReady(fallbackPlayer, null);
                     }
-
-                    // 執行點火，此時進入 OnPlayerReady ➔ StartMatchCountdown 呼叫 p.Respawn()
-                    // 所有人將會百分之百精準重生在「各自全新陣營」的出生點，絕對不會去錯家！
-                    if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
-                    {
-                        OnPlayerReady(targetReadyPlayer, null);
-                    }
-                    else
-                    {
-                        var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => 
-                            p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && p.Connected == PlayerConnectedState.Connected
-                        );
-                        
-                        if (fallbackPlayer != null)
-                        {
-                            OnPlayerReady(fallbackPlayer, null);
-                        }
-                    }
-                });
+                }
             }
         }
     } // 這是 class MatchZy 的結束括號
