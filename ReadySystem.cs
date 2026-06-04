@@ -105,13 +105,12 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-// --- 直接開始 7 秒音效倒數 ---
+// --- 直接開始 7 秒音效倒數（修正版：絕不提前點火） ---
         public void StartMatchCountdown()
         {
             if (matchStartCountdownTimer != null) return;
 
             // 倒數第 1 秒立刻全體回巢重生
-            // 只要一跨入倒數階段，不論玩家原本在哪、有沒有換隊，通通送回各自新陣營的出生點！
             foreach (var p in Utilities.GetPlayers())
             {
                 if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
@@ -121,9 +120,7 @@ namespace MatchZy
             }
 
             isCountdownActive = true; 
-            countdownRemaining = 7; // 設定為 7 秒
-
-            // 已拿掉：PrintToAllChat($"{ChatColors.Lime}所有玩家已就緒！...");
+            countdownRemaining = 7; // 精準設定為 7 秒
 
             matchStartCountdownTimer = AddTimer(1.0f, () => {
                 Server.NextFrame(() => {
@@ -132,7 +129,7 @@ namespace MatchZy
                         // 3, 2, 1 秒顯示紅色，7, 6, 5, 4 秒顯示綠色
                         string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                         
-                        // 這裡噴出的訊息包含「倒數：」，所以會穿過 MatchZy.cs 與 Utility.cs 的防火牆
+                        // 印出當前秒數
                         PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
                         // 每一秒都播音效 (7, 6, 5, 4, 3, 2, 1)
@@ -141,30 +138,18 @@ namespace MatchZy
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
                         
+                        // 倒數變數減 1
                         countdownRemaining--;
-
-                        // 當倒數扣到 0 的當下，不需要再等下一秒，直接在這一影格暴力點火開賽！
-                        if (countdownRemaining == 0)
-                        {
-                            matchStartCountdownTimer?.Kill();
-                            matchStartCountdownTimer = null;
-                            isCountdownActive = false; 
-
-                            if (!matchStarted)
-                            {
-                                HandleMatchStart(); // 突破防火牆，強制開賽！
-                            }
-                        }
                     }
                     else
                     {
-                        // 保險機制：萬一上面有漏網之魚，這裡會做二次防禦
+                        // 當 countdownRemaining 減到 0 時，下一秒會完美走到這裡，安全關閉計時器並正賽開始！
                         matchStartCountdownTimer?.Kill();
                         matchStartCountdownTimer = null;
                         isCountdownActive = false; 
 
                         if (matchStarted) return;
-                        HandleMatchStart(); 
+                        HandleMatchStart(); // 安全在 0 秒點火開賽
                     }
                 });
             }, TimerFlags.REPEAT);
