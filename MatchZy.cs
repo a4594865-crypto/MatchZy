@@ -249,46 +249,44 @@ namespace MatchZy
                 return EventPlayerConnectFullHandler(@event, info);
             });
             
-            // 1. 斷線事件處理：整合「倒數中止」與「刀場斷線自動移除名單」
+           // 1. 斷線事件處理：整合「倒數中止」與「刀場斷線自動移除名單」
             RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
                 var player = @event.Userid;
                 if (player == null) return HookResult.Continue;
                 int userId = (int)(player.UserId ?? -1);
 
-// --- A. 倒數期間斷線：中止倒數 ---
-if (matchStartCountdownTimer != null)
-{
-    // 1. 定義您指定的專屬廣播訊息
-    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+                // --- 🚀 核心防護：攔截第10人 .R 同時有人斷線的空檔 ---
+                if (matchStartCountdownTimer != null || isCountdownActive || (readyAvailable && !matchStarted && playerReadyStatus.Count >= minimumReadyRequired))
+                {
+                    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷開連線 請重新輸入 {ChatColors.LightRed}.R {ChatColors.White}準備";
 
-    // 2. 立即停止計時器並關閉所有外掛倒數狀態
-    matchStartCountdownTimer.Kill();
-    matchStartCountdownTimer = null;
-    isCountdownActive = false;
-    matchStarted = false;
+                    if (matchStartCountdownTimer != null)
+                    {
+                        matchStartCountdownTimer.Kill();
+                        matchStartCountdownTimer = null;
+                    }
 
-    // 3. 物理重置我們自訂的字典與洗牌預約
-    playerReadyStatus.Clear(); 
-    isShufflePending = false; 
-    OnRestartMatchCommand(null, null); 
+                    isCountdownActive = false;
+                    matchStarted = false;
+                    
+                    // 🟢 【關鍵煞車鎖】關閉洗牌預約
+                    isShufflePending = false; 
 
-    // 4. 發送您指定的訊息到聊天框
-    Server.PrintToChatAll(disconnectMsg); 
-}
-// --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
-if (!isWarmup && !matchStarted && !isPractice)
-{
-    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
-    {
-        // 僅進行數值移除，不發送任何訊息或 Log
-        playerReadyStatus.Remove(userId);
-    }
+                    playerReadyStatus.Clear(); 
+                    OnRestartMatchCommand(null, null); 
+                    Server.PrintToChatAll(disconnectMsg); 
+                }
+                
+                // --- B. 刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
+                if (!isWarmup && !matchStarted && !isPractice)
+                {
+                    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
+                    {
+                        playerReadyStatus.Remove(userId);
+                    }
+                    UpdatePlayersMap();
+                }
 
-    // 更新地圖玩家緩存，確保剩下的玩家指令（如 .stay / .switch）能被正確計算
-    UpdatePlayersMap();
-}
-
-                // 呼叫原本可能定義在其他檔案的處理程序
                 return EventPlayerDisconnectHandler(@event, info);
             });
 
@@ -903,20 +901,22 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 // 數值解耦：只把 UserId 轉成整數送進 Lambda 閉包，防範 GC 記憶體滯留異常
                 int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
-               // 延遲 0.2 秒：讓 CS2 底層引擎有充足時間完成非同步網路實體位置搬移，再激活 MatchZy 的開賽快取鎖定
+               // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網路封包對齊
                 AddTimer(0.2f, () => {
+                    // 🟢 【終極煞車鎖】0.2秒醒來後，如果發現剛剛有人斷線（導致準備名單被清空為0人），或者比賽已經開了
+                    // 立刻退出（return），絕對不可以強行呼叫 HandleMatchStart()！
+                    if (matchStarted || playerReadyStatus.Count == 0) return;
+
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    //  1. 在這裡把倒數開關鎖死關掉
                     isCountdownActive = false; 
                     countdownRemaining = 0;
 
-                    // 2. 改成直接呼叫這行：洗牌分配完成 0.2 秒後，直接執行開賽！
                     if (!matchStarted) 
                     {
                         HandleMatchStart(); 
                     }
-
+                }); // 👈 這是 AddTimer 的完整結束括號
                     /* 舊代碼關閉：把原本會去觸發倒數的舊邏輯用註解包起來（不執行、不刪除）
                     if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
                     {
