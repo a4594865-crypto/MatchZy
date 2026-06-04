@@ -825,7 +825,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             isShufflePending = false;
         }
         // =========================================================================
-        // 同步動態預計算新隊名 + 官方環境級強制立定 7 秒防走動干擾流程
+        // 同步動態預計算新隊名 + 官方環境級強制立定 7 秒（完美防副作用安全版）
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -864,7 +864,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 {
                     if (i < half) 
                     {
-                        // 使用 SwitchTeam 加速內部資料對齊
                         activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
                         if (newCTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
                         {
@@ -881,14 +880,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     }
                 }
 
-                // 鐵血保底：防特殊符號名字空值
                 if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
                 if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 直接寫入 MatchZy 的核心全域隊伍實體
                 matchzyTeam1.teamName = finalCTTeamName;
                 matchzyTeam2.teamName = finalTTeamName;
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
@@ -897,35 +894,44 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
                 Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
 
+                // 🌟【防護一：防線前移】
+                // 在進入 AddTimer 之前，提早把開關與結束標記做對齊，防止 0.2 秒內斷線漏勾
                 isShufflePending = false;
+                isCountdownActive = true; 
 
-                // 🌟【鐵腕防護第一步】：在玩家移入新出生點的瞬間，直接對 CS2 引擎下達 7 秒定身令！
-                // 這樣可以保證接下來的 0.2 秒空窗期，場上沒有任何玩家能移動半步，WASD 完全失效。
+                // 🌟【防護二：物理鎖焊死】
+                // 玩家移入出生點落地瞬間，直接執行官方指令強制將 freezetime 鎖定 7 秒，玩家 WASD 完全作廢！
                 Server.ExecuteCommand("mp_freezetime 7");
 
-                // 數值解耦：只把 UserId 轉成整數送進 Lambda 閉包，防範 GC 記憶體滯留異常
                 int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
-                // 延遲 0.2 秒：讓 CS2 底層引擎安全對齊非同步網路實體位置搬移
+                // 延遲 0.2 秒安全跨越非同步實體搬移空窗期
                 AddTimer(0.2f, () => {
-                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
+                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍快取
                     
+                    // 🌟【防護三：安全解凍還原】
+                    // 0.2 秒時間到，在呼叫 OnPlayerReady 點火的這一瞬間，立刻將 mp_freezetime 歸零！
+                    // 這樣一來，官方的倒數機制會無縫接手這 7 秒定身，且絕對不留後遺症、不卡死後續正賽！
+                    Server.ExecuteCommand("mp_freezetime 0");
+
+                    // 如果在 0.2 秒內有人不幸斷線，EventPlayerDisconnect 會把開關關掉，這裡就安全死火攔截不開賽
+                    if (!isCountdownActive) return;
+
+                    // 重設開關，讓 OnPlayerReady 內部能順利通過檢查並初始化 matchStartCountdownTimer
+                    isCountdownActive = false; 
+
                     CCSPlayerController? targetReadyPlayer = null;
                     if (savedUserId != -1)
                     {
                         targetReadyPlayer = Utilities.GetPlayerFromUserid(savedUserId);
                     }
 
-                    // 檢查原準備玩家是否依然有效待在線上
                     if (targetReadyPlayer != null && targetReadyPlayer.IsValid && targetReadyPlayer.Connected == PlayerConnectedState.Connected)
                     {
-                        // 🌟【鐵腕防護第二步】：0.2 秒安穩度過，正式引爆官方 7 秒倒數流程！
-                        // 官方倒數會與此時正在跑的 mp_freezetime 7 完美重疊，一邊倒數、一邊定身，數完剛好開賽。
                         OnPlayerReady(targetReadyPlayer, null);
                     }
                     else
                     {
-                        // 極端安全機制：若原發言玩家斷線，自動由場上隨機一位合法選手護航完成開賽
                         var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => 
                             p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && p.Connected == PlayerConnectedState.Connected
                         );
