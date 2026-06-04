@@ -59,23 +59,32 @@ namespace MatchZy
             return 0;
         }
 
-        public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
+public (int, int) GetTeamPlayerCount(int team, bool includeCoaches = false)
         {
             int playerCount = 0;
             int readyCount = 0;
-            foreach (var key in playerData.Keys)
+
+            // 🟢 終極修正：直接遍歷伺服器內活生生的在線玩家，徹底拋棄 playerData 舊字典的隊伍快取震盪
+            foreach (var player in Utilities.GetPlayers())
             {
-                if (!playerData[key].IsValid) continue;
-                if (playerData[key].TeamNum == team) {
+                if (player == null || !player.IsValid || player.IsBot) continue;
+                if (player.UserId == null) continue;
+
+                int uId = (int)player.UserId;
+
+                // 直接抓取玩家在遊戲引擎裡的實時動態隊伍 (TeamNum)
+                if (player.TeamNum == team) 
+                {
                     playerCount++;
-                    if (playerReadyStatus[key] == true) readyCount++;
+                    
+                    // 去準備狀態字典裡比對這個 UID 是否為 ready
+                    if (playerReadyStatus.ContainsKey(uId) && playerReadyStatus[uId] == true) 
+                    {
+                        readyCount++;
+                    }
                 }
             }
             return (playerCount, readyCount);
-        }
-
-        public bool IsTeamForcedReady(CsTeam team) {
-            return teamReadyOverride[team];
         }
 
         [ConsoleCommand("css_forceready", "Force-readies the team")]
