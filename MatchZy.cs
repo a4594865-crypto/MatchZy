@@ -899,9 +899,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 isShufflePending = false;
                 isCountdownActive = true; 
 
-                // 【鐵壁防護第二步】：徹底廢除 AddTimer(0.2f)
-                // 改用 Server.NextFrame 讓 CS2 引擎在「下一個畫面的微秒時間內」立刻處理。
-                // 這樣斷線機制與此處就不會產生任何 0.2 秒的時間差，完美杜絕相撞 Bug。
                 Server.NextFrame(() => {
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍快取
                     
