@@ -292,6 +292,19 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
             RegisterEventHandler<EventRoundStart>(EventRoundStartHandler);
+            // 🎯 【請把解凍程式碼黏貼在它的正下方】：
+            RegisterEventHandler<EventRoundStart>((@event, info) => {
+                foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                {
+                    if (player.PlayerPawn.Value != null)
+                    {
+                        var pawn = player.PlayerPawn.Value;
+                        // 精準移除 64 (FL_FROZEN) 旗標，還原玩家的滑鼠與位移控制
+                        pawn.FFlags &= ~((uint)64); 
+                    }
+                }
+                return HookResult.Continue;
+            });
             RegisterEventHandler<EventRoundFreezeEnd>(EventRoundFreezeEndHandler);
             RegisterEventHandler<EventPlayerGivenC4>(EventPlayerGivenC4);
             RegisterEventHandler<EventPlayerDeath>(EventPlayerDeathPreHandler, hookMode: HookMode.Pre);
@@ -769,7 +782,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 return;
             }
 
-            // 4. Fisher-Yates 洗牌演算法（將在場所有人的陣列順序完全隨機打亂）
+            // 4. Fisher-Yates 洗牌演算法
             Random rng = new();
             int n = activePlayers.Count;
             while (n > 1) 
@@ -779,52 +792,56 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
             }
 
-            // 【超前部署：在換隊自殺前，先把名字單純、乾淨地複製出來】
+            // 【超前部署：在換隊前，先把名字單純、乾淨地複製出來】
             string? newCTLeaderName = null;
             string? newTLeaderName = null;
             int half = activePlayers.Count / 2;
 
-            // 【名字去向精準對齊】
-            // activePlayers[0]（前半段）等一下必定會被送去 T 隊 (CsTeam.Terrorist)
-            // 所以他的名字在這一幀，必須精準拷貝給 T 隊 (newTLeaderName)！
             if (activePlayers[0] != null && !string.IsNullOrWhiteSpace(activePlayers[0].PlayerName)) {
                 newTLeaderName = string.Copy(activePlayers[0].PlayerName);
             }
             
-            // activePlayers[half]（後半段）等一下必定會被送去 CT 隊 (CsTeam.CounterTerrorist)
-            // 所以他的名字在這一幀，必須精準拷貝給 CT 隊 (newCTLeaderName)！
             if (activePlayers[half] != null && !string.IsNullOrWhiteSpace(activePlayers[half].PlayerName)) {
                 newCTLeaderName = string.Copy(activePlayers[half].PlayerName);
             }
 
-            // 【雙重物理防護】萬一遇到極端突發斷線，強制補上預設隊名，100% 杜絕 team_ 空值
             if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
             if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
             string finalCTTeamName = "team_" + newCTLeaderName;
             string finalTTeamName = "team_" + newTLeaderName;
 
-            // 5. 將乾淨、絕對不為空的隊名寫入 MatchZy 全域變數並強制同步修改遊戲內 HUD 的隊伍名稱
+            // 5. 寫入 MatchZy 全域變數並強制同步修改遊戲內 HUD 的隊伍名稱
             matchzyTeam1.teamName = finalCTTeamName;
             matchzyTeam2.teamName = finalTTeamName;
             Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
             Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
-            //  6. 【100% 保留你原本的自殺換隊機制】隊名安全鎖定後，最後才執行玩家的 ChangeTeam
+            // 6. 【自殺換隊 ＋ 🥶 核心實作：原生 FL_FROZEN 冰封】
             for (int i = 0; i < activePlayers.Count; i++) 
             {
+                var player = activePlayers[i];
+                
+                // 💀 執行官方標準的換隊（觸發自殺重生，刷新武器與出生點）
                 if (i < half) 
                 {
-                    activePlayers[i].ChangeTeam(CsTeam.Terrorist); // 前半段去 T 隊
+                    player.ChangeTeam(CsTeam.Terrorist); // 前半段去 T 隊
                 }
                 else 
                 {
-                    activePlayers[i].ChangeTeam(CsTeam.CounterTerrorist); // 後半段去 CT 隊
+                    player.ChangeTeam(CsTeam.CounterTerrorist); // 後半段去 CT 隊
+                }
+
+                // 🥶 復活瞬間注入冷凍針，把玩家死死釘在新出生點，杜絕滑鼠與鍵盤封包波動
+                if (player.PlayerPawn.Value != null)
+                {
+                    var pawn = player.PlayerPawn.Value;
+                    pawn.FFlags |= 64; // 疊加 64 (FL_FROZEN) 狀態
                 }
             }
 
             // 7. 輸出訊息與重置標記
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！全 員 重 生 且 旗 標 冰 封 鎖 定。");
             Log($"[Shuffle] 洗牌成功！CT隊名 : {finalCTTeamName} | T隊名 : {finalTTeamName}");
             
             isShufflePending = false;
