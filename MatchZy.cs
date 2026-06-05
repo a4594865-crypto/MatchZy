@@ -293,14 +293,15 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
             RegisterEventHandler<EventRoundStart>(EventRoundStartHandler);
             // 🎯 【請把解凍程式碼黏貼在它的正下方】：
+           // 🔓 每回合開始時，強行確保所有人解除 FL_FROZEN 旗標
             RegisterEventHandler<EventRoundStart>((@event, info) => {
                 foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                 {
                     if (player.PlayerPawn.Value != null)
                     {
                         var pawn = player.PlayerPawn.Value;
-                        // 精準移除 64 (FL_FROZEN) 旗標，還原玩家的滑鼠與位移控制
-                        pawn.FFlags &= ~((uint)64); 
+                        // 🎯 修正：將 FFlags 改為 FUnsignedFlags
+                        pawn.FUnsignedFlags &= ~((uint)64); 
                     }
                 }
                 return HookResult.Continue;
@@ -832,11 +833,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     player.ChangeTeam(CsTeam.CounterTerrorist); // 後半段去 CT 隊
                 }
 
-                // 🥶 復活瞬間注入冷凍針，把玩家死死釘在新出生點，杜絕滑鼠與鍵盤封包波動
+               // 🥶 核心安全實作：確認實體存在後，疊加 64 (FL_FROZEN) 狀態旗標
                 if (player.PlayerPawn.Value != null)
                 {
                     var pawn = player.PlayerPawn.Value;
-                    pawn.FFlags |= 64; // 疊加 64 (FL_FROZEN) 狀態
+                    // 🎯 精準修正：在 CounterStrikeSharp 中底層定義為 FUnsignedFlags
+                    pawn.FUnsignedFlags |= (uint)64; 
                 }
             }
 
