@@ -292,15 +292,18 @@ if (!isWarmup && !matchStarted && !isPractice)
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
             RegisterEventHandler<EventRoundStart>(EventRoundStartHandler);
-           // 🔓 每回合開始時，強行確保所有人解除 FL_FROZEN 旗標
+         // 🔓 每回合開始時，強行確保所有人解除 FL_FROZEN 旗標
             RegisterEventHandler<EventRoundStart>((@event, info) => {
                 foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                 {
                     if (player.PlayerPawn.Value != null)
                     {
                         var pawn = player.PlayerPawn.Value;
-                        // 🎯 再次修正：改為最底層的欄位名稱 m_fFlags
-                        pawn.m_fFlags &= ~((uint)64); 
+                        
+                        // 🎯 .NET 10 萬能解法：直接從引擎記憶體結構中抓取並拔除旗標
+                        uint currentFlags = pawn.GetSchemaValue<uint>("m_fFlags");
+                        currentFlags &= ~((uint)64); // 拔除 64 旗標
+                        pawn.SetSchemaValue("m_fFlags", currentFlags);
                     }
                 }
                 return HookResult.Continue;
@@ -832,12 +835,15 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     player.ChangeTeam(CsTeam.CounterTerrorist); // 後半段去 CT 隊
                 }
 
-              // 🥶 核心安全實作：確認實體存在後，疊加 64 (FL_FROZEN) 狀態旗標
+             // 🥶 核心安全實作：確認實體存在後，使用 .NET 10 萬能 Schema 強取底層欄位
                 if (player.PlayerPawn.Value != null)
                 {
                     var pawn = player.PlayerPawn.Value;
-                    // 🎯 再次修正：改為最底層的欄位名稱 m_fFlags
-                    pawn.m_fFlags |= (uint)64; 
+                    
+                    // 🎯 .NET 10 萬能解法：直接從引擎記憶體結構中抓取 m_fFlags
+                    uint currentFlags = pawn.GetSchemaValue<uint>("m_fFlags");
+                    currentFlags |= (uint)64; // 疊加 64 (FL_FROZEN)
+                    pawn.SetSchemaValue("m_fFlags", currentFlags);
                 }
             }
 
