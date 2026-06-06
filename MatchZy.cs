@@ -823,17 +823,11 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             isShufflePending = false;
         }
       // =========================================================================
-        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程（雙重保險完美終極版）
+        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程 (修正字典崩潰版)
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
             int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
-
-            // 🟢 修正點 1：【核心人頭簽到】一進來先幫最後一人簽到，徹底根除 2 人測試少 1 人卡熱身 Bug！
-            if (savedUserId != -1)
-            {
-                playerReadyStatus[savedUserId] = true;
-            }
 
             lock (_shuffleLock)
             {
@@ -863,86 +857,66 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
                 }
 
-                // 僅在記憶體內換隊
+                string? newCTLeaderName = null;
+                string? newTLeaderName = null;
+
                 int half = activePlayers.Count / 2;
                 for (int i = 0; i < activePlayers.Count; i++) 
                 {
                     if (i < half) 
                     {
                         activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
+                        if (newCTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
+                        {
+                            newCTLeaderName = string.Copy(activePlayers[i].PlayerName); 
+                        }
                     } 
                     else 
                     {
                         activePlayers[i].SwitchTeam(CsTeam.Terrorist);
+                        if (newTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
+                        {
+                            newTLeaderName = string.Copy(activePlayers[i].PlayerName); 
+                        }
                     }
                 }
 
-                // 🟢 修正點 2：【0 秒鐵血保底隊名】
-                // 為了防止原本寫法抓不到名字，也防止我改的代碼太慢給值導致核心拋出 KeyNotFoundException 崩潰，
-                // 我們在 0 秒這一毫秒，直接把 MatchZy 核心 100% 認得的預設合法隊名灌進去！
-                string safeCTName = matchConfig.Team1.String;
-                string safeTName = matchConfig.Team2.String;
+                if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
+                if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
-                matchzyTeam1.teamName = safeCTName;
-                matchzyTeam2.teamName = safeTName;
-                Server.ExecuteCommand($"mp_teamname_1 \"{safeCTName}\"");
-                Server.ExecuteCommand($"mp_teamname_2 \"{safeTName}\"");
+                string finalCTTeamName = "team_" + newCTLeaderName;
+                string finalTTeamName = "team_" + newTLeaderName;
+
+                // 🔴 【核心修正點】絕對不要修改 matchzyTeam 的內部成員，維持 MatchZy 預設的 "CT" 與 "T"
+                matchzyTeam1.teamName = "CT";
+                matchzyTeam2.teamName = "T";
+
+                // 🟢 【視覺修正】直接命令 CS2 引擎修改計分板上的隊伍名稱，既美觀又不崩潰
+                Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
+                Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
+
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+                Log($"[Shuffle] 洗牌同步 CT: {finalCTTeamName} | T: {finalTTeamName}");
 
                 isShufflePending = false;
 
-                // =========================================================================
-                // 🟢 修正點 3：【利用時間差，0.2 秒後再精準覆蓋正確玩家名字 + 開賽】
-                // =========================================================================
+                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網路封包對齊
                 AddTimer(0.2f, () => {
+                    // 🟢 【終極煞車鎖】如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
 
-                    // 經過 0.2 秒，CS2 引擎換隊穩定了，這時候才去重新撈隊長名字，100% 能抓到正確名字！
-                    string? realCTLeader = null;
-                    string? realTLeader = null;
-
-                    List<CCSPlayerController> currentPlayers = Utilities.GetPlayers()
-                        .Where(p => p.IsValid && !p.IsBot)
-                        .ToList();
-
-                    foreach (var p in currentPlayers)
-                    {
-                        if (p.TeamNum == 3 && realCTLeader == null && !string.IsNullOrWhiteSpace(p.PlayerName))
-                        {
-                            realCTLeader = string.Copy(p.PlayerName);
-                        }
-                        else if (p.TeamNum == 2 && realTLeader == null && !string.IsNullOrWhiteSpace(p.PlayerName))
-                        {
-                            realTLeader = string.Copy(p.PlayerName);
-                        }
-                    }
-
-                    // 如果順利抓到名字（99%機率），立刻把預設隊名漂亮地覆蓋成玩家的名字！
-                    if (!string.IsNullOrWhiteSpace(realCTLeader)) {
-                        matchzyTeam1.teamName = "team_" + realCTLeader;
-                        Server.ExecuteCommand($"mp_teamname_1 \"team_{realCTLeader}\"");
-                    }
-                    if (!string.IsNullOrWhiteSpace(realTLeader)) {
-                        matchzyTeam2.teamName = "team_" + realTLeader;
-                        Server.ExecuteCommand($"mp_teamname_2 \"team_{realTLeader}\"");
-                    }
-
-                    // 刷新 MatchZy 全域玩家隊伍分佈圖快取
-                    UpdatePlayersMap(); 
+                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                    Log($"[Shuffle] 洗牌同步修正成功！CT: {matchzyTeam1.teamName} | T: {matchzyTeam2.teamName}");
-
                     isCountdownActive = false; 
                     countdownRemaining = 0;
 
-                    // 🟢 正式開賽：0 秒時有保底隊名（不崩潰），現在人頭齊全，完美秒開刀局！
                     if (!matchStarted) 
                     {
                         HandleMatchStart(); 
                     }
-                }); // 👈 AddTimer 結束
-            } // 👈 lock 結束
-        } // 👈 ExecuteShuffleLogicWithReady 結束
+                }); // 👈 結束 AddTimer
+            } // 👈 結束 lock (_shuffleLock)
+        } // 👈 結束 ExecuteShuffleLogicWithReady 方法
 
     } // 👈 結束 class MatchZy
 } // 👈 結束 namespace MatchZy
