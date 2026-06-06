@@ -890,28 +890,34 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     }
                 }
 
-                if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
+               if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
                 if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                matchzyTeam1.teamName = finalCTTeamName;
-                matchzyTeam2.teamName = finalTTeamName;
-                Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
-                Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
-
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
-
                 isShufflePending = false;
 
-                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網路封包對齊
-                AddTimer(0.3f, () => {
-                    // 🟢 【終極煞車鎖】如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
+                // =========================================================================
+                // 🟢 核心修正：把 AddTimer 移到這裡！(秒數建議用 0.2f 即可，最流暢)
+                // 把改名、訊息、開賽「全部打包一起延遲」，這樣 CS2 引擎才來得及反應！
+                // =========================================================================
+                AddTimer(0.2f, () => {
+                    // 【終極煞車鎖】如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
 
-                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
+                    // 1. 0.2秒時間到，大家就定位了，這時候才把名字灌進官方引擎，絕對 100% 精準！
+                    matchzyTeam1.teamName = finalCTTeamName;
+                    matchzyTeam2.teamName = finalTTeamName;
+                    Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
+                    Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
+
+                    // 2. 這時候才在聊天室宣告分隊完成
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+                    Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
+
+                    // 3. 刷新快取並開賽
+                    UpdatePlayersMap(); 
                     
                     isCountdownActive = false; 
                     countdownRemaining = 0;
@@ -920,9 +926,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     {
                         HandleMatchStart(); 
                     }
-                }); // 👈 結束 AddTimer
-            } // 👈 結束 lock (_shuffleLock)
-        } // 👈 結束 ExecuteShuffleLogicWithReady 方法
+                }); // 👈 AddTimer 在這裡結束
+            } // 👈 lock 結束
+        } // 👈 方法結束
 
     } // 👈 結束 class MatchZy
 } // 👈 結束 namespace MatchZy
