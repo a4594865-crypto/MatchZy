@@ -907,7 +907,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 isShufflePending = false;
 
                 // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網路封包對齊
-                AddTimer(0.2f, () => {
+                AddTimer(0.3f, () => {
                     // 🟢 【終極煞車鎖】如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
 
