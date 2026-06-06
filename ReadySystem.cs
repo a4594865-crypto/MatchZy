@@ -105,9 +105,24 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-// --- 直接開始 5 秒音效倒數 ---
+        // --- 直接開始 5 秒音效倒數 ---
         public void StartMatchCountdown()
         {
+            // 🟢 1. 安全防禦：停止舊計時器並清空
+            matchStartCountdownTimer?.Kill();
+            matchStartCountdownTimer = null;
+
+            // 🟢 2. 徹底關閉並鎖死這份檔案的倒數開關與秒數
+            isCountdownActive = false; 
+            countdownRemaining = 0;
+
+            // 🚀 3. 核心關鍵：人滿或.R滿足條件時，不等待、直接呼叫開賽！
+            if (!matchStarted)
+            {
+                HandleMatchStart(); 
+            }
+
+            /* 🟡 舊代碼關閉：把原本會跑 5 秒倒數、播音效、打印字體的邏輯用註解全數關閉（不執行、不刪除）
             if (matchStartCountdownTimer != null) return;
 
             isCountdownActive = true; 
@@ -144,67 +159,68 @@ namespace MatchZy
                     }
                 });
             }, TimerFlags.REPEAT);
+            */ // 🟡 舊代碼註解結束
         }
 
        public void CancelMatchCountdown(string reason)
-{
-    if (matchStartCountdownTimer != null)
-    {
-        matchStartCountdownTimer.Kill();
-        matchStartCountdownTimer = null;
-        isCountdownActive = false; 
-
-        // --- 核心改動 ---
-        Server.PrintToChatAll($"{reason}");
-
-        PrintUnreadyPlayers();
-    }
-}
-
-   public void PrintUnreadyPlayers()
-    {
-        // 只要在倒數，就攔截所有準備訊息
-        if (isCountdownActive) return; 
-
-        int readyCount = GetReadyPlayersCount();
-
-        if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
-        {
-            PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
-        }
-        else if (readyAvailable && !matchStarted)
-        {
-            // 找出還沒準備的玩家名單
-            var unreadyPlayers = Utilities.GetPlayers()
-                .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                .Where(p => {
-                    if (p.UserId == null) return false;
-
-                    // 1. 這裡維持你原本的 UID 檢查（對應 playerData 字典）
-                    if (!playerData.ContainsKey((int)p.UserId)) return false;
-
-                    // 2. 核心修正：改用玩家的「UID (int)」去 playerReadyStatus 查資料！
-                    // 這樣就能完美搭配你在這三個檔案裡宣告的 private Dictionary<int, bool> playerReadyStatus
-                    bool isReady = false;
-                    if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) {
-                        return !isReady;
-                    }
-                    
-                    return true; 
-                })
-                .Select(p => p.PlayerName);
-            
-            string unreadyList = string.Join(", ", unreadyPlayers);
-
-            if (!string.IsNullOrEmpty(unreadyList))
+       {
+            if (matchStartCountdownTimer != null)
             {
-                PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyList]);
+                matchStartCountdownTimer.Kill();
+                matchStartCountdownTimer = null;
+                isCountdownActive = false; 
+
+                // --- 核心改動 ---
+                Server.PrintToChatAll($"{reason}");
+
+                PrintUnreadyPlayers();
             }
-        }
-        else if (!matchStarted)
-        {
-            PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
-        }
-    }
- } // MatchZy Class 結束
+       }
+
+       public void PrintUnreadyPlayers()
+       {
+            // 只要在倒數，就攔截所有準備訊息
+            if (isCountdownActive) return; 
+
+            int readyCount = GetReadyPlayersCount();
+
+            if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
+            {
+                PrintToAllChat(Localizer["matchzy.utility.minimumreadyplayers", minimumReadyRequired, readyCount]);
+            }
+            else if (readyAvailable && !matchStarted)
+            {
+                // 找出還沒準備的玩家名單
+                var unreadyPlayers = Utilities.GetPlayers()
+                    .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    .Where(p => {
+                        if (p.UserId == null) return false;
+
+                        // 1. 這裡維持你原本的 UID 檢查（對應 playerData 字典）
+                        if (!playerData.ContainsKey((int)p.UserId)) return false;
+
+                        // 2. 核心修正：改用玩家的「UID (int)」去 playerReadyStatus 查資料！
+                        // 這樣就能完美搭配你在這三個檔案裡宣告的 private Dictionary<int, bool> playerReadyStatus
+                        bool isReady = false;
+                        if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) {
+                            return !isReady;
+                        }
+                        
+                        return true; 
+                    })
+                    .Select(p => p.PlayerName);
+                
+                string unreadyList = string.Join(", ", unreadyPlayers);
+
+                if (!string.IsNullOrEmpty(unreadyList))
+                {
+                    PrintToAllChat(Localizer["matchzy.utility.unreadyplayers", unreadyList]);
+                }
+            }
+            else if (!matchStarted)
+            {
+                PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
+            }
+       }
+    } // MatchZy Class 結束
 } // Namespace 結束
