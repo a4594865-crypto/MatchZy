@@ -782,13 +782,13 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
             }
 
-            // 5. 🟢【非自殺換隊優化】：純粹更新記憶體數據與隊伍號碼，100% 輕量不卡頓
+            // 5. 非自殺換隊優化：純粹更新記憶體數據與隊伍號碼
             int half = activePlayers.Count / 2;
             for (int i = 0; i < activePlayers.Count; i++) 
             {
                 if (i < half) 
                 {
-                    // 改為 SwitchTeam，玩家不會當場暴斃生成屍體
+                    // 改為 SwitchTeam，玩家不會當場
                     activePlayers[i].SwitchTeam(CsTeam.Terrorist); // 前半段分配到 T 隊
                 }
                 else 
