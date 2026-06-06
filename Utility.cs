@@ -488,8 +488,10 @@ namespace MatchZy
                 matchzyTeam1.seriesScore = 0;
                 matchzyTeam2.seriesScore = 0;
 
-                Server.ExecuteCommand($"mp_teamname_1 {matchzyTeam1.teamName}");
-                Server.ExecuteCommand($"mp_teamname_2 {matchzyTeam2.teamName}");
+                string scoreboardReset1 = "反恐精英";
+                string scoreboardReset2 = "恐怖份子";
+                Server.ExecuteCommand($"mp_teamname_1 \"{scoreboardReset1}\"");
+                Server.ExecuteCommand($"mp_teamname_2 \"{scoreboardReset2}\"");
 
                 teamSides[matchzyTeam1] = "CT";
                 teamSides[matchzyTeam2] = "TERRORIST";
@@ -795,8 +797,20 @@ namespace MatchZy
                 // Server.ExecuteCommand($"mp_teamname_2 {matchzyTeam2.teamName}");
             }
 
-            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
+// --- 臨時削掉計分板的 team_ / TEAM_，只保留純玩家名稱，不影響上傳檔案 ---
+string scoreboardStart1 = reverseTeamSides["CT"].teamName;
+string scoreboardStart2 = reverseTeamSides["TERRORIST"].teamName;
+
+// 削掉自動抓取人名時的小寫 team_ (後面不再補上「 隊伍」)
+if (scoreboardStart1.StartsWith("team_", StringComparison.OrdinalIgnoreCase)) scoreboardStart1 = scoreboardStart1.Substring(5);
+if (scoreboardStart2.StartsWith("team_", StringComparison.OrdinalIgnoreCase)) scoreboardStart2 = scoreboardStart2.Substring(5);
+
+// 削掉可能殘留的大寫 TEAM_ (後面不再補上「 隊伍」)
+if (scoreboardStart1.StartsWith("TEAM_")) scoreboardStart1 = scoreboardStart1.Replace("TEAM_", "");
+if (scoreboardStart2.StartsWith("TEAM_")) scoreboardStart2 = scoreboardStart2.Replace("TEAM_", "");
+
+Server.ExecuteCommand($"mp_teamname_1 \"{scoreboardStart1}\"");
+Server.ExecuteCommand($"mp_teamname_2 \"{scoreboardStart2}\"");
 
             HandleClanTags();
 
