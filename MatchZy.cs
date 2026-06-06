@@ -488,36 +488,45 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-             // 1. 攔截開賽指令
-if (message == ".r" || message == ".ready") {
-    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
-        
-        var triggeringPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
+// 1. 攔截開賽指令（修正版：解決 2人/10人 正賽最後一人打 .r 偷跑卡死 Bug）
+            if (message == ".r" || message == ".ready") {
+                if (!matchStarted && readyAvailable) {
+                    var triggeringPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
+                    
+                    if (triggeringPlayer != null && triggeringPlayer.IsValid) {
+                        int tUserId = (int)(triggeringPlayer.UserId ?? -1);
+                        
+                        // 【核心修正】先把當前發言玩家加入準備字典，防止人數計算產生時間差漏洞
+                        if (tUserId != -1 && !playerReadyStatus.ContainsKey(tUserId)) {
+                            playerReadyStatus[tUserId] = true;
+                        }
 
-        // 如果啟用了隨機分隊預約，改走防衝突執行緒安全延遲流程
-        if (isShufflePending) 
-        {
-            ExecuteShuffleLogicWithReady(triggeringPlayer);
-        }
-        else
-        {
-            OnPlayerReady(triggeringPlayer, null);
-        }
-        return HookResult.Handled; 
-    }
-}
+                        // 重新計算包含當前玩家在內的「實際已準備人數」
+                        int currentReadyCount = GetReadyPlayersCount();
 
-                // 2. 如果倒數已經在跑，擋掉所有一般發話
-                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
-                    return HookResult.Handled;
+                        // 只有當準備人數真正達到或超過最低限制時，才允許往下走隨機分隊或直接開賽
+                        if (currentReadyCount >= minimumReadyRequired) {
+                            // 如果啟用了隨機分隊預約，改走防衝突執行緒安全延遲流程
+                            if (isShufflePending) {
+                                ExecuteShuffleLogicWithReady(triggeringPlayer);
+                            } else {
+                                OnPlayerReady(triggeringPlayer, null);
+                            }
+                            return HookResult.Handled; 
+                        } else {
+                            // 人數還不夠正式開賽，為了交給原本原生 OnPlayerReady 去做正常的「1/10 準備」聊天室宣告
+                            // 我們先把剛剛臨時加的狀態拿掉，退出攔截，交給後面原生指令去處理
+                            if (tUserId != -1) playerReadyStatus.Remove(tUserId);
+                        }
                     }
-                // --- [第一步結束] ---
+                }
+            }
 
-                // 2. 如果倒數已經在跑，擋掉所有一般發話
-                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
-                    return HookResult.Handled;
-                    }
-                // --- [第一步結束] ---
+            // 2. 如果倒數已經在跑，擋掉所有一般發話（已為您移除重複程式碼，保持一行乾淨）
+            if (isCountdownActive && !originalMessage.Contains("倒數：")) {
+                return HookResult.Handled;
+            }
+            // --- [第一步結束] ---
 int currentVersion = Api.GetVersion();
 int index = @event.Userid + 1;
 var playerUserId = NativeAPI.GetUseridFromIndex(index);
