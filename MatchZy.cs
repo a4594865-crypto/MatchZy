@@ -487,7 +487,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     var originalMessage = @event.Text.Trim();
     var message = originalMessage.ToLower();
 
-    // 🔴【鐵壁修正點 1】：在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
+    // 在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
     int currentEventUserId = @event.Userid; 
 
     // 1. 攔截開賽指令（利用 NextFrame 徹底解決洗牌後卡熱身、不倒數的底層衝突）
@@ -764,7 +764,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 }
        // =========================================================================
-        // 純粹隨機洗牌 + 非自殺換隊（SwitchTeam）極致流暢版
+        // 純粹隨機洗牌 + 非自殺換隊SwitchTeam
         // =========================================================================
         public void ExecuteShuffleLogic() 
         {
