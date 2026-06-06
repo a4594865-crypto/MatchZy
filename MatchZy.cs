@@ -822,8 +822,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             
             isShufflePending = false;
         }
-      // =========================================================================
-        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程 (修正字典崩潰版)
+     // =========================================================================
+        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程 (核心字典強制對齊無損版)
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -887,16 +887,14 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
-                // 🔴 【核心修正點】絕對不要修改 matchzyTeam 的內部成員，維持 MatchZy 預設的 "CT" 與 "T"
-                matchzyTeam1.teamName = "CT";
-                matchzyTeam2.teamName = "T";
-
-                // 🟢 【視覺修正】直接命令 CS2 引擎修改計分板上的隊伍名稱，既美觀又不崩潰
+                // 保持您的設計：修改隊伍實體名稱並更新到 CS2 計分板
+                matchzyTeam1.teamName = finalCTTeamName;
+                matchzyTeam2.teamName = finalTTeamName;
                 Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
 
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                Log($"[Shuffle] 洗牌同步 CT: {finalCTTeamName} | T: {finalTTeamName}");
+                Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
 
                 isShufflePending = false;
 
@@ -912,6 +910,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 
                     if (!matchStarted) 
                     {
+                        // 🛡️ 【地毯式暴力防護】在呼叫 HandleMatchStart 前的百萬分之一秒，強制修正字典 Key 指向
+                        if (teams == null) teams = new Dictionary<string, Team>();
+                        teams["CT"] = matchzyTeam1;
+                        teams["T"] = matchzyTeam2;
+
+                        // 🚀 核心安全開賽，此時 Utility.cs 去抓 teams["CT"] 絕對通行無阻！
                         HandleMatchStart(); 
                     }
                 }); // 👈 結束 AddTimer
