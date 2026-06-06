@@ -798,17 +798,21 @@ namespace MatchZy
             }
 
 // --- 臨時削掉計分板的 team_ / TEAM_，只保留純玩家名稱，不影響上傳檔案 ---
+// --- 臨時削掉計分板的 team_，完全不改動上傳檔案的原始變數 ---
 string scoreboardStart1 = reverseTeamSides["CT"].teamName;
 string scoreboardStart2 = reverseTeamSides["TERRORIST"].teamName;
 
-// 削掉自動抓取人名時的小寫 team_ (後面不再補上「 隊伍」)
-if (scoreboardStart1.StartsWith("team_", StringComparison.OrdinalIgnoreCase)) scoreboardStart1 = scoreboardStart1.Substring(5);
-if (scoreboardStart2.StartsWith("team_", StringComparison.OrdinalIgnoreCase)) scoreboardStart2 = scoreboardStart2.Substring(5);
+// 只要隊伍名稱是以小寫 "team_" 開頭，就直接把前 5 個字元（team_）削掉，只留下後面的純玩家名字
+if (scoreboardStart1.StartsWith("team_", StringComparison.OrdinalIgnoreCase)) 
+{
+    scoreboardStart1 = scoreboardStart1.Substring(5);
+}
+if (scoreboardStart2.StartsWith("team_", StringComparison.OrdinalIgnoreCase)) 
+{
+    scoreboardStart2 = scoreboardStart2.Substring(5);
+}
 
-// 削掉可能殘留的大寫 TEAM_ (後面不再補上「 隊伍」)
-if (scoreboardStart1.StartsWith("TEAM_")) scoreboardStart1 = scoreboardStart1.Replace("TEAM_", "");
-if (scoreboardStart2.StartsWith("TEAM_")) scoreboardStart2 = scoreboardStart2.Replace("TEAM_", "");
-
+// 丟給計分板，這樣計分板上就只會顯示純粹的玩家名字了！
 Server.ExecuteCommand($"mp_teamname_1 \"{scoreboardStart1}\"");
 Server.ExecuteCommand($"mp_teamname_2 \"{scoreboardStart2}\"");
 
