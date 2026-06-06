@@ -481,175 +481,187 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 return HookResult.Continue;
             });
 
-            RegisterEventHandler<EventPlayerChat>((@event, info) => {
+           RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
-                 // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
-                var originalMessage = @event.Text.Trim();
-                var message = originalMessage.ToLower();
+    // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
+    var originalMessage = @event.Text.Trim();
+    var message = originalMessage.ToLower();
 
-             // 1. 攔截開賽指令
-if (message == ".r" || message == ".ready") {
-    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
-        
-        // 洗牌超車
-        if (isShufflePending) 
-        {
-            ExecuteShuffleLogic(); // 執行洗牌
-            UpdatePlayersMap();    // 強制更新玩家隊伍緩存
-        }
+    // 🔴【鐵壁修正點 1】：在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
+    int currentEventUserId = @event.Userid; 
 
-        OnPlayerReady(Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1)), null);
-         return HookResult.Handled; 
-    }
-}
+    // 1. 攔截開賽指令（利用 NextFrame 徹底解決洗牌後卡熱身、不倒數的底層衝突）
+    if (message == ".r" || message == ".ready") {
+        if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
+            
+            // 洗牌超車
+            if (isShufflePending) 
+            {
+                ExecuteShuffleLogic(); // 先執行洗牌（SwitchTeam 靜態換隊）
+                UpdatePlayersMap();    // 強制更新玩家隊伍緩存
+            }
 
-                // 2. 如果倒數已經在跑，擋掉所有一般發話
-                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
-                    return HookResult.Handled;
-                    }
-                // --- [第一步結束] ---
-int currentVersion = Api.GetVersion();
-int index = @event.Userid + 1;
-var playerUserId = NativeAPI.GetUseridFromIndex(index);
-
-                var parts = originalMessage.Split(' ');
-                var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
-                var messageCommandArg = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
-
-                CCSPlayerController? player = null;
-                if (playerData.TryGetValue(playerUserId, out CCSPlayerController? value)) {
-                    player = value;
-                }
-
-                if (player == null) {
-                    UpdatePlayersMap();
-                    player = playerData[playerUserId];
-                }
-
-                // Handling player commands
-                if (commandActions.ContainsKey(message)) {
-                    commandActions[message](player, null);
-                }
-
-                if (message.StartsWith(".map"))
+            // 讓引擎緩衝一幀去對齊換隊數據，下幀官方算人數絕對 100% 正確，7 秒倒數順暢亮起！
+            Server.NextFrame(() => {
+                var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
+                if (triggerPlayer != null && triggerPlayer.IsValid)
                 {
-                    if (isMatchSetup)
-                    {
-                        Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
-                        return HookResult.Continue;
-                    }
-                    HandleMapChangeCommand(player, messageCommandArg);
+                    OnPlayerReady(triggerPlayer, null); // 正式交給官方核心點火
                 }
-
-                if (message.StartsWith(".restore"))
-                {
-                    HandleRestoreCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".asay"))
-                {
-                    if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
-                    {
-                        if (messageCommandArg != "")
-                        {
-                            Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
-                        }
-                        else
-                        {
-                            ReplyToUserCommand(player, Localizer["matchzy.cc.usage", ".asay <message>"]);
-                        }
-                    }
-                    else
-                    {
-                        SendPlayerNotAdminMessage(player);
-                    }
-                }
-                if (message.StartsWith(".savenade") || message.StartsWith(".sn"))
-                {
-                    HandleSaveNadeCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".delnade") || message.StartsWith(".dn"))
-                {
-                    HandleDeleteNadeCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".deletenade"))
-                {
-                    HandleDeleteNadeCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".importnade") || message.StartsWith(".in"))
-                {
-                    HandleImportNadeCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".listnades") || message.StartsWith(".lin"))
-                {
-                    HandleListNadesCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".loadnade") || message.StartsWith(".ln"))
-                {
-                    HandleLoadNadeCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".spawn"))
-                {
-                    HandleSpawnCommand(player, messageCommandArg, player.TeamNum, "spawn");
-                }
-                if (message.StartsWith(".ctspawn") || message.StartsWith(".cts"))
-                {
-                    HandleSpawnCommand(player, messageCommandArg, (byte)CsTeam.CounterTerrorist, "ctspawn");
-                }
-                if (message.StartsWith(".tspawn") || message.StartsWith(".ts"))
-                {
-                    HandleSpawnCommand(player, messageCommandArg, (byte)CsTeam.Terrorist, "tspawn");
-                }
-                if (message.StartsWith(".team1"))
-                {
-                    HandleTeamNameChangeCommand(player, messageCommandArg, 1);
-                }
-                if (message.StartsWith(".team2"))
-                {
-                    HandleTeamNameChangeCommand(player, messageCommandArg, 2);
-                }
-                if (message.StartsWith(".rcon"))
-                {
-                    if (IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
-                    {
-                        Server.ExecuteCommand(messageCommandArg);
-                        ReplyToUserCommand(player, "Command sent successfully!");
-                    }
-                    else
-                    {
-                        SendPlayerNotAdminMessage(player);
-                    }
-                }
-                if (message.StartsWith(".coach"))
-                {
-                    HandleCoachCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".ban"))
-                {
-                    HandeMapBanCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".pick"))
-                {
-                    HandeMapPickCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".back"))
-                {
-                    HandleBackCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".delay"))
-                {
-                    HandleDelayCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".throwindex"))
-                {
-                    HandleThrowIndexCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".throwidx"))
-                {
-                    HandleThrowIndexCommand(player, messageCommandArg);
-                }
-
-                return HookResult.Continue;
             });
+
+            return HookResult.Handled; 
+        }
+    }
+
+    // 2. 如果倒數已經在跑，擋掉所有一般發話（維持你原本完美的發話管理）
+    if (isCountdownActive && !originalMessage.Contains("倒數：")) {
+        return HookResult.Handled;
+    }
+    // --- [第一步結束] ---
+
+    int currentVersion = Api.GetVersion();
+    int index = currentEventUserId + 1; // 這裡也同步改用安全變數
+    var playerUserId = NativeAPI.GetUseridFromIndex(index);
+
+    var parts = originalMessage.Split(' ');
+    var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
+    var messageCommandArg = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
+
+    CCSPlayerController? player = null;
+    if (playerData.TryGetValue(playerUserId, out CCSPlayerController? value)) {
+        player = value;
+    }
+
+    if (player == null) {
+        UpdatePlayersMap();
+        player = playerData[playerUserId];
+    }
+
+    // Handling player commands
+    if (commandActions.ContainsKey(message)) {
+        commandActions[message](player, null);
+    }
+
+    if (message.StartsWith(".map"))
+    {
+        if (isMatchSetup)
+        {
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
+            return HookResult.Continue;
+        }
+        HandleMapChangeCommand(player, messageCommandArg);
+    }
+
+    if (message.StartsWith(".restore"))
+    {
+        HandleRestoreCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".asay"))
+    {
+        if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
+        {
+            if (messageCommandArg != "")
+            {
+                Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
+            }
+            else
+            {
+                ReplyToUserCommand(player, Localizer["matchzy.cc.usage", ".asay <message>"]);
+            }
+        }
+        else
+        {
+            SendPlayerNotAdminMessage(player);
+        }
+    }
+    if (message.StartsWith(".savenade") || message.StartsWith(".sn"))
+    {
+        HandleSaveNadeCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".delnade") || message.StartsWith(".dn"))
+    {
+        HandleDeleteNadeCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".deletenade"))
+    {
+        HandleDeleteNadeCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".importnade") || message.StartsWith(".in"))
+    {
+        HandleImportNadeCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".listnades") || message.StartsWith(".lin"))
+    {
+        HandleListNadesCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".loadnade") || message.StartsWith(".ln"))
+    {
+        HandleLoadNadeCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".spawn"))
+    {
+        HandleSpawnCommand(player, messageCommandArg, player.TeamNum, "spawn");
+    }
+    if (message.StartsWith(".ctspawn") || message.StartsWith(".cts"))
+    {
+        HandleSpawnCommand(player, messageCommandArg, (byte)CsTeam.CounterTerrorist, "ctspawn");
+    }
+    if (message.StartsWith(".tspawn") || message.StartsWith(".ts"))
+    {
+        HandleSpawnCommand(player, messageCommandArg, (byte)CsTeam.Terrorist, "tspawn");
+    }
+    if (message.StartsWith(".team1"))
+    {
+        HandleTeamNameChangeCommand(player, messageCommandArg, 1);
+    }
+    if (message.StartsWith(".team2"))
+    {
+        HandleTeamNameChangeCommand(player, messageCommandArg, 2);
+    }
+    if (message.StartsWith(".rcon"))
+    {
+        if (IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
+        {
+            Server.ExecuteCommand(messageCommandArg);
+            ReplyToUserCommand(player, "Command sent successfully!");
+        }
+        else
+        {
+            SendPlayerNotAdminMessage(player);
+        }
+    }
+    if (message.StartsWith(".coach"))
+    {
+        HandleCoachCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".ban"))
+    {
+        HandeMapBanCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".pick"))
+    {
+        HandeMapPickCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".back"))
+    {
+        HandleBackCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".delay"))
+    {
+        HandleDelayCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".throwindex"))
+    {
+        HandleThrowIndexCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".throwidx"))
+    {
+        HandleThrowIndexCommand(player, messageCommandArg);
+    }
+
+    return HookResult.Continue;
+});
             RegisterEventHandler<EventPlayerBlind>((@event, info) =>
             {
                 CCSPlayerController? player = @event.Userid;
