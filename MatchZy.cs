@@ -488,45 +488,36 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-// 1. 攔截開賽指令（修正版：解決 2人/10人 正賽最後一人打 .r 偷跑卡死 Bug）
-            if (message == ".r" || message == ".ready") {
-                if (!matchStarted && readyAvailable) {
-                    var triggeringPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
-                    
-                    if (triggeringPlayer != null && triggeringPlayer.IsValid) {
-                        int tUserId = (int)(triggeringPlayer.UserId ?? -1);
-                        
-                        // 【核心修正】先把當前發言玩家加入準備字典，防止人數計算產生時間差漏洞
-                        if (tUserId != -1 && !playerReadyStatus.ContainsKey(tUserId)) {
-                            playerReadyStatus[tUserId] = true;
-                        }
+             // 1. 攔截開賽指令
+if (message == ".r" || message == ".ready") {
+    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
+        
+        var triggeringPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(@event.Userid + 1));
 
-                        // 重新計算包含當前玩家在內的「實際已準備人數」
-                        int currentReadyCount = GetReadyPlayersCount();
+        // 如果啟用了隨機分隊預約，改走防衝突執行緒安全延遲流程
+        if (isShufflePending) 
+        {
+            ExecuteShuffleLogicWithReady(triggeringPlayer);
+        }
+        else
+        {
+            OnPlayerReady(triggeringPlayer, null);
+        }
+        return HookResult.Handled; 
+    }
+}
 
-                        // 只有當準備人數真正達到或超過最低限制時，才允許往下走隨機分隊或直接開賽
-                        if (currentReadyCount >= minimumReadyRequired) {
-                            // 如果啟用了隨機分隊預約，改走防衝突執行緒安全延遲流程
-                            if (isShufflePending) {
-                                ExecuteShuffleLogicWithReady(triggeringPlayer);
-                            } else {
-                                OnPlayerReady(triggeringPlayer, null);
-                            }
-                            return HookResult.Handled; 
-                        } else {
-                            // 人數還不夠正式開賽，為了交給原本原生 OnPlayerReady 去做正常的「1/10 準備」聊天室宣告
-                            // 我們先把剛剛臨時加的狀態拿掉，退出攔截，交給後面原生指令去處理
-                            if (tUserId != -1) playerReadyStatus.Remove(tUserId);
-                        }
+                // 2. 如果倒數已經在跑，擋掉所有一般發話
+                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
+                    return HookResult.Handled;
                     }
-                }
-            }
+                // --- [第一步結束] ---
 
-            // 2. 如果倒數已經在跑，擋掉所有一般發話（已為您移除重複程式碼，保持一行乾淨）
-            if (isCountdownActive && !originalMessage.Contains("倒數：")) {
-                return HookResult.Handled;
-            }
-            // --- [第一步結束] ---
+                // 2. 如果倒數已經在跑，擋掉所有一般發話
+                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
+                    return HookResult.Handled;
+                    }
+                // --- [第一步結束] ---
 int currentVersion = Api.GetVersion();
 int index = @event.Userid + 1;
 var playerUserId = NativeAPI.GetUseridFromIndex(index);
@@ -890,34 +881,28 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     }
                 }
 
-               if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
+                if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
                 if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
 
                 string finalCTTeamName = "team_" + newCTLeaderName;
                 string finalTTeamName = "team_" + newTLeaderName;
 
+                matchzyTeam1.teamName = finalCTTeamName;
+                matchzyTeam2.teamName = finalTTeamName;
+                Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
+                Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
+
+                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+                Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
+
                 isShufflePending = false;
 
-                // =========================================================================
-                // 🟢 核心修正：把 AddTimer 移到這裡！(秒數建議用 0.2f 即可，最流暢)
-                // 把改名、訊息、開賽「全部打包一起延遲」，這樣 CS2 引擎才來得及反應！
-                // =========================================================================
+                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網路封包對齊
                 AddTimer(0.2f, () => {
                     // 【終極煞車鎖】如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
 
-                    // 1. 0.2秒時間到，大家就定位了，這時候才把名字灌進官方引擎，絕對 100% 精準！
-                    matchzyTeam1.teamName = finalCTTeamName;
-                    matchzyTeam2.teamName = finalTTeamName;
-                    Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
-                    Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
-
-                    // 2. 這時候才在聊天室宣告分隊完成
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                    Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
-
-                    // 3. 刷新快取並開賽
-                    UpdatePlayersMap(); 
+                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
                     isCountdownActive = false; 
                     countdownRemaining = 0;
@@ -926,9 +911,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     {
                         HandleMatchStart(); 
                     }
-                }); // 👈 AddTimer 在這裡結束
-            } // 👈 lock 結束
-        } // 👈 方法結束
+                }); // 👈 結束 AddTimer
+            } // 👈 結束 lock (_shuffleLock)
+        } // 👈 結束 ExecuteShuffleLogicWithReady 方法
 
     } // 👈 結束 class MatchZy
 } // 👈 結束 namespace MatchZy
