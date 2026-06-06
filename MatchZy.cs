@@ -822,8 +822,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             
             isShufflePending = false;
         }
-     // =========================================================================
-        // 同步動態預計算新隊名 + 多執行緒安全防死鎖流程 (核心字典強制對齊無損版)
+    // =========================================================================
+        // 同步動態洗牌分隊 + 官方原生隊名穩定版 (不自訂隊名，絕不崩潰)
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -857,48 +857,30 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
                 }
 
-                string? newCTLeaderName = null;
-                string? newTLeaderName = null;
-
+                // 僅執行純粹的 SwitchTeam 移位，不再提取玩家名字作隊名
                 int half = activePlayers.Count / 2;
                 for (int i = 0; i < activePlayers.Count; i++) 
                 {
                     if (i < half) 
                     {
                         activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
-                        if (newCTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
-                        {
-                            newCTLeaderName = string.Copy(activePlayers[i].PlayerName); 
-                        }
                     } 
                     else 
                     {
                         activePlayers[i].SwitchTeam(CsTeam.Terrorist);
-                        if (newTLeaderName == null && activePlayers[i] != null && !string.IsNullOrWhiteSpace(activePlayers[i].PlayerName))
-                        {
-                            newTLeaderName = string.Copy(activePlayers[i].PlayerName); 
-                        }
                     }
                 }
 
-                if (string.IsNullOrWhiteSpace(newCTLeaderName)) newCTLeaderName = "CT";
-                if (string.IsNullOrWhiteSpace(newTLeaderName)) newTLeaderName = "T";
-
-                string finalCTTeamName = "team_" + newCTLeaderName;
-                string finalTTeamName = "team_" + newTLeaderName;
-
-                // 保持您的設計：修改隊伍實體名稱並更新到 CS2 計分板
-                matchzyTeam1.teamName = finalCTTeamName;
-                matchzyTeam2.teamName = finalTTeamName;
-                Server.ExecuteCommand($"mp_teamname_1 \"{finalCTTeamName}\"");
-                Server.ExecuteCommand($"mp_teamname_2 \"{finalTTeamName}\"");
+                // 🛑 這裡完全移除 matchzyTeam1.teamName = finalCTTeamName 等自訂代碼
+                // 🛑 也移除了 Server.ExecuteCommand 修改計分板的指令
+                // 讓系統保持官方最原生的狀態，回歸預設的 "CT" 與 "T"
 
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                Log($"[Shuffle] 洗牌同步修正成功！CT: {finalCTTeamName} | T: {finalTTeamName}");
+                Log("[Shuffle] 洗牌同步完成");
 
                 isShufflePending = false;
 
-                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網路封包對齊
+                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
                 AddTimer(0.2f, () => {
                     // 🟢 【終極煞車鎖】如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
@@ -910,12 +892,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 
                     if (!matchStarted) 
                     {
-                        // 🛡️ 【地毯式暴力防護】在呼叫 HandleMatchStart 前的百萬分之一秒，強制修正字典 Key 指向
-                        if (teams == null) teams = new Dictionary<string, Team>();
-                        teams["CT"] = matchzyTeam1;
-                        teams["T"] = matchzyTeam2;
-
-                        // 🚀 核心安全開賽，此時 Utility.cs 去抓 teams["CT"] 絕對通行無阻！
+                        // 🚀 核心安全開賽！因為從頭到尾都沒碰過隊名，Key 一直都在，100% 暢行無阻！
                         HandleMatchStart(); 
                     }
                 }); // 👈 結束 AddTimer
