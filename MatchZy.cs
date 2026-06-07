@@ -809,32 +809,34 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
             }
 
-            // 🎯【原廠快取刷新】：洗牌完瞬間，強迫外掛先刷新一輪現在兩隊的玩家狀態
+            // 🎯【自建記憶體精準撈人】：完全不等引擎刷新，直接從我們自己分好的名單裡抓隊長名字！
+            // 前半段是我們親手送去 T 隊的人，所以 T 隊代表就是 activePlayers[0]
+            var realTPlayer = activePlayers.Count > 0 ? activePlayers[0] : null;
+            // 後半段是我們親手送去 CT 隊的人，所以 CT 隊代表就是 activePlayers[half]
+            var realCTPlayer = activePlayers.Count > half ? activePlayers[half] : null;
+
+            // 🎯【原廠快取刷新】：強迫外掛的大腦更新玩家地圖快取
             UpdatePlayersMap();
 
-            // 🎯【原廠陣營字典動態對齊】：完美解決換邊與斷頭 "team_" Bug，且絕對不噴編譯錯誤！
+            // 🎯【原廠陣營字典動態對齊】：完美解決換邊與斷頭 "team_" Bug
             if (reverseTeamSides != null)
             {
-                // 精準撈出洗牌移位後，目前場上屬於 T 隊(TeamNum == 2) 與 CT 隊(TeamNum == 3) 的第一個真實玩家
-                var realTPlayer = activePlayers.FirstOrDefault(p => p.IsValid && p.TeamNum == 2);
-                var realCTPlayer = activePlayers.FirstOrDefault(p => p.IsValid && p.TeamNum == 3);
-
-                // 檢查當前的 CT 隊伍物件
+                // 檢查當前的 CT 隊伍物件（不論它是 team1 還是 team2，只要現在是 CT 就歸它管）
                 if (reverseTeamSides.TryGetValue("CT", out Team? ctTeamObject) && ctTeamObject != null)
                 {
                     if (string.IsNullOrWhiteSpace(ctTeamObject.teamName) || ctTeamObject.teamName == "team_")
                     {
-                        if (realCTPlayer != null) 
+                        if (realCTPlayer != null && realCTPlayer.IsValid) 
                             ctTeamObject.teamName = $"team_{realCTPlayer.PlayerName}";
                     }
                 }
 
-                // 檢查當前的 T 隊伍物件（彻底消滅日誌裡 "team2" "team_" 沒名字的元凶！）
+                // 檢查當前的 T 隊伍物件（徹底消滅日誌裡 "team2" "team_" 沒名字的元凶！）
                 if (reverseTeamSides.TryGetValue("TERRORIST", out Team? tTeamObject) && tTeamObject != null)
                 {
                     if (string.IsNullOrWhiteSpace(tTeamObject.teamName) || tTeamObject.teamName == "team_")
                     {
-                        if (realTPlayer != null) 
+                        if (realTPlayer != null && realTPlayer.IsValid) 
                             tTeamObject.teamName = $"team_{realTPlayer.PlayerName}";
                     }
                 }
