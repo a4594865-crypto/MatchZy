@@ -764,7 +764,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 }
         // =========================================================================
-        // 純粹隨機洗牌 + 非自殺換隊SwitchTeam（100% 採用您不卡秒的舊架構優化）
+        // 純粹隨機洗牌 + 非自殺換隊SwitchTeam
         // =========================================================================
         public void ExecuteShuffleLogic() 
         {
@@ -816,51 +816,43 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             // 【原廠快取刷新】：強迫外掛的大腦更新玩家地圖快取
             UpdatePlayersMap();
 
-            // 【核心修正】：維持原本完全沒有 NextFrame 的高流暢同步寫法，100% 延續您不卡倒數的特性！
-          // 【核心修正】：維持原本完全沒有 NextFrame 的高流暢同步寫法，100% 延續您不卡倒數的特性！
+            // 【核心修正】：100% 同步流暢不卡秒 + 徹底撕碎自動選隊的大寫英文！
             if (matchzyTeam1 != null && matchzyTeam2 != null)
             {
-                // 修正 matchzyTeam1 (預設 CT)
-                if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || matchzyTeam1.teamName == "team_")
+                // =========================================================================
+                // 修正 matchzyTeam1 (預設 CT)：直接用真人的有效狀態當判斷，不再看 matchzy 原本的名字！
+                // =========================================================================
+                if (realCTPlayer != null && realCTPlayer.IsValid && !string.IsNullOrWhiteSpace(realCTPlayer.PlayerName)) 
                 {
-                    // 1. 如果選中的隊長名字是正常的，直接用他的名字
-                    if (realCTPlayer != null && realCTPlayer.IsValid && !string.IsNullOrWhiteSpace(realCTPlayer.PlayerName)) 
-                    {
-                        matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
-                    }
-                    else
-                    {
-                        // 2. 萬一他手懶剛進服名字是空的，立刻現場盲抓場上隨便一個名字已經載入好的真人
-                        var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && !string.IsNullOrWhiteSpace(p.PlayerName));
-                        
-                        // 3. 【徹底修正】：如果撈到別人就用別人的名字，真的撈不到（機率為0），就硬用原本隊長哪怕是空的名字，絕對不用死名字！
-                        matchzyTeam1.teamName = fallbackPlayer != null ? $"team_{fallbackPlayer.PlayerName}" : $"team_{realCTPlayer?.PlayerName}";
-                    }
+                    // 如果前半段洗牌分配過去的 CT 隊長名字正常，直接強制覆蓋
+                    matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
+                }
+                else
+                {
+                    // 萬一遇到極端情況名字是空的，立刻現場盲抓場上隨便一個名字已經載入好的真人
+                    var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && !string.IsNullOrWhiteSpace(p.PlayerName));
+                    matchzyTeam1.teamName = fallbackPlayer != null ? $"team_{fallbackPlayer.PlayerName}" : "team_CounterTerrorists";
                 }
 
-                // 修正 matchzyTeam2 (預設 T)
-                if (string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || matchzyTeam2.teamName == "team_")
+                // =========================================================================
+                // 修正 matchzyTeam2 (預設 T)：直接用真人的有效狀態當判斷，不再看 matchzy 原本的名字！
+                // =========================================================================
+                if (realTPlayer != null && realTPlayer.IsValid && !string.IsNullOrWhiteSpace(realTPlayer.PlayerName)) 
                 {
-                    // 1. 如果選中的隊長名字是正常的，直接用他的名字
-                    if (realTPlayer != null && realTPlayer.IsValid && !string.IsNullOrWhiteSpace(realTPlayer.PlayerName)) 
-                    {
-                        matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
-                    }
-                    else
-                    {
-                        // 2. 萬一他手懶剛進服名字是空的，立刻現場盲抓場上隨便一個名字已經載入好的真人
-                        var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && !string.IsNullOrWhiteSpace(p.PlayerName));
-                        
-                        // 3. 【徹底修正】：如果撈到別人就用別人的名字，真的撈不到（機率為0），就硬用原本隊長哪怕是空的名字，絕對不用死名字！
-                        matchzyTeam2.teamName = fallbackPlayer != null ? $"team_{fallbackPlayer.PlayerName}" : $"team_{realTPlayer?.PlayerName}";
-                    }
+                    // 如果後半段洗牌分配過去的 T 隊長名字正常，直接強制覆蓋
+                    matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
+                }
+                else
+                {
+                    // 萬一遇到極端情況名字是空的，立刻現場盲抓場上隨便一個名字已經載入好的真人
+                    var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && !string.IsNullOrWhiteSpace(p.PlayerName));
+                    matchzyTeam2.teamName = fallbackPlayer != null ? $"team_{fallbackPlayer.PlayerName}" : "team_Terrorists";
                 }
 
-                // 【安全自定義同步】：用官方指令直接刷進計分板！
+                // 【最高指令強制刷新】：在同一個影格同步刷進官方計分板，安全不卡秒
                 Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
             }
-
             // 6. 輸出訊息與重置標記
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
             
