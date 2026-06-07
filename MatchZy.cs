@@ -880,18 +880,17 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 
                 isShufflePending = false;
 
-                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
-              // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
+             // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
 AddTimer(0.2f, () => {
-    // 🟢 【終極煞車鎖】如果剛才有人斷線，或者比賽已經開了，立刻退出
+    // 🟢 【終極煞車鎖】如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
     if (matchStarted || playerReadyStatus.Count == 0) return;
 
     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
     
-    // --- 【修改核心】邏輯分流 ---
+    // --- 【關鍵修正】：在這裡加入分流判斷 ---
     if (isShufflePending) 
     {
-        // 情況 A：剛洗完牌，執行直接開賽邏輯
+        // 情況 A：真的有開啟「隨機分隊」，執行你想要的「秒開」
         isCountdownActive = false; 
         countdownRemaining = 0;
         
@@ -900,8 +899,9 @@ AddTimer(0.2f, () => {
     }
     else
     {
-        // 情況 B：沒有洗牌，呼叫倒數機制來執行「7秒準備後開賽」
-        // 這裡會跳轉去執行你定義好的倒數函式
+        // 情況 B：沒有洗牌 (一般的 ReadySystem 準備流程)
+        // 這裡我們「不要」去動 countdownRemaining，而是讓原本的倒數邏輯跑
+        // 只要確保 StartMatchCountdown() 被執行就好
         StartMatchCountdown(); 
     }
 });
