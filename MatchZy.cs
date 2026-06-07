@@ -763,8 +763,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-        // =========================================================================
-        // 純粹隨機洗牌 + 非自殺換隊SwitchTeam（利用時間差徹底修正版）
+// =========================================================================
+        // 純粹隨機洗牌 + 非自殺換隊SwitchTeam（極致流暢 + 真人隊名完美補正版）
         // =========================================================================
         public void ExecuteShuffleLogic() 
         {
@@ -800,7 +800,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             {
                 if (i < half) 
                 {
-                    // 改為 SwitchTeam，玩家不會當場自殺
                     activePlayers[i].SwitchTeam(CsTeam.Terrorist); // 前半段分配到 T 隊
                 }
                 else 
@@ -809,36 +808,70 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
             }
 
-           // =========================================================================
-            // 【時間差與換隊全面根治版】：利用 Server.NextFrame 延遲一影格
-            // =========================================================================
-            Server.NextFrame(() => {
-                
-                // 1. 強迫外掛的大腦更新玩家地圖快取
-                UpdatePlayersMap();
+            // 【自建記憶體精準撈人】：直接從分好的人堆裡，撈出 T 隊和 CT 隊的第一個玩家
+            var realTPlayer = activePlayers.Count > 0 ? activePlayers[0] : null;
+            var realCTPlayer = activePlayers.Count > half ? activePlayers[half] : null;
 
-                // 2. 重新在已落定的狀態中，精準抓取此時此刻真正站在 CT 隊(TeamNum 3) 與 T 隊(TeamNum 2) 的活人
-                var realCTPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && p.TeamNum == 3);
-                var realTPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && p.TeamNum == 2);
+            // 【原廠快取刷新】：強迫外掛的大腦更新玩家地圖快取
+            UpdatePlayersMap();
 
-                string ctName = (realCTPlayer != null) ? $"team_{realCTPlayer.PlayerName}" : "team_CounterTerrorists";
-                string tName = (realTPlayer != null) ? $"team_{realTPlayer.PlayerName}" : "team_Terrorists";
+            // 【核心修正】：順應您原本最流暢的同影格同步寫法（100% 不卡倒數）
+            if (matchzyTeam1 != null && matchzyTeam2 != null)
+            {
+                // 先用最快速度寫入當下撈到的名字
+                if (realCTPlayer != null && realCTPlayer.IsValid) 
+                    matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
 
-                // 3. 【最關鍵的架構修正】：
-                // 我們直接用官方指令強刷目前的計分板（確保洗牌瞬間名字絕對是對的）
-                Server.ExecuteCommand($"mp_teamname_1 \"{ctName}\"");
-                Server.ExecuteCommand($"mp_teamname_2 \"{tName}\"");
+                if (realTPlayer != null && realTPlayer.IsValid) 
+                    matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
 
-                // 4. 把名字正式註冊進 MatchZy 的主客隊核心大腦
-                if (matchzyTeam1 != null && matchzyTeam2 != null)
+                // 立即重新全覆蓋，確保洗牌時舊的戰隊名稱會被沖刷掉
+                Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
+                Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
+
+                // --- 【純真人隊名補正防線】：只有在真的不幸抓到空名字時，才在下一影格強制補抓真人 ---
+                if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || matchzyTeam1.teamName == "team_" ||
+                    string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || matchzyTeam2.teamName == "team_")
                 {
-                    // MatchZy 預設 Team1 在 CT、Team2 在 T
-                    matchzyTeam1.teamName = ctName; 
-                    matchzyTeam2.teamName = tName;  
-                }
-            });
+                    Server.NextFrame(() => {
+                        // 重新強迫外掛的大腦更新玩家地圖快取
+                        UpdatePlayersMap();
 
-            // 6. 輸出訊息與重置標記（訊息可以當場噴出，不需要等 NextFrame）
+                        // 直接從伺服器「當前最新狀態」中，重新精準撈取此時此刻真正站在 CT(3) 與 T(2) 陣營的活人
+                        var retryCT = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && p.TeamNum == 3);
+                        var retryT = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && p.TeamNum == 2);
+                        
+                        // 補正 Team1 (CT) 名稱：如果剛剛抓空了，現在強行用最新撈到的 CT 真人名字塞進去
+                        if (retryCT != null && retryCT.IsValid) 
+                        {
+                            matchzyTeam1.teamName = $"team_{retryCT.PlayerName}";
+                        }
+                        // 萬一洗牌完 CT 的人剛好全退服了（極端狀況），才拿目前陣容裡隨便一個活人的名字來頂替
+                        else if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || matchzyTeam1.teamName == "team_")
+                        {
+                            var anyPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot);
+                            if (anyPlayer != null) matchzyTeam1.teamName = $"team_{anyPlayer.PlayerName}";
+                        }
+
+                        // 補正 Team2 (T) 名稱：如果剛剛抓空了，現在強行用最新撈到的 T 真人名字塞進去
+                        if (retryT != null && retryT.IsValid) 
+                        {
+                            matchzyTeam2.teamName = $"team_{retryT.PlayerName}";
+                        }
+                        else if (string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || matchzyTeam2.teamName == "team_")
+                        {
+                            var anyPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot);
+                            if (anyPlayer != null) matchzyTeam2.teamName = $"team_{anyPlayer.PlayerName}";
+                        }
+                        
+                        // 補正完成，用真人名字重新刷進官方計分板！
+                        Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
+                        Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
+                    });
+                }
+            }
+
+            // 6. 輸出訊息與重置標記
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
             
             isShufflePending = false;
