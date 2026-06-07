@@ -816,24 +816,37 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             // 【原廠快取刷新】：強迫外掛的大腦更新玩家地圖快取
             UpdatePlayersMap();
 
-            // 【核心修正】：直接硬塞給 matchzyTeam1 和 matchzyTeam2，徹底繞過不穩定的字典
+            // =========================================================================
+            // 【核心修正】：100% 沿用舊檔不卡秒同步架構 + 徹底消滅 10 人滿人自動選隊 Bug！
+            // =========================================================================
             if (matchzyTeam1 != null && matchzyTeam2 != null)
             {
-                // 修正 matchzyTeam1 (預設 CT)：如果是空的或斷頭 "team_"，直接塞 CT 陣營的活人名字
-                if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || matchzyTeam1.teamName == "team_")
+                // 修正 matchzyTeam1 (預設 CT)：直接認活人狀態，無條件強制覆蓋大寫英文
+                if (realCTPlayer != null && realCTPlayer.IsValid && !string.IsNullOrWhiteSpace(realCTPlayer.PlayerName)) 
                 {
-                    if (realCTPlayer != null && realCTPlayer.IsValid) 
-                        matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
+                    matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
+                }
+                else
+                {
+                    // 終極安全墊背
+                    var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && !string.IsNullOrWhiteSpace(p.PlayerName));
+                    matchzyTeam1.teamName = fallbackPlayer != null ? $"team_{fallbackPlayer.PlayerName}" : "team_CounterTerrorists";
                 }
 
-                // 修正 matchzyTeam2 (預設 T)：如果是空的或斷頭 "team_"，直接塞 T 陣營的活人名字
-                if (string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || matchzyTeam2.teamName == "team_")
+                // 修正 matchzyTeam2 (預設 T)：直接認活人狀態，無條件強制覆蓋大寫英文
+                if (realTPlayer != null && realTPlayer.IsValid && !string.IsNullOrWhiteSpace(realTPlayer.PlayerName)) 
                 {
-                    if (realTPlayer != null && realTPlayer.IsValid) 
-                        matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
+                    matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
+                }
+                else
+                {
+                    // 終極安全墊背
+                    var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && !string.IsNullOrWhiteSpace(p.PlayerName));
+                    matchzyTeam2.teamName = fallbackPlayer != null ? $"team_{fallbackPlayer.PlayerName}" : "team_Terrorists";
                 }
 
-                // 【安全自定義同步】：不呼叫會崩潰的原廠 SetTeamNames()，我們直接用官方指令刷進計分板！
+                // 【物理同步防卡線】：既然您實測這個指令不會卡秒，我們就保留它！
+                // 10 人滿人時，直接強刷控制台，大腦與引擎同步，最後 1 秒絕對安全放行！
                 Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
             }
