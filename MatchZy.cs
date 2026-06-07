@@ -816,21 +816,24 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             // 【原廠快取刷新】：強迫外掛的大腦更新玩家地圖快取
             UpdatePlayersMap();
 
-           // 【核心修正】：無條件強制硬塞玩家名，徹底繞過所有不穩定的判斷與官方預設名稱
+            // 【核心修正】：直接硬塞給 matchzyTeam1 和 matchzyTeam2，徹底繞過不穩定的字典
             if (matchzyTeam1 != null && matchzyTeam2 != null)
             {
-                // 不論原有名稱是什麼，直接強行覆蓋寫入新的隊名變數
-                if (realCTPlayer != null && realCTPlayer.IsValid) 
+                // 修正 matchzyTeam1 (預設 CT)：如果是空的或斷頭 "team_"，直接塞 CT 陣營的活人名字
+                if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || matchzyTeam1.teamName == "team_")
                 {
-                    matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
+                    if (realCTPlayer != null && realCTPlayer.IsValid) 
+                        matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
                 }
 
-                if (realTPlayer != null && realTPlayer.IsValid) 
+                // 修正 matchzyTeam2 (預設 T)：如果是空的或斷頭 "team_"，直接塞 T 陣營的活人名字
+                if (string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || matchzyTeam2.teamName == "team_")
                 {
-                    matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
+                    if (realTPlayer != null && realTPlayer.IsValid) 
+                        matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
                 }
 
-                // 【安全自定義同步】：直接將最新修正的「玩家隊名」刷入計分板
+                // 【安全自定義同步】：不呼叫會崩潰的原廠 SetTeamNames()，我們直接用官方指令刷進計分板！
                 Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
             }
