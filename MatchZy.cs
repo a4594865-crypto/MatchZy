@@ -482,62 +482,53 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 return HookResult.Continue;
             });
 
-          // =========================================================================
-            // 【核心修正點】：完美開賽分流（有洗牌Pending則秒開不倒數，無洗牌則走原本倒數）
-            // =========================================================================
             RegisterEventHandler<EventPlayerChat>((@event, info) => {
+
+                 // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
                 var originalMessage = @event.Text.Trim();
                 var message = originalMessage.ToLower();
 
-                // 在當前影格立刻算出 UID 並保存
-                int currentEventUserId = @event.Userid;
-
+            // =========================================================================
+                // 1. 攔截開賽指令（分段優化版：洗牌局秒開不倒數 / 正規局安全緩衝 7 秒倒數）
+                // =========================================================================
                 if (message == ".r" || message == ".ready") 
                 {
                     if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) 
                     {
-                        var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
+                        var triggeringPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
 
                         // -----------------------------------------------------------------
                         // 分流 A：管理員「有預約隨機分隊」(isShufflePending == true)
-                        // 👉 執行完全不改隊名的洗牌函數，物理封鎖 7 秒計時器，絕不倒數、秒開刀局！
+                        // 👉 執行完全不改隊名的洗牌函數，徹底跳過倒數，秒開刀局！
                         // -----------------------------------------------------------------
                         if (isShufflePending) 
                         {
-                            // 呼叫您在檔案底部編寫的帶引導玩家參數的洗牌秒開函數
-                            ExecuteShuffleLogicWithReady(triggerPlayer);
-                            return HookResult.Handled; 
+                            ExecuteShuffleLogicWithReady(triggeringPlayer);
                         }
-
                         // -----------------------------------------------------------------
                         // 分流 B：管理員「沒有預約隨機分隊」(isShufflePending == false)
-                        // 👉 100% 走原本正規戰隊局的 7 秒音效倒數線程
+                        // 👉 緩衝一影格給原廠對齊，100% 安全走原本正規戰隊局的 7 秒音效倒數！
                         // -----------------------------------------------------------------
-                        Server.NextFrame(() => {
-                            if (triggerPlayer != null && triggerPlayer.IsValid)
-                            {
-                                OnPlayerReady(triggerPlayer, null); // 正常交給原廠核心，點火觸發 7 秒倒數
-                            }
-                        });
-
+                        else
+                        {
+                            Server.NextFrame(() => {
+                                if (triggeringPlayer != null && triggeringPlayer.IsValid)
+                                {
+                                    OnPlayerReady(triggeringPlayer, null); // 正常交給原廠核心，點火觸發 7 秒倒數
+                                }
+                            });
+                        }
                         return HookResult.Handled; 
                     }
                 }
 
-                // 如果倒數已經在跑，擋掉所有一般發話
+                // =========================================================================
+                // 2. 如果倒數已經在跑，擋掉所有一般發話（維持你原本完美的發話管理）
+                // =========================================================================
                 if (isCountdownActive && !originalMessage.Contains("倒數：")) 
                 {
                     return HookResult.Handled;
                 }
-
-                return HookResult.Continue;
-            });
-                // --- [第一步結束] ---
-
-                // 2. 如果倒數已經在跑，擋掉所有一般發話
-                if (isCountdownActive && !originalMessage.Contains("倒數：")) {
-                    return HookResult.Handled;
-                    }
                 // --- [第一步結束] ---
 int currentVersion = Api.GetVersion();
 int index = @event.Userid + 1;
@@ -844,7 +835,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             isShufflePending = false;
         }
    // =========================================================================
-        // 同步動態洗牌分隊 + 官方原生隊名穩定版 (獨立函數，必須包在 class 內，而非 Load 內)
+        // 同步動態洗牌分隊 + 官方原生隊名穩定版 (獨立函數分段修正版)
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -877,7 +868,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
             }
 
-            // 進行純粹的 SwitchTeam 移位（維持原生 CT / T，完全不自訂隊名）
+            // 進行純粹的 SwitchTeam 移位（不自訂隊名，絕不崩潰）
             int half = activePlayers.Count / 2;
             for (int i = 0; i < activePlayers.Count; i++) 
             {
@@ -901,18 +892,18 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             AddTimer(0.2f, () => {
                 if (matchStarted || playerReadyStatus.Count == 0) return;
 
-                UpdatePlayersMap(); 
+                UpdatePlayersMap(); // 刷新全域快取
                 
-                isCountdownActive = false; 
+                isCountdownActive = false;  
                 countdownRemaining = 0;
 
                 if (!matchStarted) 
                 {
-                    HandleMatchStart(); // 🚀 0.2秒時間一到，直接秒跳刀局開賽！
+                    HandleMatchStart(); // 🚀 直接秒跳刀局開賽！
                 }
-            }); // 👈 AddTimer 結束
+            }); // 👈 AddTimer 結束了
 
-        } // 👈 ExecuteShuffleLogicWithReady 函數結束
+        } // 👈 這裡完完整整地結束了 ExecuteShuffleLogicWithReady 函數！
 
-    } // 👈 這是整個 class MatchZy 的結束大括號
-} // 👈 這是 namespace MatchZy 的結束大括號
+    } // 👈 這裡完完整整地結束了 public partial class MatchZy 類別！
+} // 👈 這裡完完整整地結束了 namespace MatchZy 命名空間！
