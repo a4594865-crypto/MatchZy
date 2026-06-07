@@ -763,7 +763,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-   // =========================================================================
+        // =========================================================================
         // 純粹隨機洗牌 + 非自殺換隊SwitchTeam
         // =========================================================================
         public void ExecuteShuffleLogic() 
@@ -809,14 +809,14 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
             }
 
-            // 🎯【自建記憶體精準撈人】：直接從我們分好的人堆裡，撈出 T 隊和 CT 隊的第一個玩家
+            // 【自建記憶體精準撈人】：直接從分好的人堆裡，撈出 T 隊和 CT 隊的第一個玩家
             var realTPlayer = activePlayers.Count > 0 ? activePlayers[0] : null;
             var realCTPlayer = activePlayers.Count > half ? activePlayers[half] : null;
 
-            // 🎯【原廠快取刷新】：強迫外掛的大腦更新玩家地圖快取
+            // 【原廠快取刷新】：強迫外掛的大腦更新玩家地圖快取
             UpdatePlayersMap();
 
-            // 🎯【核心修正】：直接硬塞給 matchzyTeam1 和 matchzyTeam2，徹底繞過不穩定的字典
+            // 【核心修正】：直接硬塞給 matchzyTeam1 和 matchzyTeam2，徹底繞過不穩定的字典
             if (matchzyTeam1 != null && matchzyTeam2 != null)
             {
                 // 修正 matchzyTeam1 (預設 CT)：如果是空的或斷頭 "team_"，直接塞 CT 陣營的活人名字
@@ -833,14 +833,13 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                         matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
                 }
 
-                // 🎯【安全自定義同步】：不呼叫會崩潰的原廠 SetTeamNames()，我們直接用官方指令刷進計分板！
+                // 【安全自定義同步】：不呼叫會崩潰的原廠 SetTeamNames()，我們直接用官方指令刷進計分板！
                 Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
             }
 
             // 6. 輸出訊息與重置標記
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-            Log($"[Shuffle] 洗牌成功。最終同步隊名：Team1='{matchzyTeam1?.teamName}', Team2='{matchzyTeam2?.teamName}'");
             
             isShufflePending = false;
         } // 這是 ExecuteShuffleLogic 的結束括號
