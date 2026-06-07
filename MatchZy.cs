@@ -809,30 +809,32 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
             }
 
-            // =========================================================================
-            // 【時間差優化核心】：利用 Server.NextFrame 延遲一影格，等換隊與自動選隊封包完成
+           // =========================================================================
+            // 【時間差與換隊全面根治版】：利用 Server.NextFrame 延遲一影格
             // =========================================================================
             Server.NextFrame(() => {
                 
-                // 【原廠快取刷新】：在安全的影格強迫外掛的大腦更新玩家地圖快取
+                // 1. 強迫外掛的大腦更新玩家地圖快取
                 UpdatePlayersMap();
 
-                // 重新在已落定的狀態中，精準抓取此時此刻真正站在 CT 隊(TeamNum 3) 與 T 隊(TeamNum 2) 的活人
+                // 2. 重新在已落定的狀態中，精準抓取此時此刻真正站在 CT 隊(TeamNum 3) 與 T 隊(TeamNum 2) 的活人
                 var realCTPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && p.TeamNum == 3);
                 var realTPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && p.TeamNum == 2);
 
-                // 【核心修正】：順著 MatchZy 原始大腦貼標籤。Team1(預設CT)，Team2(預設T)
+                string ctName = (realCTPlayer != null) ? $"team_{realCTPlayer.PlayerName}" : "team_CounterTerrorists";
+                string tName = (realTPlayer != null) ? $"team_{realTPlayer.PlayerName}" : "team_Terrorists";
+
+                // 3. 【最關鍵的架構修正】：
+                // 我們直接用官方指令強刷目前的計分板（確保洗牌瞬間名字絕對是對的）
+                Server.ExecuteCommand($"mp_teamname_1 \"{ctName}\"");
+                Server.ExecuteCommand($"mp_teamname_2 \"{tName}\"");
+
+                // 4. 把名字正式註冊進 MatchZy 的主客隊核心大腦
                 if (matchzyTeam1 != null && matchzyTeam2 != null)
                 {
-                    // 修正 matchzyTeam1 (主隊，此時在 CT)：直接塞 CT 陣營的活人名字
-                    matchzyTeam1.teamName = (realCTPlayer != null) ? $"team_{realCTPlayer.PlayerName}" : "team_CounterTerrorists";
-
-                    // 修正 matchzyTeam2 (客隊，此時在 T)：直接塞 T 陣營的活人名字
-                    matchzyTeam2.teamName = (realTPlayer != null) ? $"team_{realTPlayer.PlayerName}" : "team_Terrorists";
-
-                    // 【安全自定義同步】：不呼叫會崩潰的原廠 SetTeamNames()，我們用官方指令直接刷進計分板！
-                    Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
-                    Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
+                    // MatchZy 預設 Team1 在 CT、Team2 在 T
+                    matchzyTeam1.teamName = ctName; 
+                    matchzyTeam2.teamName = tName;  
                 }
             });
 
