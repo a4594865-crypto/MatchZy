@@ -490,30 +490,32 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // 在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
     int currentEventUserId = @event.Userid; 
 
-    // 1. 攔截開賽指令（利用 NextFrame 徹底解決洗牌後卡熱身、不倒數的底層衝突）
+   // 1. 攔截開賽指令（利用分流徹底解決洗牌秒開與官方倒數的底層衝突）
     if (message == ".r" || message == ".ready") {
         if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
             
-            // 洗牌超車
             if (isShufflePending) 
             {
-                ExecuteShuffleLogic(); // 先執行洗牌（SwitchTeam 靜態換隊）
-                UpdatePlayersMap();    // 強制更新玩家隊伍緩存
+                // 🟢 【分流 A：洗牌通道】
+                ExecuteShuffleLogic();     // 執行洗牌，內部有 AddTimer(0.2f) 負責 0.2 秒後直接秒開賽
+                UpdatePlayersMap();        // 強制更新玩家隊伍緩存
+                return HookResult.Handled; // 🛑 鐵腕攔截！直接吃掉事件，絕對不讓下方的 7 秒倒數代碼執行
             }
-
-            // 讓引擎緩衝一幀去對齊換隊數據，下幀官方算人數絕對 100% 正確，7 秒倒數順暢亮起！
-            Server.NextFrame(() => {
-                var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
-                if (triggerPlayer != null && triggerPlayer.IsValid)
-                {
-                    OnPlayerReady(triggerPlayer, null); // 正式交給官方核心點火
-                }
-            });
-
-            return HookResult.Handled; 
+            else
+            {
+                // 🔵 【分流 B：正規局通道】
+                // 只有在「沒有洗牌」的情況下，才允許讓引擎緩衝一幀去跑原本的 7 秒叮叮叮音效倒數
+                Server.NextFrame(() => {
+                    var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
+                    if (triggerPlayer != null && triggerPlayer.IsValid)
+                    {
+                        OnPlayerReady(triggerPlayer, null); // 正式交給官方核心點火
+                    }
+                });
+                return HookResult.Handled; 
+            }
         }
     }
-
     // 2. 如果倒數已經在跑，擋掉所有一般發話（維持你原本完美的發話管理）
     if (isCountdownActive && !originalMessage.Contains("倒數：")) {
         return HookResult.Handled;
