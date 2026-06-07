@@ -763,7 +763,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-     // =========================================================================
+    // =========================================================================
         // 純粹隨機洗牌 + 非自殺換隊SwitchTeam
         // =========================================================================
         public void ExecuteShuffleLogic() 
@@ -809,36 +809,38 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
             }
 
-            // 🎯【原廠快取刷新】：洗牌完瞬間，強迫外掛的大腦對齊最新的玩家隊伍狀態
+            // 🎯【原廠快取刷新】：洗牌完瞬間，強迫外掛先刷新一輪現在兩隊的玩家狀態
             UpdatePlayersMap();
 
-            // 🎯【終極修正】：不改動原本已經抓到的好名字，只精準修復殘缺斷頭的 "team_"！
-            if (matchzyTeam1 != null && matchzyTeam2 != null)
+            // 🎯【原廠陣營字典動態對齊】：完美解決換邊與斷頭 "team_" Bug，且絕對不噴編譯錯誤！
+            if (reverseTeamSides != null)
             {
-                // 事先在剛剛分配好的人群中，精準撈出現在真正屬於 T 隊(2)與 CT 隊(3)的第一位真實玩家
+                // 精準撈出洗牌移位後，目前場上屬於 T 隊(TeamNum == 2) 與 CT 隊(TeamNum == 3) 的第一個真實玩家
                 var realTPlayer = activePlayers.FirstOrDefault(p => p.IsValid && p.TeamNum == 2);
                 var realCTPlayer = activePlayers.FirstOrDefault(p => p.IsValid && p.TeamNum == 3);
 
-                // 校正 MatchZyTeam1：如果是空殼，根據陣營動態去抓場上該陣營的第一個玩家名字補上去！
-                if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || matchzyTeam1.teamName == "team_")
+                // 檢查當前的 CT 隊伍物件
+                if (reverseTeamSides.TryGetValue("CT", out Team? ctTeamObject) && ctTeamObject != null)
                 {
-                    if (matchzyTeam1.teamSide == CsTeam.Terrorist && realTPlayer != null)
-                        matchzyTeam1.teamName = $"team_{realTPlayer.PlayerName}";
-                    else if (matchzyTeam1.teamSide == CsTeam.CounterTerrorist && realCTPlayer != null)
-                        matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
+                    if (string.IsNullOrWhiteSpace(ctTeamObject.teamName) || ctTeamObject.teamName == "team_")
+                    {
+                        if (realCTPlayer != null) 
+                            ctTeamObject.teamName = $"team_{realCTPlayer.PlayerName}";
+                    }
                 }
 
-                // 校正 MatchZyTeam2（徹底解決你日誌裡 "team2" "team_" 沒名字的元凶！）
-                if (string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || matchzyTeam2.teamName == "team_")
+                // 檢查當前的 T 隊伍物件（彻底消滅日誌裡 "team2" "team_" 沒名字的元凶！）
+                if (reverseTeamSides.TryGetValue("TERRORIST", out Team? tTeamObject) && tTeamObject != null)
                 {
-                    if (matchzyTeam2.teamSide == CsTeam.Terrorist && realTPlayer != null)
-                        matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
-                    else if (matchzyTeam2.teamSide == CsTeam.CounterTerrorist && realCTPlayer != null)
-                        matchzyTeam2.teamName = $"team_{realCTPlayer.PlayerName}";
+                    if (string.IsNullOrWhiteSpace(tTeamObject.teamName) || tTeamObject.teamName == "team_")
+                    {
+                        if (realTPlayer != null) 
+                            tTeamObject.teamName = $"team_{realTPlayer.PlayerName}";
+                    }
                 }
             }
 
-            // 🎯 呼叫內建安全同步函數，把剛剛補齊的「玩家名隊伍」同步給官方計分板
+            // 🎯 呼叫內建安全同步函數，把剛剛完美補齊的「玩家名隊伍」同步給官方計分板
             SetTeamNames();
 
             // 6. 輸出訊息與重置標記
