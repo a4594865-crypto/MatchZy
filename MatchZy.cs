@@ -817,27 +817,23 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             UpdatePlayersMap();
 
             // 【核心修正】：直接硬塞給 matchzyTeam1 和 matchzyTeam2，徹底繞過不穩定的字典
-           if (matchzyTeam1 != null && matchzyTeam2 != null)
+            if (matchzyTeam1 != null && matchzyTeam2 != null)
             {
-                // 修正 matchzyTeam1 (預設 CT)：維持舊判斷，僅多攔截官方大寫英文
-                if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || 
-                    matchzyTeam1.teamName == "team_" || 
-                    matchzyTeam1.teamName.Equals("COUNTER-TERRORISTS", StringComparison.OrdinalIgnoreCase))
+                // 修正 matchzyTeam1 (預設 CT)：如果是空的或斷頭 "team_"，直接塞 CT 陣營的活人名字
+                if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || matchzyTeam1.teamName == "team_")
                 {
-                    if (realCTPlayer != null && realCTPlayer.IsValid && !string.IsNullOrWhiteSpace(realCTPlayer.PlayerName)) 
+                    if (realCTPlayer != null && realCTPlayer.IsValid) 
                         matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
                 }
 
-                // 修正 matchzyTeam2 (預設 T)：維持舊判斷，僅多攔截官方大寫英文
-                if (string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || 
-                    matchzyTeam2.teamName == "team_" || 
-                    matchzyTeam2.teamName.Equals("TERRORISTS", StringComparison.OrdinalIgnoreCase))
+                // 修正 matchzyTeam2 (預設 T)：如果是空的或斷頭 "team_"，直接塞 T 陣營的活人名字
+                if (string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || matchzyTeam2.teamName == "team_")
                 {
-                    if (realTPlayer != null && realTPlayer.IsValid && !string.IsNullOrWhiteSpace(realTPlayer.PlayerName)) 
+                    if (realTPlayer != null && realTPlayer.IsValid) 
                         matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
                 }
 
-                // 【100% 舊檔靈魂】：這兩行指令會乖乖聽官方的話，等倒數完、切換回合時才生效，100% 不卡秒！
+                // 【安全自定義同步】：不呼叫會崩潰的原廠 SetTeamNames()，我們直接用官方指令刷進計分板！
                 Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
                 Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
             }
