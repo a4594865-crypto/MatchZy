@@ -763,7 +763,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-       // =========================================================================
+      // =========================================================================
         // 純粹隨機洗牌 + 非自殺換隊SwitchTeam
         // =========================================================================
         public void ExecuteShuffleLogic() 
@@ -800,7 +800,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             {
                 if (i < half) 
                 {
-                    // 改為 SwitchTeam，玩家不會當場
+                    // 改為 SwitchTeam，玩家不會當場自殺
                     activePlayers[i].SwitchTeam(CsTeam.Terrorist); // 前半段分配到 T 隊
                 }
                 else 
@@ -809,9 +809,42 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
             }
 
+            // 🎯【原廠快取強制刷新】：洗牌完瞬間，強迫外掛先刷新一輪現在兩隊的玩家狀態
+            UpdatePlayersMap();
+
+            // 🎯【核心修正】：不改動原本抓到的人名，只修復斷頭 "team_"
+            if (matchzyTeam1 != null && matchzyTeam2 != null)
+            {
+                // 事先在 activePlayers（活人）中，找出目前真正被分到 T 隊(2)與 CT 隊(3)的第一個玩家
+                var realTPlayer = activePlayers.FirstOrDefault(p => p.IsValid && p.TeamNum == 2);
+                var realCTPlayer = activePlayers.FirstOrDefault(p => p.IsValid && p.TeamNum == 3);
+
+                // 檢查 MatchZyTeam1
+                if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || matchzyTeam1.teamName == "team_")
+                {
+                    // 如果這隊目前在 T 陣營，就拿 T 隊玩家名字補齊；在 CT 陣營，就拿 CT 隊玩家名字補齊
+                    if (matchzyTeam1.teamSide == CsTeam.Terrorist && realTPlayer != null)
+                        matchzyTeam1.teamName = $"team_{realTPlayer.PlayerName}";
+                    else if (matchzyTeam1.teamSide == CsTeam.CounterTerrorist && realCTPlayer != null)
+                        matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
+                }
+
+                // 檢查 MatchZyTeam2（這就是造成日誌產生 "team_" 沒名字的元凶！）
+                if (string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || matchzyTeam2.teamName == "team_")
+                {
+                    if (matchzyTeam2.teamSide == CsTeam.Terrorist && realTPlayer != null)
+                        matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
+                    else if (matchzyTeam2.teamSide == CsTeam.CounterTerrorist && realCTPlayer != null)
+                        matchzyTeam2.teamName = $"team_{realCTPlayer.PlayerName}";
+                }
+            }
+
+            // 🎯 呼叫內建安全同步函數，把剛剛完美補齊的「玩家名隊伍」同步進官方計分板
+            SetTeamNames();
+
             // 6. 輸出訊息與重置標記
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-            Log("[Shuffle] 洗牌成功");
+            Log($"[Shuffle] 洗牌成功。自動對齊隊名：Team1='{matchzyTeam1?.teamName}', Team2='{matchzyTeam2?.teamName}'");
             
             isShufflePending = false;
         } // 這是 ExecuteShuffleLogic 的結束括號
