@@ -763,7 +763,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-       // =========================================================================
+        // =========================================================================
         // 純粹隨機洗牌 + 非自殺換隊SwitchTeam
         // =========================================================================
         public void ExecuteShuffleLogic() 
@@ -816,39 +816,26 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             // 【原廠快取刷新】：強迫外掛的大腦更新玩家地圖快取
             UpdatePlayersMap();
 
-            // =========================================================================
-            // 【核心修正】：100% 沿用不卡秒架構，僅透過「純記憶體修改」強制蓋掉自動選隊大寫英文！
-            // 關鍵點：完全不呼叫會跟倒數計時器相撞卡死的 Server.ExecuteCommand。
-            // =========================================================================
+            // 【核心修正】：直接硬塞給 matchzyTeam1 和 matchzyTeam2，徹底繞過不穩定的字典
             if (matchzyTeam1 != null && matchzyTeam2 != null)
             {
-                // 修正 matchzyTeam1 (預設 CT)：直接看真人的有效狀態，無條件強制覆蓋
-                if (realCTPlayer != null && realCTPlayer.IsValid && !string.IsNullOrWhiteSpace(realCTPlayer.PlayerName)) 
+                // 修正 matchzyTeam1 (預設 CT)：如果是空的或斷頭 "team_"，直接塞 CT 陣營的活人名字
+                if (string.IsNullOrWhiteSpace(matchzyTeam1.teamName) || matchzyTeam1.teamName == "team_")
                 {
-                    matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
-                }
-                else
-                {
-                    // 終極防線：萬一名字是空的，現場盲抓場上隨便一個有名字的真人
-                    var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && !string.IsNullOrWhiteSpace(p.PlayerName));
-                    matchzyTeam1.teamName = fallbackPlayer != null ? $"team_{fallbackPlayer.PlayerName}" : "team_CounterTerrorists";
+                    if (realCTPlayer != null && realCTPlayer.IsValid) 
+                        matchzyTeam1.teamName = $"team_{realCTPlayer.PlayerName}";
                 }
 
-                // 修正 matchzyTeam2 (預設 T)：直接看真人的有效狀態，無條件強制覆蓋
-                if (realTPlayer != null && realTPlayer.IsValid && !string.IsNullOrWhiteSpace(realTPlayer.PlayerName)) 
+                // 修正 matchzyTeam2 (預設 T)：如果是空的或斷頭 "team_"，直接塞 T 陣營的活人名字
+                if (string.IsNullOrWhiteSpace(matchzyTeam2.teamName) || matchzyTeam2.teamName == "team_")
                 {
-                    matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
-                }
-                else
-                {
-                    // 終極防線：萬一名字是空的，現場盲抓場上隨便一個有名字的真人
-                    var fallbackPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && !string.IsNullOrWhiteSpace(p.PlayerName));
-                    matchzyTeam2.teamName = fallbackPlayer != null ? $"team_{fallbackPlayer.PlayerName}" : "team_Terrorists";
+                    if (realTPlayer != null && realTPlayer.IsValid) 
+                        matchzyTeam2.teamName = $"team_{realTPlayer.PlayerName}";
                 }
 
-                // 【物理移除】：Server.ExecuteCommand 兩行已徹底清除！
-                // 這邊不碰控制台指令，伺服器零負擔，絕對不會卡倒數 1 秒。
-                // 當倒數 7 秒結束、正式進入開賽階段時，MatchZy 會自動把大腦裡這裡改好的新名字刷上計分板。
+                // 【安全自定義同步】：不呼叫會崩潰的原廠 SetTeamNames()，我們直接用官方指令刷進計分板！
+                Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
+                Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
             }
 
             // 6. 輸出訊息與重置標記
