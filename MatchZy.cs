@@ -764,68 +764,82 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     }
 }
         // =========================================================================
-        // 純粹隨機洗牌 + 非自殺換隊SwitchTeam
+        // 純粹隨機洗牌 + 非自殺換隊SwitchTeam（利用時間差徹底修正版）
         // =========================================================================
- public void ExecuteShuffleLogic() 
-{
-    if (!isShufflePending) return;
-
-    // 1. 撈出當前所有有效真人玩家
-    List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
-        .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-        .ToList();
-
-    if (activePlayers.Count < 2) 
-    {
-        Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
-        isShufflePending = false; 
-        return;
-    }
-
-    // 2. 隨機洗牌
-    Random rng = new();
-    int n = activePlayers.Count;
-    while (n > 1) {
-        n--;
-        int k = rng.Next(n + 1);
-        (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
-    }
-
-    // 3. 【核心架構優化】：在玩家真正執行 SwitchTeam 之前，我們先用 List 鎖定兩隊的隊長名字
-    // 這樣不論玩家是在自動選隊還是做什麼，我們手中的 List 順序是絕對乾淨、絕對不會是空的！
-    int half = activePlayers.Count / 2;
-    var realTPlayer = activePlayers.Skip(0).Take(half).FirstOrDefault(p => p != null && p.IsValid && !string.IsNullOrWhiteSpace(p.PlayerName));
-    var realCTPlayer = activePlayers.Skip(half).Take(activePlayers.Count - half).FirstOrDefault(p => p != null && p.IsValid && !string.IsNullOrWhiteSpace(p.PlayerName));
-
-    string finalTName = (realTPlayer != null) ? $"team_{realTPlayer.PlayerName}" : "team_Terrorists";
-    string finalCTName = (realCTPlayer != null) ? $"team_{realCTPlayer.PlayerName}" : "team_CounterTerrorists";
-
-    // 4. 執行強制換隊
-    for (int i = 0; i < activePlayers.Count; i++) {
-        if (i < half) activePlayers[i].SwitchTeam(CsTeam.Terrorist); 
-        else activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist); 
-    }
-
-    // 5. 【架構師的時間差解法】：不要在同一行代碼立刻塞名字！
-    // 我們讓遊戲引擎跑完這一個影格（讓自動選隊、SwitchTeam 的封包全部處理完畢），在下一個影格才指派隊名
-    Server.NextFrame(() => {
-        if (matchzyTeam1 != null && matchzyTeam2 != null)
+        public void ExecuteShuffleLogic() 
         {
-            // 將我們在步驟 3 就精準抓到、絕對不會變空的隊名，正式寫入 MatchZy 的大腦
-            matchzyTeam1.teamName = finalCTName; // 當前 CT 的隊名
-            matchzyTeam2.teamName = finalTName;  // 當前 T 的隊名
+            // 1. 安全檢查：如果沒有預約洗牌，則直接跳出
+            if (!isShufflePending) return;
 
-            // 繞過會崩潰的原廠 SetTeamNames()，直接用官方指令強制刷新目前計分板
-            Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
-            Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
+            // 2. 獲取當前所有在場上的選手（排除機器人與觀戰者）
+            List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
+                .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                .ToList();
 
-            // 強迫 MatchZy 刷新地圖與玩家快取
-            UpdatePlayersMap();
-        }
-    });
+            // 3. 人數檢查：至少需要 2 人才能洗牌
+            if (activePlayers.Count < 2) 
+            {
+                Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
+                isShufflePending = false; 
+                return;
+            }
 
-    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-    isShufflePending = false;
-}
+            // 4. Fisher-Yates 洗牌演算法（將在場所有人的陣列順序完全隨機打亂）
+            Random rng = new();
+            int n = activePlayers.Count;
+            while (n > 1) 
+            {
+                n--;
+                int k = rng.Next(n + 1);
+                (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
+            }
+
+            // 5. 非自殺換隊優化：純粹更新記憶體數據與隊伍號碼
+            int half = activePlayers.Count / 2;
+            for (int i = 0; i < activePlayers.Count; i++) 
+            {
+                if (i < half) 
+                {
+                    // 改為 SwitchTeam，玩家不會當場自殺
+                    activePlayers[i].SwitchTeam(CsTeam.Terrorist); // 前半段分配到 T 隊
+                }
+                else 
+                {
+                    activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist); // 後半段分配到 CT 隊
+                }
+            }
+
+            // =========================================================================
+            // 【時間差優化核心】：利用 Server.NextFrame 延遲一影格，等換隊與自動選隊封包完成
+            // =========================================================================
+            Server.NextFrame(() => {
+                
+                // 【原廠快取刷新】：在安全的影格強迫外掛的大腦更新玩家地圖快取
+                UpdatePlayersMap();
+
+                // 重新在已落定的狀態中，精準抓取此時此刻真正站在 CT 隊(TeamNum 3) 與 T 隊(TeamNum 2) 的活人
+                var realCTPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && p.TeamNum == 3);
+                var realTPlayer = Utilities.GetPlayers().FirstOrDefault(p => p != null && p.IsValid && !p.IsBot && p.TeamNum == 2);
+
+                // 【核心修正】：順著 MatchZy 原始大腦貼標籤。Team1(預設CT)，Team2(預設T)
+                if (matchzyTeam1 != null && matchzyTeam2 != null)
+                {
+                    // 修正 matchzyTeam1 (主隊，此時在 CT)：直接塞 CT 陣營的活人名字
+                    matchzyTeam1.teamName = (realCTPlayer != null) ? $"team_{realCTPlayer.PlayerName}" : "team_CounterTerrorists";
+
+                    // 修正 matchzyTeam2 (客隊，此時在 T)：直接塞 T 陣營的活人名字
+                    matchzyTeam2.teamName = (realTPlayer != null) ? $"team_{realTPlayer.PlayerName}" : "team_Terrorists";
+
+                    // 【安全自定義同步】：不呼叫會崩潰的原廠 SetTeamNames()，我們用官方指令直接刷進計分板！
+                    Server.ExecuteCommand($"mp_teamname_1 \"{matchzyTeam1.teamName}\"");
+                    Server.ExecuteCommand($"mp_teamname_2 \"{matchzyTeam2.teamName}\"");
+                }
+            });
+
+            // 6. 輸出訊息與重置標記（訊息可以當場噴出，不需要等 NextFrame）
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+            
+            isShufflePending = false;
+        } // 這是 ExecuteShuffleLogic 的結束括號
 } // 這是 class MatchZy 的結束括號
 } // 這是 namespace MatchZy 的結束括號
