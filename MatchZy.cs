@@ -848,3 +848,5 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
             }); // 👈 結束 AddTimer
         } // 👈 結束 ExecuteShuffleLogicWithReady 方法
+    } // 👈 結束 class MatchZy
+} // 👈 結束 namespace MatchZy
