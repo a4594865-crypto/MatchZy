@@ -491,21 +491,21 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     int currentEventUserId = @event.Userid; 
 
    // =========================================================================
-    // ✅ 真正完美的分流（有洗牌直接超車秒開，沒洗牌老實走官方倒數）
+    // 真正完美的分流（有洗牌直接超車秒開，沒洗牌老實走官方倒數）
     // =========================================================================
     if (message == ".r" || message == ".ready") {
         if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
             
             if (isShufflePending) 
             {
-                // 🟢 【隨機分隊專用道】
+                // 【隨機分隊專用道】
                 ExecuteShuffleLogic();     // 執行洗牌，裡面 0.2 秒後直接秒開賽
                 UpdatePlayersMap();        // 強制更新玩家隊伍緩存
-                return HookResult.Handled; // 🛑 徹底吃掉事件，100% 封鎖 7 秒倒數
+                return HookResult.Handled; //  徹底吃掉事件，100% 封鎖 7 秒倒數
             }
             else
             {
-                // 🔵 【正規戰隊局專用道】
+                // 【正規戰隊局專用道】
                 // 只有在「沒開洗牌」時，才把點火丟給下一幀，讓官方老老實實跑 7 秒倒數
                 Server.NextFrame(() => {
                     var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
@@ -767,8 +767,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-    // =========================================================================
-        // 🟢 【相容性渠道 A】：專門照顧 Utility.cs#L267 與其他檔案呼叫的舊名字（不帶參數版）
+        // =========================================================================
+        // 專門照顧 Utility.cs#L267 與其他檔案呼叫的舊名字（不帶參數版）
         // =========================================================================
         public void ExecuteShuffleLogic() 
         {
@@ -777,7 +777,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         }
 
         // =========================================================================
-        // 🟢 【終極穩定渠道 B】：你原本這份檔案中，實測最完美、含鎖與回退的完整核心
+        // 同步動態洗牌分隊 + 原生隊名穩定版
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -845,7 +845,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     }
                 });
             }
-        } // 👈 結束 ExecuteShuffleLogicWithReady 方法
+        } // 結束 ExecuteShuffleLogicWithReady 方法
 
-    } // 👈 結束 class MatchZy
-} // 👈 結束 namespace MatchZy
+    } // 結束 class MatchZy
+} //  結束 namespace MatchZy
