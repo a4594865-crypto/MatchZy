@@ -762,6 +762,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     if (player == null) {
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
+ }
  // =========================================================================
         // 同步動態洗牌分隊 + 官方原生隊名穩定版 (不自訂隊名，絕不崩潰)
         // =========================================================================
