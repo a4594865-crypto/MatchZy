@@ -490,26 +490,28 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // 在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
     int currentEventUserId = @event.Userid; 
 
-   // 1. 攔截開賽指令（利用分流徹底解決洗牌秒開與官方倒數的底層衝突）
+   // =========================================================================
+    // ✅ 真正完美的分流（有洗牌直接超車秒開，沒洗牌老實走官方倒數）
+    // =========================================================================
     if (message == ".r" || message == ".ready") {
         if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
             
             if (isShufflePending) 
             {
-                // 🟢 【分流 A：洗牌通道】
-                ExecuteShuffleLogic();     // 執行洗牌，內部有 AddTimer(0.2f) 負責 0.2 秒後直接秒開賽
+                // 🟢 【隨機分隊專用道】
+                ExecuteShuffleLogic();     // 執行洗牌，裡面 0.2 秒後直接秒開賽
                 UpdatePlayersMap();        // 強制更新玩家隊伍緩存
-                return HookResult.Handled; // 🛑 鐵腕攔截！直接吃掉事件，絕對不讓下方的 7 秒倒數代碼執行
+                return HookResult.Handled; // 🛑 徹底吃掉事件，100% 封鎖 7 秒倒數
             }
             else
             {
-                // 🔵 【分流 B：正規局通道】
-                // 只有在「沒有洗牌」的情況下，才允許讓引擎緩衝一幀去跑原本的 7 秒叮叮叮音效倒數
+                // 🔵 【正規戰隊局專用道】
+                // 只有在「沒開洗牌」時，才把點火丟給下一幀，讓官方老老實實跑 7 秒倒數
                 Server.NextFrame(() => {
                     var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
                     if (triggerPlayer != null && triggerPlayer.IsValid)
                     {
-                        OnPlayerReady(triggerPlayer, null); // 正式交給官方核心點火
+                        OnPlayerReady(triggerPlayer, null); 
                     }
                 });
                 return HookResult.Handled; 
