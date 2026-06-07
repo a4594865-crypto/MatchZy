@@ -809,8 +809,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             }
 
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}已跳過倒數，直接隨機分隊並開啟比賽！");
-            Log("[Shuffle] 洗牌同步完成，準備進入 0.2 秒安全秒開流程");
+            Log("[Shuffle] 洗牌同步完成");
 
             isShufflePending = false;
 
