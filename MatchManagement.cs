@@ -427,10 +427,13 @@ return HookResult.Continue;
         }
 
         public void SetTeamNames()
-        {
-            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
-        }
+{
+    // 💡 什麼都不動，單純讓原本的官方抓取指令晚 4 秒執行
+    AddTimer(4.0f, () => {
+        Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
+        Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
+    });
+}
 
         public void GetCvarValues(JObject jsonDataObject)
         {
@@ -604,19 +607,11 @@ return HookResult.Continue;
             }
         }
 
-public string GetTeamNameFromSide(int teamNum) 
-{
-    // 💡 只有這 2 秒防護機制，沒有迴圈、沒有 Thread.Sleep
-    if ((DateTime.Now - MatchZy.shuffleCompleteTime).TotalSeconds < 2.0)
-    {
-        return teamNum == 3 ? "COUNTER-TERRORISTS" : "TERRORISTS";
-    }
+        public string GetTeamNameFromSide(int teamNum) {
+            if (teamNum == 3) return reverseTeamSides["CT"].teamName;
+            if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
+            return "Unknown";
+        } // 結束 GetTeamNameFromSide 函數
 
-    // 2 秒後，正規讀取
-    if (teamNum == 3 && reverseTeamSides.ContainsKey("CT")) return reverseTeamSides["CT"].teamName;
-    if (teamNum == 2 && reverseTeamSides.ContainsKey("TERRORIST")) return reverseTeamSides["TERRORIST"].teamName;
-
-    return "Unknown";
-}
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
