@@ -105,36 +105,10 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-// --- 直接開始 7 秒音效倒數（修正版：隨機分隊時不倒數、不回出生地） ---
+// --- 直接開始 7 秒音效倒數（終極安全防撞車版） ---
         public void StartMatchCountdown()
         {
-            // 【核心修正：分流判定】
-            // 如果當前有隨機洗牌指令 (isShufflePending 為 true)
-            // 我們直接繞過 7 秒倒數，直接執行開賽，並且絕對不執行 Respawn()，防止換隊網絡封包出錯！
-            if (isShufflePending)
-            {
-                isCountdownActive = false;
-                countdownRemaining = 0;
-
-                if (matchStartCountdownTimer != null)
-                {
-                    matchStartCountdownTimer.Kill();
-                    matchStartCountdownTimer = null;
-                }
-
-                if (!matchStarted)
-                {
-                    HandleMatchStart(); // 隨機分隊在這裡秒開點火
-                }
-
-                isShufflePending = false; // 開賽完成後，才關掉隨機標記
-                return; // 直接跳出，不執行下面的倒數與回出生地代碼！
-            }
-
-           // --- 直接開始 7 秒音效倒數（終極安全防撞車版） ---
-        public void StartMatchCountdown()
-        {
-            // 🚀 【第一關：洗牌專用防護盾】
+            //  【第一關：洗牌專用防護盾】
             // 如果目前是隨機分隊開賽，進來立刻點火秒開，並直接 return 封鎖下面所有邏輯！
             if (isShufflePending)
             {
@@ -185,6 +159,7 @@ namespace MatchZy
                                 }
                             }
                             hasRespawned = true; // 標記已傳送，後面幾秒不再重複傳送
+                            Log("[MatchZy] 一般開賽：倒數開始，已安全將選手送回標準出生地。");
                         }
 
                         // 3, 2, 1 秒顯示紅色，7, 6, 5, 4 秒顯示綠色
