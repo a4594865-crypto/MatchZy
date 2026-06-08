@@ -428,8 +428,8 @@ return HookResult.Continue;
 
         public void SetTeamNames()
 {
-    // 什麼都不動，單純讓原本的官方抓取指令晚 4 秒執行
-    AddTimer(4.0f, () => {
+    // 什麼都不動，單純讓原本的官方抓取指令晚 5 秒執行
+    AddTimer(5.0f, () => {
         Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
         Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
     });
