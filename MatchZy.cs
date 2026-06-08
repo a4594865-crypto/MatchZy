@@ -811,7 +811,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
                 }
 
-              // 🎯 【型態安全修正】：設定 CsTeam 列舉 + CommitSuicide() 自殺換隊機制
+              // 【型態安全修正】：設定 CsTeam 列舉 + CommitSuicide() 自殺換隊機制
                 int half = activePlayers.Count / 2;
                 for (int i = 0; i < activePlayers.Count; i++) 
                 {
