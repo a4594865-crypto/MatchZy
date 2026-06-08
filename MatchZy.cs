@@ -811,17 +811,20 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
                 }
 
-                // 僅執行純粹的 SwitchTeam 移位
+               // 🎯 【核心修正】：改為設定 TeamNum + CommitSuicide() 自殺換隊機制
                 int half = activePlayers.Count / 2;
                 for (int i = 0; i < activePlayers.Count; i++) 
                 {
-                    if (i < half) 
+                    var player = activePlayers[i];
+                    if (player == null || !player.IsValid) continue;
+
+                    sbyte targetTeam = (sbyte)(i < half ? CsTeam.CounterTerrorist : CsTeam.Terrorist);
+
+                    // 如果玩家現在的隊伍跟目標隊伍不同，執行自殺換隊
+                    if (player.TeamNum != targetTeam)
                     {
-                        activePlayers[i].SwitchTeam(CsTeam.CounterTerrorist);
-                    } 
-                    else 
-                    {
-                        activePlayers[i].SwitchTeam(CsTeam.Terrorist);
+                        player.ChangeTeam((int)targetTeam); // 設定內部隊伍資料
+                        player.CommitSuicide(false, true);  // 呼叫底層自殺方法 (不扣分數、靜音死亡)
                     }
                 }
 
