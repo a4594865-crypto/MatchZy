@@ -833,66 +833,16 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
 
 
-           // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊，且此時所有自殺的玩家都已經物理重生成為「地上的活人」了
+                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
                 AddTimer(0.2f, () => {
                     // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
-
-                    // ====== 🚀 【動態陣營對齊修正】：重生後手動重新抓取現場玩家名字 ======
-                    string ctLeaderName = "COUNTER-TERRORISTS";
-                    string tLeaderName = "TERRORISTS";
-
-                    // 玩家都活過來了，精準掃描場上兩隊洗牌、自殺復活後的第一個路人活人暱稱
-                    var allActivePlayers = Utilities.GetPlayers();
-                    foreach (var p in allActivePlayers)
-                    {
-                        if (p == null || !p.IsValid || p.IsBot || string.IsNullOrWhiteSpace(p.PlayerName)) continue;
-
-                        if (p.TeamNum == 3 && ctLeaderName == "COUNTER-TERRORISTS") {
-                            ctLeaderName = p.PlayerName;
-                        }
-                        else if (p.TeamNum == 2 && tLeaderName == "TERRORISTS") {
-                            tLeaderName = p.PlayerName;
-                        }
-                    }
-
-                    // 確保全域戰隊物件不是 null（防止未初始化崩潰）
-                    if (matchzyTeam1 == null) matchzyTeam1 = new Team { teamName = "team_CT" };
-                    if (matchzyTeam2 == null) matchzyTeam2 = new Team { teamName = "team_T" };
-
-                    // 🎯 【終極斷根】：不看 Team1/Team2，直接查 reverseTeamSides，找出「當下真正的 CT 與 T 物件」是誰！
-                    Team? currentCtTeam = (reverseTeamSides != null && reverseTeamSides.ContainsKey("CT")) ? reverseTeamSides["CT"] : matchzyTeam1;
-                    Team? currentTTeam = (reverseTeamSides != null && reverseTeamSides.ContainsKey("TERRORIST")) ? reverseTeamSides["TERRORIST"] : matchzyTeam2;
-
-                    // 如果查出來是一樣的（或有機率為 null 的安全防線）
-                    if (currentCtTeam == null) currentCtTeam = matchzyTeam1;
-                    if (currentTTeam == null) currentTTeam = matchzyTeam2;
-                    if (currentCtTeam == currentTTeam) {
-                        currentCtTeam = matchzyTeam1;
-                        currentTTeam = matchzyTeam2;
-                    }
-
-                    // 精準指派：把 CT 玩家的名字，寫給「目前代表 CT 的戰隊物件」
-                    currentCtTeam.teamName = "team_" + RemoveSpecialCharacters(ctLeaderName);
-                    // 把 T 玩家的名字，寫給「目前代表 T 的戰隊物件」
-                    currentTTeam.teamName = "team_" + RemoveSpecialCharacters(tLeaderName);
-
-                    // 安全保險防線：萬一玩家名字全都是特殊符號被抹空了，給予預設安全值
-                    if (currentCtTeam.teamName == "team_" || string.IsNullOrWhiteSpace(currentCtTeam.teamName)) currentCtTeam.teamName = "team_CT";
-                    if (currentTTeam.teamName == "team_" || string.IsNullOrWhiteSpace(currentTTeam.teamName)) currentTTeam.teamName = "team_T";
-
-                    // 關鍵核心：重新把當前的正確陣營狀態寫死進去字典，讓中游百分之百同步
-                    teamSides[currentCtTeam] = "CT";
-                    teamSides[currentTTeam] = "TERRORIST";
-                    reverseTeamSides["CT"] = currentCtTeam;
-                    reverseTeamSides["TERRORIST"] = currentTTeam;
-                    // ===========================================================================================
-
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                    Log($"[Shuffle] 洗牌同步完成，當前CT隊名: {currentCtTeam.teamName}, 當前T隊名: {currentTTeam.teamName}");
+                    Log("[Shuffle] 洗牌同步完成");
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    // 直接去呼叫倒數方法
+                    // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
+                    // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
                     StartMatchCountdown(); 
                 });
             } //  結束 lock (_shuffleLock)
