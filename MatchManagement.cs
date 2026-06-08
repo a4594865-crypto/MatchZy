@@ -604,21 +604,11 @@ return HookResult.Continue;
             }
         }
 
-      public string GetTeamNameFromSide(int teamNum) {
-    // 進行 3 次嘗試，若數據未同步，則暫停 50 毫秒後重試
-    for (int i = 0; i < 3; i++) {
-        if (teamNum == 3 && reverseTeamSides.ContainsKey("CT")) 
-            return reverseTeamSides["CT"].teamName;
-        
-        if (teamNum == 2 && reverseTeamSides.ContainsKey("TERRORIST")) 
-            return reverseTeamSides["TERRORIST"].teamName;
+        public string GetTeamNameFromSide(int teamNum) {
+            if (teamNum == 3) return reverseTeamSides["CT"].teamName;
+            if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
+            return "Unknown";
+        } // 結束 GetTeamNameFromSide 函數
 
-        // 如果還沒抓到，暫停 50 毫秒等待引擎同步
-        System.Threading.Thread.Sleep(50);
-    }
-
-    // 若 3 次後仍未成功（例如該陣營確實不存在），回傳 Unknown
-    return "Unknown";
-}
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
