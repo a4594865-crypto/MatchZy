@@ -811,23 +811,26 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
                 }
 
-               // 🎯 【核心修正】：改為設定 TeamNum + CommitSuicide() 自殺換隊機制
+              // 🎯 【型態安全修正】：設定 CsTeam 列舉 + CommitSuicide() 自殺換隊機制
                 int half = activePlayers.Count / 2;
                 for (int i = 0; i < activePlayers.Count; i++) 
                 {
                     var player = activePlayers[i];
                     if (player == null || !player.IsValid) continue;
 
-                    sbyte targetTeam = (sbyte)(i < half ? CsTeam.CounterTerrorist : CsTeam.Terrorist);
+                    // 1. 直接宣告為標準的 CsTeam 列舉型態，絕不使用 int 混淆
+                    CsTeam targetTeam = (i < half) ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
 
-                    // 如果玩家現在的隊伍跟目標隊伍不同，執行自殺換隊
-                    if (player.TeamNum != targetTeam)
+                    // 2. 判斷目前的隊伍是否與目標隊伍不符 (注意：比對時將 targetTeam 轉成 int 比對 TeamNum)
+                    if (player.TeamNum != (byte)targetTeam)
                     {
-                        player.ChangeTeam((int)targetTeam); // 設定內部隊伍資料
-                        player.CommitSuicide(false, true);  // 呼叫底層自殺方法 (不扣分數、靜音死亡)
+                        // 3. 呼叫官方正統的換隊方法，傳入標準 CsTeam 列舉（解決 L826 編譯錯誤）
+                        player.ChangeTeam(targetTeam); 
+                        
+                        // 4. 執行物理自殺以刷新實體 (不扣分數、靜音死亡)
+                        player.CommitSuicide(false, true);  
                     }
                 }
-
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
                 Log("[Shuffle] 洗牌同步完成");
 
