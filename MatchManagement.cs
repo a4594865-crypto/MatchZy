@@ -604,10 +604,37 @@ return HookResult.Continue;
             }
         }
 
-        public string GetTeamNameFromSide(int teamNum) {
-            if (teamNum == 3) return reverseTeamSides["CT"].teamName;
-            if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
-            return "Unknown";
+public string GetTeamNameFromSide(int teamNum) {
+            // 進行 3 次嘗試，每次延遲 50 毫秒，給予底層數據同步的時間
+            for (int i = 0; i < 3; i++) {
+                string? name = null;
+
+                // 🎯 安全防禦：先檢查字典是否存在與 Key 是否存在，絕對不允許直接讀取導致拋出 KeyNotFoundException 當機崩潰
+                if (teamNum == 3 && reverseTeamSides != null && reverseTeamSides.ContainsKey("CT")) 
+                {
+                    name = reverseTeamSides["CT"]?.teamName;
+                }
+                else if (teamNum == 2 && reverseTeamSides != null && reverseTeamSides.ContainsKey("TERRORIST")) 
+                {
+                    name = reverseTeamSides["TERRORIST"]?.teamName;
+                }
+
+                // 🎯 【核心防禦】：除了防空白字串，只要抓到等於 "team_" 或 "team_CT" 這種殘缺未完成的髒資料，就拒絕接收，等下一次重試！
+                if (!string.IsNullOrWhiteSpace(name) && 
+                    name != "_" && 
+                    name != "team_" && 
+                    !name.StartsWith("team_CT") && 
+                    !name.StartsWith("team_T")) 
+                {
+                    return name;
+                }
+
+                // 如果不幸抓到的是 "team_" 殘缺值，暫停 50 毫秒等待 MatchZy 復活後的 0.2 秒延遲寫入完畢
+                System.Threading.Thread.Sleep(50); 
+            }
+
+            // 終極防線：3次嘗試都因為極端狀況抓到殘缺值（例如玩家名字剛好真的全都是特殊符號被抹空了），強制回傳官方原生大寫名稱
+            return teamNum == 3 ? "COUNTER-TERRORISTS" : (teamNum == 2 ? "TERRORISTS" : "Unknown");
         } // 結束 GetTeamNameFromSide 函數
 
     } // 結束 public partial class MatchZy
