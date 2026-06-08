@@ -836,6 +836,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     if (matchStarted || playerReadyStatus.Count == 0) return;
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
                     Log("[Shuffle] 洗牌同步完成");
+                    // 在執行完所有的 ChangeTeam 指令之後
+                    MatchZy.shuffleCompleteTime = DateTime.Now; // 🎯 觸發防禦計時器！
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
                     // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
