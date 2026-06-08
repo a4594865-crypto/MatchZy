@@ -777,7 +777,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         }
 
         // =========================================================================
-        // 同步動態洗牌分隊 + 原生隊名穩定版
+        // 同步動態洗牌分隊 + 官方原生隊名穩定版 (不自訂隊名，絕不崩潰)
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
@@ -791,10 +791,10 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     .ToList();
 
-                if (activePlayers.Count < 2)
+                if (activePlayers.Count < 2) 
                 {
                     Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
-                    isShufflePending = false;
+                    isShufflePending = false; 
                     
                     var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
                     if (originalPlayer != null && originalPlayer.IsValid) OnPlayerReady(originalPlayer, null);
@@ -804,7 +804,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 // Fisher-Yates 洗牌演算法
                 Random rng = new();
                 int n = activePlayers.Count;
-                while (n > 1)
+                while (n > 1) 
                 {
                     n--;
                     int k = rng.Next(n + 1);
@@ -813,7 +813,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 
                 // 僅執行純粹的 SwitchTeam 移位
                 int half = activePlayers.Count / 2;
-                for (int i = 0; i < activePlayers.Count; i++)
+                for (int i = 0; i < activePlayers.Count; i++) 
                 {
                     if (i < half) 
                     {
@@ -828,24 +828,19 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
                 Log("[Shuffle] 洗牌同步完成");
 
-                isShufflePending = false;
-
-                // 延遲 0.2 秒網路對齊
+                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
                 AddTimer(0.2f, () => {
+                    // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
 
-                    UpdatePlayersMap();
+                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    isCountdownActive = false;
-                    countdownRemaining = 0;
-
-                    if (!matchStarted)
-                    {
-                        HandleMatchStart();
-                    }
+                    // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
+                    // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
+                    StartMatchCountdown(); 
                 });
-            }
-        } // 結束 ExecuteShuffleLogicWithReady 方法
+            } //  結束 lock (_shuffleLock)
+        } //  結束 ExecuteShuffleLogicWithReady 方法
 
     } // 結束 class MatchZy
 } //  結束 namespace MatchZy
