@@ -833,12 +833,51 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
 
 
-                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
+               // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊，且此時所有自殺的玩家都已經物理重生成為「地上的活人」了
                 AddTimer(0.2f, () => {
                     // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
+
+                    // ================== 🚀 【核心修正】：重生後手動重新抓取現場玩家名字當隊名 ==================
+                    string ctLeaderName = "COUNTER-TERRORISTS";
+                    string tLeaderName = "TERRORISTS";
+
+                    // 玩家都活過來了，精準掃描場上兩隊洗牌後的第一個路人活人暱稱
+                    var allActivePlayers = Utilities.GetPlayers();
+                    foreach (var p in allActivePlayers)
+                    {
+                        if (p == null || !p.IsValid || p.IsBot || string.IsNullOrWhiteSpace(p.PlayerName)) continue;
+
+                        if (p.TeamNum == 3 && ctLeaderName == "COUNTER-TERRORISTS") {
+                            ctLeaderName = p.PlayerName;
+                        }
+                        else if (p.TeamNum == 2 && tLeaderName == "TERRORISTS") {
+                            tLeaderName = p.PlayerName;
+                        }
+                    }
+
+                    // 確保全域戰隊物件不是 null
+                    if (matchzyTeam1 == null) matchzyTeam1 = new Team();
+                    if (matchzyTeam2 == null) matchzyTeam2 = new Team();
+
+                    // 強制拼接出帶有人名的正確隊名，覆蓋原本未完成的 "team_"
+                    // RemoveSpecialCharacters 可以確保玩家暱稱裡的特殊符號不會破壞 .txt 檔案結構
+                    matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(ctLeaderName);
+                    matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(tLeaderName);
+
+                    // 安全保險防線：萬一玩家名字被過濾乾淨了，給予預設安全值
+                    if (matchzyTeam1.teamName == "team_" || string.IsNullOrWhiteSpace(matchzyTeam1.teamName)) matchzyTeam1.teamName = "team_CT";
+                    if (matchzyTeam2.teamName == "team_" || string.IsNullOrWhiteSpace(matchzyTeam2.teamName)) matchzyTeam2.teamName = "team_T";
+
+                    // 關鍵核心：把重新抓好的正確玩家隊名，同步塞滿換邊快取字典！
+                    teamSides[matchzyTeam1] = "CT";
+                    teamSides[matchzyTeam2] = "TERRORIST";
+                    reverseTeamSides["CT"] = matchzyTeam1;
+                    reverseTeamSides["TERRORIST"] = matchzyTeam2;
+                    // ===========================================================================================
+
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                    Log("[Shuffle] 洗牌同步完成");
+                    Log($"[Shuffle] 洗牌同步完成，CT隊名: {matchzyTeam1.teamName}, T隊名: {matchzyTeam2.teamName}");
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
                     // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
