@@ -604,22 +604,24 @@ return HookResult.Continue;
             }
         }
 
-  // 放在 GetTeamNameFromSide 函數內
+// 放在 MatchManagement (1).cs 的最後面
 public string GetTeamNameFromSide(int teamNum) 
 {
-    // 💡 避開洗牌後的 2 秒對齊空窗期
-    if ((DateTime.Now - shuffleCompleteTime).TotalSeconds < 2.0)
+    // 💡 避開洗牌後的 2 秒對齊空窗期（防禦檢查站）
+    // 如果時間不到 2 秒，直接回傳安全值，絕不給系統去查字典（防止讀到 Unknown）
+    if ((DateTime.Now - MatchZy.shuffleCompleteTime).TotalSeconds < 2.0)
     {
         return teamNum == 3 ? "COUNTER-TERRORISTS" : "TERRORISTS";
     }
 
-    // 2 秒後的正規讀取
+    // 2 秒後的正規讀取（字典檢查）
     if (teamNum == 3 && reverseTeamSides.ContainsKey("CT") && reverseTeamSides["CT"] != null) 
         return reverseTeamSides["CT"].teamName;
     if (teamNum == 2 && reverseTeamSides.ContainsKey("TERRORIST") && reverseTeamSides["TERRORIST"] != null) 
         return reverseTeamSides["TERRORIST"].teamName;
 
-    return "Unknown";
+    // 最後防線：若真的抓不到，回傳官方預設名，絕不回傳 Unknown
+    return teamNum == 3 ? "COUNTER-TERRORISTS" : "TERRORISTS";
 }
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
