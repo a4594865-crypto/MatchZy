@@ -776,7 +776,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             ExecuteShuffleLogicWithReady(null); 
         }
 
-       // =========================================================================
+        // =========================================================================
         // 同步動態洗牌分隊 + 官方原生隊名穩定版 (不自訂隊名，絕不崩潰)
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
@@ -811,56 +811,8 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
                 }
 
+              // 🎯 【型態安全修正】：設定 CsTeam 列舉 + CommitSuicide() 自殺換隊機制
                 int half = activePlayers.Count / 2;
-
-                // =========================================================================
-                // 🎯 核心治本修正：在 0.2 秒計時器之上，【立刻】根據洗牌結果指派正確隊名！
-                // =========================================================================
-                string ctLeaderName = "COUNTER-TERRORISTS";
-                string tLeaderName = "TERRORISTS";
-
-                // 洗牌完畢的當下（第 0 毫秒），直接預判誰會被分去哪一隊，並當場抓取名字
-                for (int i = 0; i < activePlayers.Count; i++)
-                {
-                    var p = activePlayers[i];
-                    if (p == null || !p.IsValid || p.IsBot || string.IsNullOrWhiteSpace(p.PlayerName)) continue;
-
-                    if (i < half && ctLeaderName == "COUNTER-TERRORISTS") {
-                        ctLeaderName = p.PlayerName; // 預計分配到 CT 的第一個人
-                    }
-                    else if (i >= half && tLeaderName == "TERRORISTS") {
-                        tLeaderName = p.PlayerName;  // 預計分配到 T 的第一個人
-                    }
-                }
-
-                string finalCtName = "team_" + RemoveSpecialCharacters(ctLeaderName);
-                string finalTName = "team_" + RemoveSpecialCharacters(tLeaderName);
-
-                if (finalCtName == "team_" || string.IsNullOrWhiteSpace(finalCtName)) finalCtName = "team_CT";
-                if (finalTName == "team_" || string.IsNullOrWhiteSpace(finalTName)) finalTName = "team_T";
-
-                // 🎯 【型態安全修正】：滿足 C# 'required' 成員限制，若為 null 則在初始化器中指派屬性
-                if (matchzyTeam1 == null) {
-                    matchzyTeam1 = new Team { teamName = finalCtName };
-                } else {
-                    matchzyTeam1.teamName = finalCtName;
-                }
-
-                if (matchzyTeam2 == null) {
-                    matchzyTeam2 = new Team { teamName = finalTName };
-                } else {
-                    matchzyTeam2.teamName = finalTName;
-                }
-
-                // 🌟 【鋼鐵枷鎖】：在開賽倒數與自殺前，強行重寫全域字典，把 Team1 鎖死給 CT，Team2 鎖死給 TERRORIST！
-                teamSides[matchzyTeam1] = "CT";
-                teamSides[matchzyTeam2] = "TERRORIST";
-                reverseTeamSides["CT"] = matchzyTeam1;
-                reverseTeamSides["TERRORIST"] = matchzyTeam2;
-                // =========================================================================
-
-
-                // 🎯 設定 CsTeam 列舉 + CommitSuicide() 自殺換隊機制
                 for (int i = 0; i < activePlayers.Count; i++) 
                 {
                     var player = activePlayers[i];
@@ -872,7 +824,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     // 2. 判斷目前的隊伍是否與目標隊伍不符 (注意：比對時將 targetTeam 轉成 int 比對 TeamNum)
                     if (player.TeamNum != (byte)targetTeam)
                     {
-                        // 3. 呼叫官方正統的換隊方法，傳入標準 CsTeam 列舉
+                        // 3. 呼叫官方正統的換隊方法，傳入標準 CsTeam 列舉（解決 L826 編譯錯誤）
                         player.ChangeTeam(targetTeam); 
                         
                         // 4. 執行物理自殺以刷新實體 (不扣分數、靜音死亡)
@@ -881,61 +833,16 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
 
 
-               // 延遲 0.2 秒：此時所有人已在新陣營復活，斷線的人也已被 CS2 引擎徹底踢除清空
+                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
                 AddTimer(0.2f, () => {
-                    // 如果剛才有人斷線導致全部人都跑光了（名單變0），或者比賽已經開了，立刻退出
+                    // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
-
-                    // ====== 🚀 【真．現場抓人名】：0.2秒後，百分之百抓目前在場、活著的真人玩家 ======
-                    string ctLeaderName = "COUNTER-TERRORISTS";
-                    string tLeaderName = "TERRORISTS";
-
-                    var allLivePlayers = Utilities.GetPlayers();
-                    foreach (var p in allLivePlayers)
-                    {
-                        if (p == null || !p.IsValid || p.IsBot || string.IsNullOrWhiteSpace(p.PlayerName)) continue;
-
-                        // 陣營 3 代表目前真正在 CT 出生點上的活人
-                        if (p.TeamNum == 3 && ctLeaderName == "COUNTER-TERRORISTS") {
-                            ctLeaderName = p.PlayerName;
-                        }
-                        // 陣營 2 代表目前真正在 T 出生點上的活人
-                        else if (p.TeamNum == 2 && tLeaderName == "TERRORISTS") {
-                            tLeaderName = p.PlayerName;
-                        }
-                    }
-
-                    // 確保全域戰隊物件不是 null（滿足 C# 11 required 必要成員限制）
-                    if (matchzyTeam1 == null) {
-                        matchzyTeam1 = new Team { teamName = "team_" + RemoveSpecialCharacters(ctLeaderName) };
-                    } else {
-                        matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(ctLeaderName);
-                    }
-
-                    if (matchzyTeam2 == null) {
-                        matchzyTeam2 = new Team { teamName = "team_" + RemoveSpecialCharacters(tLeaderName) };
-                    } else {
-                        matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(tLeaderName);
-                    }
-
-                    // 安全防線：萬一玩家名字全都是特殊符號被過濾光了，給予預設安全值
-                    if (matchzyTeam1.teamName == "team_" || string.IsNullOrWhiteSpace(matchzyTeam1.teamName)) matchzyTeam1.teamName = "team_CT";
-                    if (matchzyTeam2.teamName == "team_" || string.IsNullOrWhiteSpace(matchzyTeam2.teamName)) matchzyTeam2.teamName = "team_T";
-
-                    // 🌟 【鋼鐵枷鎖】：名字改好後，立刻強制刷新全域字典，把 Team1 鎖給 CT，Team2 鎖給 TERRORIST！
-                    teamSides[matchzyTeam1] = "CT";
-                    teamSides[matchzyTeam2] = "TERRORIST";
-                    reverseTeamSides["CT"] = matchzyTeam1;
-                    reverseTeamSides["TERRORIST"] = matchzyTeam2;
-
-                    // 印出 Log 確保名字與陣營是完全對齊的
-                    Log($"[Shuffle] 0.2秒現場活人抓取完畢！CT隊名(Team1): {matchzyTeam1.teamName}, T隊名(Team2): {matchzyTeam2.teamName}");
-                    
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                    
+                    Log("[Shuffle] 洗牌同步完成");
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    // 🌟 【破局核心】：最後才呼叫點火倒數！此時開賽系統讀到的絕對是剛才更新完畢的活人名字！
+                    // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
+                    // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
                     StartMatchCountdown(); 
                 });
             } //  結束 lock (_shuffleLock)
