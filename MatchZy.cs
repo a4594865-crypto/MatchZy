@@ -833,12 +833,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
 
 
-            // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊，且此時所有自殺的玩家都已經物理重生成為「地上的活人」了
+           // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊，且此時所有自殺的玩家都已經物理重生成為「地上的活人」了
                 AddTimer(0.2f, () => {
                     // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
 
-                    // ====== 🚀 【源頭修復】：重生後手動重新抓取現場玩家名字當隊名 ======
+                    // ====== 🚀 【動態陣營對齊修正】：重生後手動重新抓取現場玩家名字 ======
                     string ctLeaderName = "COUNTER-TERRORISTS";
                     string tLeaderName = "TERRORISTS";
 
@@ -856,32 +856,40 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                         }
                     }
 
-                    // 🎯 【型態安全修正】：利用物件初始化器直接設定 required 屬性，完美解決 L860、L861 編譯錯誤！
-                    if (matchzyTeam1 == null) {
-                        matchzyTeam1 = new Team { teamName = "team_" + RemoveSpecialCharacters(ctLeaderName) };
-                    } else {
-                        matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(ctLeaderName);
+                    // 確保全域戰隊物件不是 null（防止未初始化崩潰）
+                    if (matchzyTeam1 == null) matchzyTeam1 = new Team { teamName = "team_CT" };
+                    if (matchzyTeam2 == null) matchzyTeam2 = new Team { teamName = "team_T" };
+
+                    // 🎯 【終極斷根】：不看 Team1/Team2，直接查 reverseTeamSides，找出「當下真正的 CT 與 T 物件」是誰！
+                    Team? currentCtTeam = (reverseTeamSides != null && reverseTeamSides.ContainsKey("CT")) ? reverseTeamSides["CT"] : matchzyTeam1;
+                    Team? currentTTeam = (reverseTeamSides != null && reverseTeamSides.ContainsKey("TERRORIST")) ? reverseTeamSides["TERRORIST"] : matchzyTeam2;
+
+                    // 如果查出來是一樣的（或有機率為 null 的安全防線）
+                    if (currentCtTeam == null) currentCtTeam = matchzyTeam1;
+                    if (currentTTeam == null) currentTTeam = matchzyTeam2;
+                    if (currentCtTeam == currentTTeam) {
+                        currentCtTeam = matchzyTeam1;
+                        currentTTeam = matchzyTeam2;
                     }
 
-                    if (matchzyTeam2 == null) {
-                        matchzyTeam2 = new Team { teamName = "team_" + RemoveSpecialCharacters(tLeaderName) };
-                    } else {
-                        matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(tLeaderName);
-                    }
+                    // 精準指派：把 CT 玩家的名字，寫給「目前代表 CT 的戰隊物件」
+                    currentCtTeam.teamName = "team_" + RemoveSpecialCharacters(ctLeaderName);
+                    // 把 T 玩家的名字，寫給「目前代表 T 的戰隊物件」
+                    currentTTeam.teamName = "team_" + RemoveSpecialCharacters(tLeaderName);
 
                     // 安全保險防線：萬一玩家名字全都是特殊符號被抹空了，給予預設安全值
-                    if (matchzyTeam1.teamName == "team_" || string.IsNullOrWhiteSpace(matchzyTeam1.teamName)) matchzyTeam1.teamName = "team_CT";
-                    if (matchzyTeam2.teamName == "team_" || string.IsNullOrWhiteSpace(matchzyTeam2.teamName)) matchzyTeam2.teamName = "team_T";
+                    if (currentCtTeam.teamName == "team_" || string.IsNullOrWhiteSpace(currentCtTeam.teamName)) currentCtTeam.teamName = "team_CT";
+                    if (currentTTeam.teamName == "team_" || string.IsNullOrWhiteSpace(currentTTeam.teamName)) currentTTeam.teamName = "team_T";
 
-                    // 關鍵核心：把重新抓好的正確玩家隊名，同步塞滿快取字典，主動建立 "CT" 與 "TERRORIST" 的 Key！
-                    teamSides[matchzyTeam1] = "CT";
-                    teamSides[matchzyTeam2] = "TERRORIST";
-                    reverseTeamSides["CT"] = matchzyTeam1;
-                    reverseTeamSides["TERRORIST"] = matchzyTeam2;
+                    // 關鍵核心：重新把當前的正確陣營狀態寫死進去字典，讓中游百分之百同步
+                    teamSides[currentCtTeam] = "CT";
+                    teamSides[currentTTeam] = "TERRORIST";
+                    reverseTeamSides["CT"] = currentCtTeam;
+                    reverseTeamSides["TERRORIST"] = currentTTeam;
                     // ===========================================================================================
 
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                    Log($"[Shuffle] 洗牌同步完成，CT隊名: {matchzyTeam1.teamName}, T隊名: {matchzyTeam2.teamName}");
+                    Log($"[Shuffle] 洗牌同步完成，當前CT隊名: {currentCtTeam.teamName}, 當前T隊名: {currentTTeam.teamName}");
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
                     // 直接去呼叫倒數方法
