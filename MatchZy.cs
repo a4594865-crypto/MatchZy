@@ -833,7 +833,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
 
 
-             // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊，且此時所有自殺的玩家都已經物理重生成為「地上的活人」了
+            // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊，且此時所有自殺的玩家都已經物理重生成為「地上的活人」了
                 AddTimer(0.2f, () => {
                     // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
@@ -856,14 +856,18 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                         }
                     }
 
-                    // 確保全域戰隊物件不是 null（防止未初始化崩潰）
-                    if (matchzyTeam1 == null) matchzyTeam1 = new Team();
-                    if (matchzyTeam2 == null) matchzyTeam2 = new Team();
+                    // 🎯 【型態安全修正】：利用物件初始化器直接設定 required 屬性，完美解決 L860、L861 編譯錯誤！
+                    if (matchzyTeam1 == null) {
+                        matchzyTeam1 = new Team { teamName = "team_" + RemoveSpecialCharacters(ctLeaderName) };
+                    } else {
+                        matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(ctLeaderName);
+                    }
 
-                    // 強制拼接出帶有人名的正確隊名，覆蓋原本因為自殺抓空而產生的半成品 "team_"
-                    // RemoveSpecialCharacters 可以確保玩家暱稱裡的特殊符號不會破壞 .txt 檔案結構
-                    matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(ctLeaderName);
-                    matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(tLeaderName);
+                    if (matchzyTeam2 == null) {
+                        matchzyTeam2 = new Team { teamName = "team_" + RemoveSpecialCharacters(tLeaderName) };
+                    } else {
+                        matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(tLeaderName);
+                    }
 
                     // 安全保險防線：萬一玩家名字全都是特殊符號被抹空了，給予預設安全值
                     if (matchzyTeam1.teamName == "team_" || string.IsNullOrWhiteSpace(matchzyTeam1.teamName)) matchzyTeam1.teamName = "team_CT";
@@ -877,10 +881,10 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     // ===========================================================================================
 
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                    Log($"[Shuffle] 洗牌同步完成");
+                    Log($"[Shuffle] 洗牌同步完成，CT隊名: {matchzyTeam1.teamName}, T隊名: {matchzyTeam2.teamName}");
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
+                    // 直接去呼叫倒數方法
                     StartMatchCountdown(); 
                 });
             } //  結束 lock (_shuffleLock)
