@@ -490,34 +490,31 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // 在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
     int currentEventUserId = @event.Userid; 
 
-   // =========================================================================
-    // 真正完美的分流（有洗牌直接超車秒開，沒洗牌老實走官方倒數）
-    // =========================================================================
-    if (message == ".r" || message == ".ready") {
-        if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
-            
-            if (isShufflePending) 
-            {
-                // 【隨機分隊專用道】
-                ExecuteShuffleLogic();     // 執行洗牌，裡面 0.2 秒後直接秒開賽
-                UpdatePlayersMap();        // 強制更新玩家隊伍緩存
-                return HookResult.Handled; //  徹底吃掉事件，100% 封鎖 7 秒倒數
-            }
-            else
-            {
-                // 【正規戰隊局專用道】
-                // 只有在「沒開洗牌」時，才把點火丟給下一幀，讓官方老老實實跑 7 秒倒數
-                Server.NextFrame(() => {
-                    var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
-                    if (triggerPlayer != null && triggerPlayer.IsValid)
-                    {
-                        OnPlayerReady(triggerPlayer, null); 
-                    }
-                });
-                return HookResult.Handled; 
-            }
+ // =========================================================================
+// 💡【統一修正版】：取消超車秒開！不論有沒有隨機洗牌，通通老實走官方 7 秒倒數！
+// =========================================================================
+if (message == ".r" || message == ".ready") {
+    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
+        
+        // 1. 如果有開隨機分隊，我們先在倒數前「把牌洗好、隊伍換好」，讓大家有 7 秒準備
+        if (isShufflePending) 
+        {
+            ExecuteShuffleLogic();     // 執行洗牌兼換隊（讓玩家在倒數的這 7 秒內完成自殺換隊）
+            UpdatePlayersMap();        // 更新玩家隊伍緩存
         }
+        
+        // 2. 移除秒開的 return，通通強制走官方正規倒數專用道！
+        Server.NextFrame(() => {
+            var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
+            if (triggerPlayer != null && triggerPlayer.IsValid)
+            {
+                OnPlayerReady(triggerPlayer, null); // 點火！啟動官方的 7 秒倒數計時器
+            }
+        });
+        
+        return HookResult.Handled; 
     }
+}
     // 2. 如果倒數已經在跑，擋掉所有一般發話（維持你原本完美的發話管理）
     if (isCountdownActive && !originalMessage.Contains("倒數：")) {
         return HookResult.Handled;
