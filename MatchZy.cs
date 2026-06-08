@@ -42,7 +42,7 @@ namespace MatchZy
         public bool isMatchLive = false;
         public long liveMatchId = -1;
         public int autoStartMode = 1;
-        private static readonly object _shuffleLock = new();
+        
         public bool mapReloadRequired = false;
 
         // Pause Data
@@ -490,31 +490,30 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // 在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
     int currentEventUserId = @event.Userid; 
 
- // =========================================================================
-// 💡【統一修正版】：取消超車秒開！不論有沒有隨機洗牌，通通老實走官方 7 秒倒數！
-// =========================================================================
-if (message == ".r" || message == ".ready") {
-    if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
-        
-        // 1. 如果有開隨機分隊，我們先在倒數前「把牌洗好、隊伍換好」，讓大家有 7 秒準備
-        if (isShufflePending) 
-        {
-            ExecuteShuffleLogic();     // 執行洗牌兼換隊（讓玩家在倒數的這 7 秒內完成自殺換隊）
-            UpdatePlayersMap();        // 更新玩家隊伍緩存
-        }
-        
-        // 2. 移除秒開的 return，通通強制走官方正規倒數專用道！
-        Server.NextFrame(() => {
-            var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
-            if (triggerPlayer != null && triggerPlayer.IsValid)
+    // 1. 攔截開賽指令（利用 NextFrame 徹底解決洗牌後卡熱身、不倒數的底層衝突）
+    if (message == ".r" || message == ".ready") {
+        if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
+            
+            // 洗牌超車
+            if (isShufflePending) 
             {
-                OnPlayerReady(triggerPlayer, null); // 點火！啟動官方的 7 秒倒數計時器
+                ExecuteShuffleLogic(); // 先執行洗牌（SwitchTeam 靜態換隊）
+                UpdatePlayersMap();    // 強制更新玩家隊伍緩存
             }
-        });
-        
-        return HookResult.Handled; 
+
+            // 讓引擎緩衝一幀去對齊換隊數據，下幀官方算人數絕對 100% 正確，7 秒倒數順暢亮起！
+            Server.NextFrame(() => {
+                var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
+                if (triggerPlayer != null && triggerPlayer.IsValid)
+                {
+                    OnPlayerReady(triggerPlayer, null); // 正式交給官方核心點火
+                }
+            });
+
+            return HookResult.Handled; 
+        }
     }
-}
+
     // 2. 如果倒數已經在跑，擋掉所有一般發話（維持你原本完美的發話管理）
     if (isCountdownActive && !originalMessage.Contains("倒數：")) {
         return HookResult.Handled;
@@ -764,8 +763,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
     }
 }
-      
-        // =========================================================================
+       // =========================================================================
         // 同步動態洗牌分隊 + 官方原生隊名穩定版 (不自訂隊名，絕不崩潰)
         // =========================================================================
         public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
