@@ -607,11 +607,25 @@ return HookResult.Continue;
             }
         }
 
-        public string GetTeamNameFromSide(int teamNum) {
-            if (teamNum == 3) return reverseTeamSides["CT"].teamName;
-            if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
-            return "Unknown";
-        } // 結束 GetTeamNameFromSide 函數
+      public string GetTeamNameFromSide(int teamNum) {
+    if (teamNum == 3) 
+    {
+        // ⏱️ 只要 3 秒延遲
+        AddTimer(5.0f, () => {
+            Server.ExecuteCommand($"mp_teamname_1 \"{reverseTeamSides["CT"].teamName}\"");
+        });
+        return reverseTeamSides["CT"].teamName;
+    }
+    if (teamNum == 2) 
+    {
+        // ⏱️ 只要 3 秒延遲
+        AddTimer(5.0f, () => {
+            Server.ExecuteCommand($"mp_teamname_2 \"{reverseTeamSides["TERRORIST"].teamName}\"");
+        });
+        return reverseTeamSides["TERRORIST"].teamName;
+    }
+    return "Unknown";
+} // 結束 GetTeamNameFromSide 函數
 
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy
