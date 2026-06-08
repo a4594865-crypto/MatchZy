@@ -105,9 +105,35 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-// --- 直接開始 7 秒音效倒數（修正版：絕不提前點火） ---
+// --- 直接開始 7 秒音效倒數（修正版：隨機分隊時不倒數、不回出生地） ---
         public void StartMatchCountdown()
         {
+            // 【核心修正：分流判定】
+            // 如果當前有隨機洗牌指令 (isShufflePending 為 true)
+            // 我們直接繞過 7 秒倒數，直接執行開賽，並且絕對不執行 Respawn()，防止換隊網絡封包出錯！
+            if (isShufflePending)
+            {
+                isCountdownActive = false;
+                countdownRemaining = 0;
+
+                if (matchStartCountdownTimer != null)
+                {
+                    matchStartCountdownTimer.Kill();
+                    matchStartCountdownTimer = null;
+                }
+
+                if (!matchStarted)
+                {
+                    HandleMatchStart(); // 隨機分隊在這裡秒開點火
+                }
+
+                isShufflePending = false; // 開賽完成後，才關掉隨機標記
+                return; // 直接跳出，不執行下面的倒數與回出生地代碼！
+            }
+
+            // -----------------------------------------------------------------
+            // 以下是一般開賽 (沒洗牌) 的原本邏輯：保持 7 秒倒數與回出生地
+            // -----------------------------------------------------------------
             if (matchStartCountdownTimer != null) return;
 
             // 倒數第 1 秒立刻全體回巢重生
