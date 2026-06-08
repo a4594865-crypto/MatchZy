@@ -44,6 +44,7 @@ namespace MatchZy
         public int autoStartMode = 1;
         private static readonly object _shuffleLock = new();
         public bool mapReloadRequired = false;
+        public static DateTime shuffleCompleteTime = DateTime.MinValue;
 
         // Pause Data
         public bool isPaused = false;
