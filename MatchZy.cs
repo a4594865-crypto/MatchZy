@@ -826,9 +826,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     {
                         // 3. 呼叫官方正統的換隊方法，傳入標準 CsTeam 列舉（解決 L826 編譯錯誤）
                         player.ChangeTeam(targetTeam); 
-                        
-                        // 4. 執行物理自殺以刷新實體 (不扣分數、靜音死亡)
-                        player.CommitSuicide(false, true);  
                     }
                 }
 
