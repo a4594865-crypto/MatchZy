@@ -131,51 +131,85 @@ namespace MatchZy
                 return; // 直接跳出，不執行下面的倒數與回出生地代碼！
             }
 
+           // --- 直接開始 7 秒音效倒數（終極安全防撞車版） ---
+        public void StartMatchCountdown()
+        {
+            // 🚀 【第一關：洗牌專用防護盾】
+            // 如果目前是隨機分隊開賽，進來立刻點火秒開，並直接 return 封鎖下面所有邏輯！
+            if (isShufflePending)
+            {
+                isCountdownActive = false; 
+                countdownRemaining = 0;
+
+                if (matchStartCountdownTimer != null) 
+                {
+                    matchStartCountdownTimer.Kill();
+                    matchStartCountdownTimer = null;
+                }
+
+                if (!matchStarted) 
+                {
+                    HandleMatchStart(); // ➔ 隨機分隊在這裡秒開正賽！
+                }
+
+                isShufflePending = false; // ➔ 開賽成功後關閉標記
+                return; // ➔ 核心攔截！直接跳出，下面什麼回出生地、倒數通通抓不到它
+            }
+
             // -----------------------------------------------------------------
-            // 以下是一般開賽 (沒洗牌) 的原本邏輯：保持 7 秒倒數與回出生地
+            // 以下是一般開賽 (沒洗牌) 的流程
             // -----------------------------------------------------------------
             if (matchStartCountdownTimer != null) return;
 
-            // 倒數第 1 秒立刻全體回巢重生
-            foreach (var p in Utilities.GetPlayers())
-            {
-                if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                {
-                    p.Respawn(); // 強制 CS2 引擎將玩家原位蒸發，重生在正確的出生點
-                }
-            }
+            // 【核心改動】：我們不在此處「馬上」呼叫 p.Respawn()！
+            // 我們把它移到下方的 Timer 裡面，跟著倒數一起安全出發！
 
             isCountdownActive = true; 
             countdownRemaining = 7; // 精準設定為 7 秒
+
+            // 宣告一個標記，確保回出生地只在第一秒執行一次
+            bool hasRespawned = false;
 
             matchStartCountdownTimer = AddTimer(1.0f, () => {
                 Server.NextFrame(() => {
                     if (countdownRemaining > 0)
                     {
+                        // 【一般開賽回出生地搬移到此】：在倒數啟動的第一秒才執行傳送
+                        if (!hasRespawned)
+                        {
+                            foreach (var p in Utilities.GetPlayers())
+                            {
+                                if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                                {
+                                    p.Respawn(); // 這裡才傳送，完美避開點火瞬间
+                                }
+                            }
+                            hasRespawned = true; // 標記已傳送，後面幾秒不再重複傳送
+                        }
+
                         // 3, 2, 1 秒顯示紅色，7, 6, 5, 4 秒顯示綠色
                         string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                         
                         // 印出當前秒數
                         PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                        // 每一秒都播音效 (7, 6, 5, 4, 3, 2, 1)
+                        // 每一秒都播音效
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
                         
-                        // 倒數變數減 1
                         countdownRemaining--;
                     }
                     else
                     {
-                        // 當 countdownRemaining 減到 0 時，下一秒會完美走到這裡，安全關閉計時器並正賽開始！
+                        // 當 countdownRemaining 減到 0 時，正賽開始！
                         matchStartCountdownTimer?.Kill();
                         matchStartCountdownTimer = null;
                         isCountdownActive = false; 
 
                         if (matchStarted) return;
-                        HandleMatchStart(); // 安全在 0 秒點火開賽
+                        HandleMatchStart(); // 0 秒點火開賽
                     }
                 });
             }, TimerFlags.REPEAT);
