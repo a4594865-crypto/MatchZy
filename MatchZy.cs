@@ -831,14 +831,14 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                         player.CommitSuicide(false, true);  
                     }
                 }
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                Log("[Shuffle] 洗牌同步完成");
+
 
                 // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
                 AddTimer(0.2f, () => {
                     // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
-
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+                    Log("[Shuffle] 洗牌同步完成");
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
                     // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
