@@ -848,22 +848,23 @@ AddTimer(0.2f, () => {
         string ctName = "隨機防守方";
         string tName = "隨機進攻方";
 
-        // 1. 遍歷抓取人名 (確保抓到的是最新的隊伍歸屬)
+        // 1. 遍歷抓取人名
         foreach (var player in allPlayers)
         {
             if (player == null || !player.IsValid || player.IsBot) continue;
 
-           // 修改這裡的拼接格式
-if (player.TeamNum == 3 && ctName == "隨機防守方") 
-{
-    // 改為 team_ 格式
-    ctName = $"team_{RemoveSpecialCharacters(player.PlayerName)}"; 
-}
-else if (player.TeamNum == 2 && tName == "隨機進攻方") 
-{
-    // 改為 team_ 格式
-    tName = $"team_{RemoveSpecialCharacters(player.PlayerName)}";
-}
+            if (player.TeamNum == 3 && ctName == "隨機防守方") 
+            {
+                ctName = $"team_{RemoveSpecialCharacters(player.PlayerName)}"; 
+            }
+            else if (player.TeamNum == 2 && tName == "隨機進攻方") 
+            {
+                tName = $"team_{RemoveSpecialCharacters(player.PlayerName)}";
+            }
+
+            // 當兩隊都抓到名字時，提早結束迴圈，節省效能
+            if (ctName != "隨機防守方" && tName != "隨機進攻方") break;
+        } // <--- 這裡必須要有這一個 } 來關閉 foreach 迴圈！
 
         // 2. 安全更新字典：若 Key 不存在則直接新增，這能防止 KeyNotFoundException
         if (reverseTeamSides != null) 
@@ -879,7 +880,7 @@ else if (player.TeamNum == 2 && tName == "隨機進攻方")
                 reverseTeamSides["TERRORIST"].teamName = tName;
         }
 
-        // 3. 直接鐵腕執行控制台指令，確保畫面顯示正確
+        // 3. 直接鐵腕執行控制台指令
         Server.ExecuteCommand($"mp_teamname_1 \"{ctName}\"");
         Server.ExecuteCommand($"mp_teamname_2 \"{tName}\"");
         
