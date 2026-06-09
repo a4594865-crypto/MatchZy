@@ -303,7 +303,8 @@ private void StartKnifeRound()
     PrintToAllChat($"{ChatColors.Green}======================");
     PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
     PrintToAllChat($"{ChatColors.Green}======================");
-}
+ }
+ } 
         private void SendSideSelectionMessage()
         {
             if (!isSideSelectionPhase) return;
