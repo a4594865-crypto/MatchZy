@@ -19,7 +19,6 @@ namespace MatchZy
     {
         public const string warmupCfgPath = "MatchZy/warmup.cfg";
         public const string knifeCfgPath = "MatchZy/knife.cfg";
-        public const string knife2CfgPath = "MatchZy/knife2.cfg"; // 🔥 【手動新增】：隨機分隊專用刀局設定檔路徑
         public const string liveCfgPath = "MatchZy/live.cfg";
         public const string liveWingmanCfgPath = "MatchZy/live_wingman.cfg";
 
@@ -253,54 +252,47 @@ namespace MatchZy
         }
 
         private void StartKnifeRound()
-        {
-            // 1. 先殺掉準備提示計時器 (與原邏輯一致)
-            if (unreadyPlayerMessageTimer != null)
-            {
-                unreadyPlayerMessageTimer.Kill();
-                unreadyPlayerMessageTimer = null;
-            }
+{
+    // 1. 先殺掉準備提示計時器 (與原邏輯一致)
+    if (unreadyPlayerMessageTimer != null)
+    {
+        unreadyPlayerMessageTimer.Kill();
+        unreadyPlayerMessageTimer = null;
+    }
 
-            // 2. 【核心隔離：在狀態變更前洗牌】
-            if (isShufflePending) 
-            {
-                ExecuteShuffleLogic(); 
-            }
+    // 2. 【核心隔離：在狀態變更前洗牌】
+    // 此時 isCountdownActive 應剛結束或被設為 false，洗牌換隊不會觸發「倒數中止」邏輯
+    if (isShufflePending) 
+    {
+        ExecuteShuffleLogic(); 
+    }
 
-            // 3. 設定比賽階段 (與原邏輯一致)
-            matchStarted = true;
-            isKnifeRound = true;
-            readyAvailable = false;
-            isWarmup = false;
+    // 3. 設定比賽階段 (與原邏輯一致)
+    matchStarted = true;
+    isKnifeRound = true;
+    readyAvailable = false;
+    isWarmup = false;
 
-            // 4. 【乾淨分流】根據是否為隨機分隊，讀取對應 CFG
-            // 這裡不再硬編碼 mp_restartgame，全部交給 CFG 檔案內部控制
-            if (isShufflePending)
-            {
-                Log("[StartKnifeRound] [隨機分隊] 執行 MatchZy/knife2.cfg");
-                Server.ExecuteCommand("exec MatchZy/knife2.cfg");
-            }
-            else
-            {
-                // 檢查原始 knife.cfg 是否存在，若無則執行預設指令
-                if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
-                {
-                    Log($"[StartKnifeRound] [正常戰隊局] 執行 {knifeCfgPath}");
-                    Server.ExecuteCommand($"exec {knifeCfgPath}");
-                }
-                else
-                {
-                    Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
-                }
-            }
+    // 4. 根據 CFG 存在與否執行指令
+    var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath);
+    if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
+    {
+        Log($"[StartKnifeRound] Starting Knife! Executing Knife CFG from {knifeCfgPath}");
+        Server.ExecuteCommand($"exec {knifeCfgPath}");
+    }
+    else
+    {
+        Log($"[StartKnifeRound] Starting Knife! Knife CFG not found, using default CFG!");
+        Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
+    }
 
-            // 5. 結束熱身 (不強制重啟，由 CFG 內的指令決定重啟時機)
-            Server.ExecuteCommand("mp_warmup_end;");
+    // 5. 【關鍵執行】最後才讓伺服器重啟，確保換隊指令已經先被伺服器受理
+    Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
 
-            PrintToAllChat($"{ChatColors.Green}======================");
-            PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
-            PrintToAllChat($"{ChatColors.Green}======================");
-        }
+    PrintToAllChat($"{ChatColors.Green}======================");
+    PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
+    PrintToAllChat($"{ChatColors.Green}======================");
+}
         private void SendSideSelectionMessage()
         {
             if (!isSideSelectionPhase) return;
