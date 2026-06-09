@@ -872,13 +872,13 @@ AddTimer(0.2f, () => {
         if (newCtLeader != null) {
             reverseTeamSides["CT"].teamName = RemoveSpecialCharacters(newCtLeader.PlayerName) + " 的隊伍";
         } else {
-            reverseTeamSides["CT"].teamName = "隨機防守方";
+            reverseTeamSides["CT"].teamName = "隨機";
         }
 
         if (newTLeader != null) {
             reverseTeamSides["TERRORIST"].teamName = RemoveSpecialCharacters(newTLeader.PlayerName) + " 的隊伍";
         } else {
-            reverseTeamSides["TERRORIST"].teamName = "隨機進攻方";
+            reverseTeamSides["TERRORIST"].teamName = "隨機";
         }
 
         // 4. 鐵腕執行控制台指令，強制改掉 CS2 原生大字報與計分板隊名
