@@ -252,59 +252,55 @@ namespace MatchZy
             ExecWarmupCfg();
         }
 
-private void StartKnifeRound()
-{
-    // 1. 先殺掉準備提示計時器 (與原邏輯一致)
-    if (unreadyPlayerMessageTimer != null)
-    {
-        unreadyPlayerMessageTimer.Kill();
-        unreadyPlayerMessageTimer = null;
-    }
+        private void StartKnifeRound()
+        {
+            // 1. 先殺掉準備提示計時器 (與原邏輯一致)
+            if (unreadyPlayerMessageTimer != null)
+            {
+                unreadyPlayerMessageTimer.Kill();
+                unreadyPlayerMessageTimer = null;
+            }
 
-   private void StartKnifeRound()
-{
-    // 1. 先殺掉準備提示計時器 (與原邏輯一致)
-    if (unreadyPlayerMessageTimer != null)
-    {
-        unreadyPlayerMessageTimer.Kill();
-        unreadyPlayerMessageTimer = null;
-    }
+            // 2. 【核心隔離：在狀態變更前洗牌】
+            if (isShufflePending) 
+            {
+                ExecuteShuffleLogic(); 
+            }
 
-    // 2. 【核心隔離：在狀態變更前洗牌】
-    if (isShufflePending) 
-    {
-        ExecuteShuffleLogic(); 
-    }
+            // 3. 設定比賽階段 (與原邏輯一致)
+            matchStarted = true;
+            isKnifeRound = true;
+            readyAvailable = false;
+            isWarmup = false;
 
-    // 3. 設定比賽階段 (與原邏輯一致)
-    matchStarted = true;
-    isKnifeRound = true;
-    readyAvailable = false;
-    isWarmup = false;
+            // 4. 【乾淨分流】根據是否為隨機分隊，讀取對應 CFG
+            // 這裡不再硬編碼 mp_restartgame，全部交給 CFG 檔案內部控制
+            if (isShufflePending)
+            {
+                Log("[StartKnifeRound] [隨機分隊] 執行 MatchZy/knife2.cfg");
+                Server.ExecuteCommand("exec MatchZy/knife2.cfg");
+            }
+            else
+            {
+                // 檢查原始 knife.cfg 是否存在，若無則執行預設指令
+                if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
+                {
+                    Log($"[StartKnifeRound] [正常戰隊局] 執行 {knifeCfgPath}");
+                    Server.ExecuteCommand($"exec {knifeCfgPath}");
+                }
+                else
+                {
+                    Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
+                }
+            }
 
-    // 4. 【乾淨分流】：根據是不是隨機分隊 (isShufflePending) 決定 exec 哪一個 CFG 檔案
-    if (isShufflePending)
-    {
-        // 🟢 【管道 A：隨機分隊局】➔ 直接讀取你改好、自帶 mp_restartgame 7 的 knife2.cfg
-        Log("[StartKnifeRound] [隨機分隊] 偵測到洗牌狀態，準備執行專用設定檔 MatchZy/knife2.cfg");
-        Server.ExecuteCommand("exec MatchZy/knife2.cfg");
-    }
-    else
-    {
-        // 🔵 【管道 B：正常戰隊局】➔ 讀取原本沒有重啟指令的標準 knife.cfg
-        Log("[StartKnifeRound] [正常戰隊局] 標準開賽，執行標準設定檔 MatchZy/knife.cfg");
-        Server.ExecuteCommand("exec MatchZy/knife.cfg");
-    }
+            // 5. 結束熱身 (不強制重啟，由 CFG 內的指令決定重啟時機)
+            Server.ExecuteCommand("mp_warmup_end;");
 
-    // 5. 結束熱身（交給外掛內部來確保熱身關閉）
-    Server.ExecuteCommand("mp_warmup_end;");
-
-    // 6. 聊天框提示
-    PrintToAllChat($"{ChatColors.Green}======================");
-    PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
-    PrintToAllChat($"{ChatColors.Green}======================");
- }
- } 
+            PrintToAllChat($"{ChatColors.Green}======================");
+            PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
+            PrintToAllChat($"{ChatColors.Green}======================");
+        }
         private void SendSideSelectionMessage()
         {
             if (!isSideSelectionPhase) return;
