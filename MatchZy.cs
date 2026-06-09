@@ -886,6 +886,11 @@ AddTimer(0.2f, () => {
         Log($"[ShuffleName - ERROR] 執行命名失敗: {ex.Message}");
     }
     // =========================================================================
+
+    // 直接去呼叫倒數方法
+    StartMatchCountdown(); 
+
+}); // <--- 這裡是 AddTimer 的閉合，非常重要！
             } //  結束 lock (_shuffleLock)
         } //  結束 ExecuteShuffleLogicWithReady 方法
 
