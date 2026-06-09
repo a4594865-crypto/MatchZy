@@ -427,13 +427,10 @@ return HookResult.Continue;
         }
 
         public void SetTeamNames()
-{
-    // 什麼都不動，單純讓原本的官方抓取指令晚 5 秒執行
-    AddTimer(5.0f, () => {
-        Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-        Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
-    });
-}
+        {
+            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
+            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
+        }
 
         public void GetCvarValues(JObject jsonDataObject)
         {
@@ -607,29 +604,9 @@ return HookResult.Continue;
             }
         }
 
-    public string GetTeamNameFromSide(int teamNum) {
-    if (teamNum == 3) 
-    {
-        // ⏱️ 5秒延遲：等5秒玩家復活完，大腦清醒了，外掛才強制把正確的戰隊名刷上計分板
-        AddTimer(5.0f, () => {
-            if (reverseTeamSides.ContainsKey("CT") && reverseTeamSides["CT"] != null) {
-                Server.ExecuteCommand($"mp_teamname_1 \"{reverseTeamSides["CT"].teamName}\"");
-            }
-        });
-        // ❌ 攔截：第 1 秒絕對不准回傳壞掉的 team_，先吐官方名給它去生成檔案防爆！
-        return "COUNTER-TERRORISTS";
-    }
-    if (teamNum == 2) 
-    {
-        // ⏱️ 5秒延遲：等5秒玩家復活完，大腦清醒了，外掛才強制把正確的戰隊名刷上計分板
-        AddTimer(5.0f, () => {
-            if (reverseTeamSides.ContainsKey("TERRORIST") && reverseTeamSides["TERRORIST"] != null) {
-                Server.ExecuteCommand($"mp_teamname_2 \"{reverseTeamSides["TERRORIST"].teamName}\"");
-            }
-        });
-        // ❌ 攔截：第 1 秒先吐官方名給它去生成檔案防爆！
-        return "TERRORISTS";
-    }
+   public string GetTeamNameFromSide(int teamNum) {
+    if (teamNum == 3) return reverseTeamSides["CT"].teamName;
+    if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
     return "Unknown";
 } // 結束 GetTeamNameFromSide 函數
     } // 結束 public partial class MatchZy
