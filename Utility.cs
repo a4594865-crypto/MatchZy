@@ -261,52 +261,48 @@ private void StartKnifeRound()
         unreadyPlayerMessageTimer = null;
     }
 
-    // 4. 【核心設定檔分流】：根據是不是隨機分隊 (isShufflePending) 決定讀取哪一個 cfg
+   private void StartKnifeRound()
+{
+    // 1. 先殺掉準備提示計時器 (與原邏輯一致)
+    if (unreadyPlayerMessageTimer != null)
+    {
+        unreadyPlayerMessageTimer.Kill();
+        unreadyPlayerMessageTimer = null;
+    }
+
+    // 2. 【核心隔離：在狀態變更前洗牌】
+    if (isShufflePending) 
+    {
+        ExecuteShuffleLogic(); 
+    }
+
+    // 3. 設定比賽階段 (與原邏輯一致)
+    matchStarted = true;
+    isKnifeRound = true;
+    readyAvailable = false;
+    isWarmup = false;
+
+    // 4. 【乾淨分流】：根據是不是隨機分隊 (isShufflePending) 決定 exec 哪一個 CFG 檔案
     if (isShufflePending)
     {
-        // 🟢 【隨機分隊專用通道】：強制去讀取 MatchZy/knife2.cfg
+        // 🟢 【管道 A：隨機分隊局】➔ 直接讀取你改好、自帶 mp_restartgame 7 的 knife2.cfg
         Log("[StartKnifeRound] [隨機分隊] 偵測到洗牌狀態，準備執行專用設定檔 MatchZy/knife2.cfg");
         Server.ExecuteCommand("exec MatchZy/knife2.cfg");
     }
     else
     {
-        // 🔵 【正常戰隊局通道】：老規矩去讀取原本的 MatchZy/knife.cfg
+        // 🔵 【管道 B：正常戰隊局】➔ 讀取原本沒有重啟指令的標準 knife.cfg
         Log("[StartKnifeRound] [正常戰隊局] 標準開賽，執行標準設定檔 MatchZy/knife.cfg");
         Server.ExecuteCommand("exec MatchZy/knife.cfg");
     }
 
-    // 5. 結束熱身指令（重啟指令已經全部移到 cfg 肚子裡了，這裡只負責關閉熱身）
+    // 5. 結束熱身（交給外掛內部來確保熱身關閉）
     Server.ExecuteCommand("mp_warmup_end;");
 
+    // 6. 聊天框提示
     PrintToAllChat($"{ChatColors.Green}======================");
     PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
     PrintToAllChat($"{ChatColors.Green}======================");
-}
-    }
-    else 
-    {
-        // 🔵 【管道 B：正常戰隊局專用】
-        // 因為前面已經老老實實跑完綠色文字的 7 秒開賽倒數了，這裡要絕對絲滑！
-
-        matchStarted = true;
-        isKnifeRound = true;
-        readyAvailable = false;
-        isWarmup = false;
-
-        // 執行標準的 knife.cfg
-        if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
-        {
-            Log($"[StartKnifeRound] [正常戰隊局] 執行設定檔: {knifeCfgPath}");
-            Server.ExecuteCommand($"exec {knifeCfgPath}");
-        }
-
-        // 🚀 正常局不需要重啟，直接無縫切入刀局凍結時間（老老實實跑 knife.cfg 裡設定的 10 秒凍結）
-        Server.ExecuteCommand("mp_warmup_end;");
-
-        PrintToAllChat($"{ChatColors.Green}======================");
-        PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 戰隊刀局開始，勝者選邊 {ChatColors.Red}★");
-        PrintToAllChat($"{ChatColors.Green}======================");
-    }
 }
         private void SendSideSelectionMessage()
         {
