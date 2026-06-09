@@ -839,63 +839,53 @@ AddTimer(0.2f, () => {
     Log("[Shuffle] 洗牌同步完成");
     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
 
-    // =========================================================================
-    // 🚀 【動態動態隊名補丁】：隨機分隊完成後，重新抓取新隊伍的隊長名
+   // =========================================================================
+    // 🚀 【終極防錯版】：完全繞過字典存取，並手動補完字典，確保不報錯也不錯位
     // =========================================================================
     try 
     {
-        // 1. 取得洗牌完成後目前伺服器的最新玩家狀態
         var allPlayers = Utilities.GetPlayers();
-        
-        CCSPlayerController? newCtLeader = null;
-        CCSPlayerController? newTLeader = null;
+        string ctName = "隨機防守方";
+        string tName = "隨機進攻方";
 
-        // 2. 遍歷玩家，分別找出「新CT隊」與「新T隊」的第一個真實玩家
+        // 1. 遍歷抓取人名 (確保抓到的是最新的隊伍歸屬)
         foreach (var player in allPlayers)
         {
             if (player == null || !player.IsValid || player.IsBot) continue;
 
-            if (player.TeamNum == 3 && newCtLeader == null) // 3 代表隨機分配後的 CT
-            {
-                newCtLeader = player;
-            }
-            else if (player.TeamNum == 2 && newTLeader == null) // 2 代表隨機分配後的 T
-            {
-                newTLeader = player;
-            }
+            if (player.TeamNum == 3 && ctName == "隨機防守方") 
+                ctName = RemoveSpecialCharacters(player.PlayerName) + " 的隊伍";
+            else if (player.TeamNum == 2 && tName == "隨機進攻方") 
+                tName = RemoveSpecialCharacters(player.PlayerName) + " 的隊伍";
 
-            // 兩隊都找到了就提早收工
-            if (newCtLeader != null && newTLeader != null) break;
+            if (ctName != "隨機防守方" && tName != "隨機進攻方") break;
         }
 
-        // 3. 更新 MatchZy 內部的隊名變數（移除特殊字元防止指令出錯）
-        if (newCtLeader != null) {
-            reverseTeamSides["CT"].teamName = RemoveSpecialCharacters(newCtLeader.PlayerName) + " 的隊伍";
-        } else {
-            reverseTeamSides["CT"].teamName = "隨機";
+        // 2. 安全更新字典：若 Key 不存在則直接新增，這能防止 KeyNotFoundException
+        if (reverseTeamSides != null) 
+        {
+            if (!reverseTeamSides.ContainsKey("CT")) 
+                reverseTeamSides["CT"] = new Team() { teamName = ctName };
+            else 
+                reverseTeamSides["CT"].teamName = ctName;
+
+            if (!reverseTeamSides.ContainsKey("TERRORIST")) 
+                reverseTeamSides["TERRORIST"] = new Team() { teamName = tName };
+            else 
+                reverseTeamSides["TERRORIST"].teamName = tName;
         }
 
-        if (newTLeader != null) {
-            reverseTeamSides["TERRORIST"].teamName = RemoveSpecialCharacters(newTLeader.PlayerName) + " 的隊伍";
-        } else {
-            reverseTeamSides["TERRORIST"].teamName = "隨機";
-        }
-
-        // 4. 鐵腕執行控制台指令，強制改掉 CS2 原生大字報與計分板隊名
-        Server.ExecuteCommand($"mp_teamname_1 \"{reverseTeamSides["CT"].teamName}\"");
-        Server.ExecuteCommand($"mp_teamname_2 \"{reverseTeamSides["TERRORIST"].teamName}\"");
+        // 3. 直接鐵腕執行控制台指令，確保畫面顯示正確
+        Server.ExecuteCommand($"mp_teamname_1 \"{ctName}\"");
+        Server.ExecuteCommand($"mp_teamname_2 \"{tName}\"");
         
-        Log($"[ShuffleName] 分隊名綁定完成！CT:{reverseTeamSides["CT"].teamName} | T:{reverseTeamSides["TERRORIST"].teamName}");
+        Log($"[ShuffleName] 改名成功：CT: {ctName} | T: {tName}");
     }
     catch (Exception ex)
     {
-        Log($"[ShuffleName - ERROR] 抓取新分隊名字失敗: {ex.Message}");
+        Log($"[ShuffleName - ERROR] 執行命名失敗: {ex.Message}");
     }
     // =========================================================================
-
-    // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
-    StartMatchCountdown(); 
-});
             } //  結束 lock (_shuffleLock)
         } //  結束 ExecuteShuffleLogicWithReady 方法
 
