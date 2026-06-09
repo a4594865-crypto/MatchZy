@@ -847,48 +847,49 @@ public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer)
         }
     } // <--- lock 結束
 
-    // 4. 延遲 0.2 秒：此時我們完全不用再去抓 GetPlayers()，直接使用上方鎖定好的 finalCtName 與 finalTName
-    AddTimer(0.2f, () => {
-        if (matchStarted || playerReadyStatus.Count == 0) return;
-        
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-        Log("[Shuffle] 洗牌同步完成");
-        UpdatePlayersMap(); 
+   // =========================================================================
+        // 4. 延遲 0.2 秒：此時已在 lock 外，安全執行計時器
+        // =========================================================================
+        AddTimer(0.2f, () => {
+            if (matchStarted || playerReadyStatus.Count == 0) return;
+            
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+            Log("[Shuffle] 洗牌同步完成");
+            UpdatePlayersMap(); 
 
-        try 
-        {
-            // 安全更新 MatchZy 內部字典
-            if (reverseTeamSides != null) 
+            try 
             {
-                if (!reverseTeamSides.ContainsKey("CT")) 
-                    reverseTeamSides["CT"] = new Team() { teamName = finalCtName };
-                else 
-                    reverseTeamSides["CT"].teamName = finalCtName;
+                // 安全更新 MatchZy 內部字典
+                if (reverseTeamSides != null) 
+                {
+                    if (!reverseTeamSides.ContainsKey("CT")) 
+                        reverseTeamSides["CT"] = new Team() { teamName = finalCtName };
+                    else 
+                        reverseTeamSides["CT"].teamName = finalCtName;
 
-                if (!reverseTeamSides.ContainsKey("TERRORIST")) 
-                    reverseTeamSides["TERRORIST"] = new Team() { teamName = finalTName };
-                else 
-                    reverseTeamSides["TERRORIST"].teamName = finalTName;
+                    if (!reverseTeamSides.ContainsKey("TERRORIST")) 
+                        reverseTeamSides["TERRORIST"] = new Team() { teamName = finalTName };
+                    else 
+                        reverseTeamSides["TERRORIST"].teamName = finalTName;
+                }
+
+                // 直接鐵腕執行控制台指令修改原生 UI
+                Server.ExecuteCommand($"mp_teamname_1 \"{finalCtName}\"");
+                Server.ExecuteCommand($"mp_teamname_2 \"{finalTName}\"");
+                
+                Log($"[ShuffleName] 陣列物理鎖定成功：CT: {finalCtName} | T: {finalTName}");
+            }
+            catch (Exception ex)
+            {
+                Log($"[ShuffleName - ERROR] 執行命名失敗: {ex.Message}");
             }
 
-            // 直接鐵腕執行控制台指令修改原生 UI
-            Server.ExecuteCommand($"mp_teamname_1 \"{finalCtName}\"");
-            Server.ExecuteCommand($"mp_teamname_2 \"{finalTName}\"");
-            
-            Log($"[ShuffleName] 陣列物理鎖定成功：CT: {finalCtName} | T: {finalTName}");
-        }
-        catch (Exception ex)
-        {
-            Log($"[ShuffleName - ERROR] 執行命名失敗: {ex.Message}");
-        }
+            // 直接去呼叫倒數方法
+            StartMatchCountdown(); 
 
-        // 直接去呼叫倒數方法
-        StartMatchCountdown(); 
+        }); // <--- 1. 這裡是 AddTimer 的閉合
+        
+    } // <--- 2. 這裡是 ExecuteShuffleLogicWithReady 方法的閉合
 
-    }); // <--- 這裡是 AddTimer 的閉合
-}
-            } //  結束 lock (_shuffleLock)
-        } //  結束 ExecuteShuffleLogicWithReady 方法
-
-    } // 結束 class MatchZy
-} //  結束 namespace MatchZy
+} // <--- 3. 這裡是 class MatchZy 的閉合 (原檔案第 893 行)
+} // <--- 4. 這裡是 namespace MatchZy 的閉合 (原檔案第 894 行)
