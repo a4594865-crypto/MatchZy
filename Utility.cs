@@ -19,6 +19,7 @@ namespace MatchZy
     {
         public const string warmupCfgPath = "MatchZy/warmup.cfg";
         public const string knifeCfgPath = "MatchZy/knife.cfg";
+        public const string knife2CfgPath = "MatchZy/knife2.cfg"; // 🔥 【手動新增】：隨機分隊專用刀局設定檔路徑
         public const string liveCfgPath = "MatchZy/live.cfg";
         public const string liveWingmanCfgPath = "MatchZy/live_wingman.cfg";
 
@@ -251,7 +252,7 @@ namespace MatchZy
             ExecWarmupCfg();
         }
 
-        private void StartKnifeRound()
+private void StartKnifeRound()
 {
     // 1. 先殺掉準備提示計時器 (與原邏輯一致)
     if (unreadyPlayerMessageTimer != null)
@@ -261,7 +262,6 @@ namespace MatchZy
     }
 
     // 2. 【核心隔離：在狀態變更前洗牌】
-    // 此時 isCountdownActive 應剛結束或被設為 false，洗牌換隊不會觸發「倒數中止」邏輯
     if (isShufflePending) 
     {
         ExecuteShuffleLogic(); 
@@ -273,21 +273,45 @@ namespace MatchZy
     readyAvailable = false;
     isWarmup = false;
 
-    // 4. 根據 CFG 存在與否執行指令
-    var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath);
-    if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
+    // 🔥 【核心分流：將設定檔讀取與重啟指令綁定在一起處理】
+    if (isShufflePending)
     {
-        Log($"[StartKnifeRound] Starting Knife! Executing Knife CFG from {knifeCfgPath}");
-        Server.ExecuteCommand($"exec {knifeCfgPath}");
+        // 🟢 【隨機分隊專用通道】
+        // 4. 讀取隨機分隊專用的 knife2.cfg
+        var absolutePath2 = Path.Join(Server.GameDirectory + "/csgo/cfg", knife2CfgPath);
+        if (File.Exists(absolutePath2))
+        {
+            Log($"[StartKnifeRound] [隨機分隊] 執行專用設定檔: {knife2CfgPath}");
+            Server.ExecuteCommand($"exec {knife2CfgPath}");
+        }
+        else
+        {
+            Log($"[StartKnifeRound] 找不到 {knife2CfgPath}，自動套用預設 knife.cfg");
+            Server.ExecuteCommand($"exec {knifeCfgPath}");
+        }
+
+        // 5. 隨機分隊專用重啟：強行改為 7 秒大倒數，給全服玩家 7 秒投胎和刷新名字的時間！
+        Server.ExecuteCommand("mp_restartgame 7;mp_warmup_end;");
     }
     else
     {
-        Log($"[StartKnifeRound] Starting Knife! Knife CFG not found, using default CFG!");
-        Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
-    }
+        // 🔵 【正常戰隊局通道】
+        // 4. 讀取標準的 knife.cfg (你已經把裡面的 mp_restartgame 刪除了)
+        var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath);
+        if (File.Exists(absolutePath))
+        {
+            Log($"[StartKnifeRound] [正常戰隊局] 執行標準設定檔: {knifeCfgPath}");
+            Server.ExecuteCommand($"exec {knifeCfgPath}");
+        }
+        else
+        {
+            Log($"[StartKnifeRound] Starting Knife! Knife CFG not found, using default CFG!");
+            Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
+        }
 
-    // 5. 【關鍵執行】最後才讓伺服器重啟，確保換隊指令已經先被伺服器受理
-    Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
+        // 5. 正常戰隊局重啟：因為前面跑完 7 秒倒數了，這裡【絕對不要】再寫 mp_restartgame 1 破壞畫面，直接結束熱身就好！
+        Server.ExecuteCommand("mp_warmup_end;");
+    }
 
     PrintToAllChat($"{ChatColors.Green}======================");
     PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
