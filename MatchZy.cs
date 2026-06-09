@@ -826,8 +826,8 @@ public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer)
         }
     } // <--- 2. lock 在這裡就完整結束，接下來進入非同步世界
 
-    // 3. 延遲 0.2 秒
-    AddTimer(0.2f, () => {
+    // 3. 延遲 0.4 秒
+    AddTimer(0.4f, () => {
         if (matchStarted || playerReadyStatus.Count == 0) return;
         
         Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
