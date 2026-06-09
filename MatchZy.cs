@@ -882,8 +882,8 @@ AddTimer(0.2f, () => {
         }
 
         // 4. 鐵腕執行控制台指令，強制改掉 CS2 原生大字報與計分板隊名
-        Server.ExecuteCommand($"mp_teamname_1 \"{reverseTeamSides["CT"].teamName}\"");
-        Server.ExecuteCommand($"mp_teamname_2 \"{reverseTeamSides["TERRORIST"].teamName}\"");
+       Server.ExecuteCommand($"mp_teamname_1 \"{ctName}\"");
+       Server.ExecuteCommand($"mp_teamname_2 \"{tName}\"");
         
         Log($"[ShuffleName] 分隊名綁定完成！CT:{reverseTeamSides["CT"].teamName} | T:{reverseTeamSides["TERRORIST"].teamName}");
     }
