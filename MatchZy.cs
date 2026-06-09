@@ -845,25 +845,25 @@ AddTimer(0.2f, () => {
     try 
     {
         var allPlayers = Utilities.GetPlayers();
-        string ctName = "隨機防守方";
-        string tName = "隨機進攻方";
+        string ctName = "team_A";
+        string tName = "team_B";
 
         // 1. 遍歷抓取人名
         foreach (var player in allPlayers)
         {
             if (player == null || !player.IsValid || player.IsBot) continue;
 
-            if (player.TeamNum == 3 && ctName == "隨機防守方") 
+            if (player.TeamNum == 3 && ctName == "team_A") 
             {
                 ctName = $"team_{RemoveSpecialCharacters(player.PlayerName)}"; 
             }
-            else if (player.TeamNum == 2 && tName == "隨機進攻方") 
+            else if (player.TeamNum == 2 && tName == "team_B") 
             {
                 tName = $"team_{RemoveSpecialCharacters(player.PlayerName)}";
             }
 
             // 當兩隊都抓到名字時，提早結束迴圈，節省效能
-            if (ctName != "隨機防守方" && tName != "隨機進攻方") break;
+            if (ctName != "team_A" && tName != "team_B") break;
         } // <--- 這裡必須要有這一個 } 來關閉 foreach 迴圈！
 
         // 2. 安全更新字典：若 Key 不存在則直接新增，這能防止 KeyNotFoundException
