@@ -830,17 +830,21 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                 }
 
 
-                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
+               // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
                 AddTimer(0.2f, () => {
                     // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
                     if (matchStarted || playerReadyStatus.Count == 0) return;
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
                     Log("[Shuffle] 洗牌同步完成");
+                    
                     // 在執行完所有的 ChangeTeam 指令之後
                     UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
                     
-                    // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
-                    // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
+                    // ⏱️ 【核心修正】：用 mp_restartgame 7 取代原本的 1 秒重啟！
+                    // 讓系統在進入刀局凍結之前，先在黑畫面大倒數 7 秒，給伺服器引擎極其充裕的時間對齊所有人數據
+                    Server.ExecuteCommand("mp_restartgame 7");
+
+                    // 呼叫原生開賽邏輯
                     StartMatchCountdown(); 
                 });
             } //  結束 lock (_shuffleLock)
