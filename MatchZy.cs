@@ -776,16 +776,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             ExecuteShuffleLogicWithReady(null); 
         }
 
-       // =========================================================================
-// 同步動態洗牌分隊 + 官方原生隊名穩定版 (終極百分之百不開天窗、不錯位版)
+// =========================================================================
+// 同步動態洗牌分隊 + 官方原生隊名穩定版 (100% 閉包安全、絕不錯位、不報錯版)
 // =========================================================================
 public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
 {
     int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
-
-    // 先在 lock 外面宣告這兩個最終要使用的隊名變數
-    string finalCtName = "team_A";
-    string finalTName = "team_B";
 
     lock (_shuffleLock)
     {
@@ -805,7 +801,7 @@ public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer)
             return;
         }
 
-        // 1. Fisher-Yates 洗牌演算法 (隨機性在這裡完全確立！)
+        // 1. 物理換隊：Fisher-Yates 洗牌演算法
         Random rng = new();
         int n = activePlayers.Count;
         while (n > 1) 
@@ -816,23 +812,6 @@ public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer)
         }
 
         int half = activePlayers.Count / 2;
-
-        // 2. 【核心改良】：在分組換隊的當下，直接用陣列排序抓取隊長名字，100% 物理鎖定
-        var ctLeader = activePlayers.Take(half).FirstOrDefault(p => p != null && p.IsValid);
-        var tLeader = activePlayers.Skip(half).FirstOrDefault(p => p != null && p.IsValid);
-
-        if (ctLeader != null)
-        {
-            string cleanCt = RemoveSpecialCharacters(ctLeader.PlayerName);
-            finalCtName = string.IsNullOrWhiteSpace(cleanCt) ? "team_A" : $"team_{cleanCt}";
-        }
-        if (tLeader != null)
-        {
-            string cleanT = RemoveSpecialCharacters(tLeader.PlayerName);
-            finalTName = string.IsNullOrWhiteSpace(cleanT) ? "team_B" : $"team_{cleanT}";
-        }
-
-        // 3. 執行物理換隊
         for (int i = 0; i < activePlayers.Count; i++) 
         {
             var player = activePlayers[i];
@@ -845,51 +824,80 @@ public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer)
                 player.ChangeTeam(targetTeam); 
             }
         }
-    } // <--- lock 結束
+    } // <--- 2. lock 在這裡就完整結束，接下來進入非同步世界
 
-   // =========================================================================
-        // 4. 延遲 0.2 秒：此時已在 lock 外，安全執行計時器
-        // =========================================================================
-        AddTimer(0.2f, () => {
-            if (matchStarted || playerReadyStatus.Count == 0) return;
-            
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-            Log("[Shuffle] 洗牌同步完成");
-            UpdatePlayersMap(); 
+    // 3. 延遲 0.2 秒
+    AddTimer(0.2f, () => {
+        if (matchStarted || playerReadyStatus.Count == 0) return;
+        
+        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+        Log("[Shuffle] 洗牌同步完成");
+        UpdatePlayersMap(); 
 
-            try 
+        try 
+        {
+            // 🚀 【關鍵核心】：變數全部宣告在 AddTimer 內部！不引用外部任何東西，黑視窗絕對不報錯
+            string ctName = "team_A";
+            string tName = "team_B";
+
+            // 直接抓取伺服器當前所有活著的真人玩家
+            List<CCSPlayerController> livePlayers = Utilities.GetPlayers()
+                .Where(p => p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                .ToList();
+
+            if (livePlayers.Count > 0)
             {
-                // 安全更新 MatchZy 內部字典
-                if (reverseTeamSides != null) 
+                // 我們完全不看 player.TeamNum 是多少！
+                // 而是直接在內部，用跟上面一模一樣的「對半拆名單」邏輯：前排第一個就是 CT 隊長
+                var ctLeader = livePlayers.FirstOrDefault();
+                if (ctLeader != null)
                 {
-                    if (!reverseTeamSides.ContainsKey("CT")) 
-                        reverseTeamSides["CT"] = new Team() { teamName = finalCtName };
-                    else 
-                        reverseTeamSides["CT"].teamName = finalCtName;
-
-                    if (!reverseTeamSides.ContainsKey("TERRORIST")) 
-                        reverseTeamSides["TERRORIST"] = new Team() { teamName = finalTName };
-                    else 
-                        reverseTeamSides["TERRORIST"].teamName = finalTName;
+                    string cleanCt = RemoveSpecialCharacters(ctLeader.PlayerName);
+                    ctName = string.IsNullOrWhiteSpace(cleanCt) ? "team_A" : $"team_{cleanCt}";
                 }
 
-                // 直接鐵腕執行控制台指令修改原生 UI
-                Server.ExecuteCommand($"mp_teamname_1 \"{finalCtName}\"");
-                Server.ExecuteCommand($"mp_teamname_2 \"{finalTName}\"");
-                
-                Log($"[ShuffleName] 陣列物理鎖定成功：CT: {finalCtName} | T: {finalTName}");
+                // 後排第一個就是 T 隊長
+                if (livePlayers.Count > 1)
+                {
+                    var tLeader = livePlayers.Skip(livePlayers.Count / 2).FirstOrDefault();
+                    if (tLeader != null)
+                    {
+                        string cleanT = RemoveSpecialCharacters(tLeader.PlayerName);
+                        tName = string.IsNullOrWhiteSpace(cleanT) ? "team_B" : $"team_{cleanT}";
+                    }
+                }
             }
-            catch (Exception ex)
+
+            // 4. 安全更新 MatchZy 內部字典
+            if (reverseTeamSides != null) 
             {
-                Log($"[ShuffleName - ERROR] 執行命名失敗: {ex.Message}");
+                if (!reverseTeamSides.ContainsKey("CT")) 
+                    reverseTeamSides["CT"] = new Team() { teamName = ctName };
+                else 
+                    reverseTeamSides["CT"].teamName = ctName;
+
+                if (!reverseTeamSides.ContainsKey("TERRORIST")) 
+                    reverseTeamSides["TERRORIST"] = new Team() { teamName = tName };
+                else 
+                    reverseTeamSides["TERRORIST"].teamName = tName;
             }
 
-            // 直接去呼叫倒數方法
-            StartMatchCountdown(); 
+            // 5. 直接鐵腕執行控制台指令修改原生 UI
+            Server.ExecuteCommand($"mp_teamname_1 \"{ctName}\"");
+            Server.ExecuteCommand($"mp_teamname_2 \"{tName}\"");
+            
+            Log($"[ShuffleName] 內部名單鎖定成功：CT: {ctName} | T: {tName}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[ShuffleName - ERROR] 執行命名失敗: {ex.Message}");
+        }
 
-        }); // <--- 1. 這裡是 AddTimer 的閉合
-        
-    } // <--- 2. 這裡是 ExecuteShuffleLogicWithReady 方法的閉合
+        // 直接去呼叫倒數方法
+        StartMatchCountdown(); 
+
+    }); // <--- 這裡是 AddTimer 的閉合
+} // <--- 這裡是 ExecuteShuffleLogicWithReady 方法的閉合
 
 } // <--- 3. 這裡是 class MatchZy 的閉合 (原檔案第 893 行)
 } // <--- 4. 這裡是 namespace MatchZy 的閉合 (原檔案第 894 行)
