@@ -853,13 +853,17 @@ AddTimer(0.2f, () => {
         {
             if (player == null || !player.IsValid || player.IsBot) continue;
 
-            if (player.TeamNum == 3 && ctName == "隨機防守方") 
-                ctName = RemoveSpecialCharacters(player.PlayerName) + " 的隊伍";
-            else if (player.TeamNum == 2 && tName == "隨機進攻方") 
-                tName = RemoveSpecialCharacters(player.PlayerName) + " 的隊伍";
-
-            if (ctName != "隨機防守方" && tName != "隨機進攻方") break;
-        }
+           // 修改這裡的拼接格式
+if (player.TeamNum == 3 && ctName == "隨機防守方") 
+{
+    // 改為 team_ 格式
+    ctName = $"team_{RemoveSpecialCharacters(player.PlayerName)}"; 
+}
+else if (player.TeamNum == 2 && tName == "隨機進攻方") 
+{
+    // 改為 team_ 格式
+    tName = $"team_{RemoveSpecialCharacters(player.PlayerName)}";
+}
 
         // 2. 安全更新字典：若 Key 不存在則直接新增，這能防止 KeyNotFoundException
         if (reverseTeamSides != null) 
