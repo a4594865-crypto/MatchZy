@@ -261,61 +261,71 @@ private void StartKnifeRound()
         unreadyPlayerMessageTimer = null;
     }
 
-    // 2. 【核心隔離：在狀態變更前洗牌】
+    // 🎯 核心大分流：直接用 isShufflePending 把兩種開賽情況徹底拆成獨立區塊！
     if (isShufflePending) 
     {
+        // 🟢 【管道 A：隨機分隊局專用】
+        
+        // 先執行洗牌換隊
         ExecuteShuffleLogic(); 
+
+        // ⏱️ 加上 0.2 秒極短暫的物理延遲，讓 CS2 引擎先把換隊的網絡封包和玩家實體對齊！
+        AddTimer(0.2f, () => {
+            matchStarted = true;
+            isKnifeRound = true;
+            readyAvailable = false;
+            isWarmup = false;
+
+            // 執行標準的 knife.cfg (你已經把裡面的 mp_restartgame 刪除了)
+            if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
+            {
+                Log($"[StartKnifeRound] [隨機分隊] 執行設定檔: {knifeCfgPath}");
+                Server.ExecuteCommand($"exec {knifeCfgPath}");
+            }
+
+            // 🛑 【核心修正】：為了防止 7 秒重啟與 10 秒凍結時間打架，
+            // 我們在這裡先把 mp_freezetime 強制設為 0，掐死那個討厭的 10 秒倒數！
+            Server.ExecuteCommand("mp_freezetime 0");
+
+            // 🚀 發動 7 秒大重啟！此時畫面上【只會跑乾淨的 7 秒倒數】，絕對不會有 10 秒亂入！
+            Server.ExecuteCommand("mp_restartgame 7;mp_warmup_end;");
+
+            // ⏱️ 埋下一個 7 秒的定時器，等重啟結束、比賽亮起的精準瞬間，把 10 秒凍結時間還給系統！
+            AddTimer(7.0f, () => {
+                // 7 秒到，伺服器重啟完成，正式進入刀局第 1 秒！
+                // 這時候把 mp_freezetime 還原成 10 秒，畫面就會非常漂亮、有節奏地開始倒數 10 秒凍結！
+                Server.ExecuteCommand("mp_freezetime 10");
+            });
+
+            PrintToAllChat($"{ChatColors.Green}======================");
+            PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 戰隊刀局開始，勝者選邊 {ChatColors.Red}★");
+            PrintToAllChat($"{ChatColors.Green}======================");
+        });
     }
-
-    // 3. 設定比賽階段 (與原邏輯一致)
-    matchStarted = true;
-    isKnifeRound = true;
-    readyAvailable = false;
-    isWarmup = false;
-
-    // 🔥 【核心分流：將設定檔讀取與重啟指令綁定在一起處理】
-    if (isShufflePending)
+    else 
     {
-        // 🟢 【隨機分隊專用通道】
-        // 4. 讀取隨機分隊專用的 knife2.cfg
-        var absolutePath2 = Path.Join(Server.GameDirectory + "/csgo/cfg", knife2CfgPath);
-        if (File.Exists(absolutePath2))
+        // 🔵 【管道 B：正常戰隊局專用】
+        // 因為前面已經老老實實跑完綠色文字的 7 秒開賽倒數了，這裡要絕對絲滑！
+
+        matchStarted = true;
+        isKnifeRound = true;
+        readyAvailable = false;
+        isWarmup = false;
+
+        // 執行標準的 knife.cfg
+        if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
         {
-            Log($"[StartKnifeRound] [隨機分隊] 執行專用設定檔: {knife2CfgPath}");
-            Server.ExecuteCommand($"exec {knife2CfgPath}");
-        }
-        else
-        {
-            Log($"[StartKnifeRound] 找不到 {knife2CfgPath}，自動套用預設 knife.cfg");
+            Log($"[StartKnifeRound] [正常戰隊局] 執行設定檔: {knifeCfgPath}");
             Server.ExecuteCommand($"exec {knifeCfgPath}");
         }
 
-        // 5. 隨機分隊專用重啟：強行改為 7 秒大倒數，給全服玩家 7 秒投胎和刷新名字的時間！
-        Server.ExecuteCommand("mp_restartgame 7;mp_warmup_end;");
-    }
-    else
-    {
-        // 🔵 【正常戰隊局通道】
-        // 4. 讀取標準的 knife.cfg (你已經把裡面的 mp_restartgame 刪除了)
-        var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath);
-        if (File.Exists(absolutePath))
-        {
-            Log($"[StartKnifeRound] [正常戰隊局] 執行標準設定檔: {knifeCfgPath}");
-            Server.ExecuteCommand($"exec {knifeCfgPath}");
-        }
-        else
-        {
-            Log($"[StartKnifeRound] Starting Knife! Knife CFG not found, using default CFG!");
-            Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
-        }
-
-        // 5. 正常戰隊局重啟：因為前面跑完 7 秒倒數了，這裡【絕對不要】再寫 mp_restartgame 1 破壞畫面，直接結束熱身就好！
+        // 🚀 正常局不需要重啟，直接無縫切入刀局凍結時間（老老實實跑 knife.cfg 裡設定的 10 秒凍結）
         Server.ExecuteCommand("mp_warmup_end;");
-    }
 
-    PrintToAllChat($"{ChatColors.Green}======================");
-    PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
-    PrintToAllChat($"{ChatColors.Green}======================");
+        PrintToAllChat($"{ChatColors.Green}======================");
+        PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 戰隊刀局開始，勝者選邊 {ChatColors.Red}★");
+        PrintToAllChat($"{ChatColors.Green}======================");
+    }
 }
         private void SendSideSelectionMessage()
         {
