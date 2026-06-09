@@ -426,11 +426,15 @@ return HookResult.Continue;
             SetTeamNames();
         }
 
-        public void SetTeamNames()
-        {
-            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
-        }
+       public void SetTeamNames()
+{
+    // 使用 AddTimer 延遲 5.0 秒才執行裡面的抓取與命令
+    AddTimer(5.0f, () => {
+        // 5 秒過後，才真正從變數裡抓取當時的隊伍名稱並射出命令
+        Server.ExecuteCommand($"mp_teamname_1 \"{reverseTeamSides["CT"].teamName}\"");
+        Server.ExecuteCommand($"mp_teamname_2 \"{reverseTeamSides["TERRORIST"].teamName}\"");
+    });
+}
 
         public void GetCvarValues(JObject jsonDataObject)
         {
