@@ -196,11 +196,13 @@ namespace MatchZy
     }
 }
 
-   public void PrintUnreadyPlayers()
-    {
-        // 只要在倒數，就攔截所有準備訊息
-        if (isCountdownActive) return; 
+  public void PrintUnreadyPlayers()
+{
+    // 只要在倒數，就攔截所有準備訊息
+    if (isCountdownActive) return; 
 
+    try
+    {
         int readyCount = GetReadyPlayersCount();
 
         if (readyAvailable && !matchStarted && readyCount < minimumReadyRequired)
@@ -211,15 +213,16 @@ namespace MatchZy
         {
             // 找出還沒準備的玩家名單
             var unreadyPlayers = Utilities.GetPlayers()
-                .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                // 🛡️ 護甲 1：除了你原本寫的 IsValid，必須再加上 Handle 檢查，直接在第一步過濾掉斷線的鬼魂！
+                .Where(p => p != null && p.IsValid && p.Handle != IntPtr.Zero) 
+                .Where(p => !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                 .Where(p => {
                     if (p.UserId == null) return false;
 
-                    // 1. 這裡維持你原本的 UID 檢查（對應 playerData 字典）
+                    // 1. 維持你原本精準的 UID 檢查
                     if (!playerData.ContainsKey((int)p.UserId)) return false;
 
-                    // 2. 核心修正：改用玩家的「UID (int)」去 playerReadyStatus 查資料！
-                    // 這樣就能完美搭配你在這三個檔案裡宣告的 private Dictionary<int, bool> playerReadyStatus
+                    // 2. 維持你改對的 UID 查字典邏輯
                     bool isReady = false;
                     if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) {
                         return !isReady;
@@ -227,7 +230,16 @@ namespace MatchZy
                     
                     return true; 
                 })
-                .Select(p => p.PlayerName);
+                .Select(p => {
+                    try {
+                        // 🛡️ 護甲 2：雙重防禦，避免在撈名字的極限瞬間指針死掉
+                        return (p != null && p.IsValid && p.Handle != IntPtr.Zero) ? p.PlayerName : string.Empty;
+                    } catch {
+                        return string.Empty;
+                    }
+                })
+                .Where(name => !string.IsNullOrEmpty(name)) // 過濾掉空字串
+                .ToList(); // 💡 護甲 3：強迫 LINQ 在 try 的保護範圍內「立刻執行」，徹底拆除延遲執行的炸彈！
             
             string unreadyList = string.Join(", ", unreadyPlayers);
 
@@ -241,5 +253,10 @@ namespace MatchZy
             PrintToAllChat(Localizer["matchzy.utility.readyplayers", readyCount]);
         }
     }
+    catch (Exception)
+    {
+        // 🤫 終極消音防線：萬一有極限時間差漏網之魚，直接吞掉錯誤，死死保住伺服器絕對不卡死！
+    }
+}
  } // MatchZy Class 結束
 } // Namespace 結束
