@@ -264,10 +264,19 @@ if (matchStartCountdownTimer != null)
     isCountdownActive = false;
     matchStarted = false;
 
-    // 3. 物理重置我們自訂的字典與洗牌預約
-    playerReadyStatus.Clear(); 
+  // 3. 物理重置我們自訂的字典與洗牌預約
+    try 
+    {
+        // 修正：不要 Clear()，而是手動把大家在字典裡的標籤全部擦掉改成 false
+        foreach (var key in playerReadyStatus.Keys.ToList())
+        {
+            playerReadyStatus[key] = false;
+        }
+    }
+    catch {}
+
     isShufflePending = false; 
-    OnRestartMatchCommand(null, null); 
+    OnRestartMatchCommand(null, null); // 這時它再去叫點名，就能精準抓到這 9 個 false 的活人了！
 
     // 4. 發送您指定的訊息到聊天框
     Server.PrintToChatAll(disconnectMsg); 
