@@ -723,9 +723,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             return count;
         }
 [ConsoleCommand("css_shuffle", "預約隨機分隊")]
-[CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)] // 強制宣告客戶端與伺服器皆可執行
+[CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
 public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
-    // 1. 權限檢查：如果是玩家發出的，檢查管理員權限；如果是伺服器 (player == null)，直接通過
     if (player != null && !IsPlayerAdmin(player)) {
         return;
     }
@@ -735,21 +734,21 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
         return;
     }
 
-    // 【熱身階段檢查】防線
     if (!isWarmup) {
         ReplyToUserCommand(player, $"比 賽 已 開 始，無 法 隨 機 分 隊");
         return;
     }
 
-    isShufflePending = true;
-    
-    // 2. 執行全服廣播
-    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
-    
-    // 3. 確保伺服器後台黑視窗有回饋
-    if (player == null) {
-        Console.WriteLine("[MatchZy] 已 開 啟 隨 機 隊 伍 分 配");
+    // 【加入這一段防護】
+    if (isCountdownActive || matchStartCountdownTimer != null) {
+        ReplyToUserCommand(player, "正 在 倒 數 準 備 開 賽，無 法 開 啟 隨 機 分 隊");
+        return;
     }
+
+    isShufflePending = true;
+    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
+    if (player == null) Console.WriteLine("[MatchZy] 已 開 啟 隨 機 隊 伍 分 配");
+}
 }
 
 [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
@@ -759,12 +758,16 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         return;
     }
 
+    // ➕ 【加入這一段防護】
+    if (isCountdownActive || matchStartCountdownTimer != null) {
+        ReplyToUserCommand(player, "正 在 倒 數 準 備 開 賽，無 法 更 改 設 定");
+        return;
+    }
+
     isShufflePending = false;
     Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
-    
-    if (player == null) {
-        Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
-    }
+    if (player == null) Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
+}
 }
         // =========================================================================
         // 專門照顧 Utility.cs#L267 與其他檔案呼叫的舊名字（不帶參數版）
