@@ -264,19 +264,10 @@ if (matchStartCountdownTimer != null)
     isCountdownActive = false;
     matchStarted = false;
 
-  // 3. 物理重置我們自訂的字典與洗牌預約
-    try 
-    {
-        // 修正：不要 Clear()，而是手動把大家在字典裡的標籤全部擦掉改成 false
-        foreach (var key in playerReadyStatus.Keys.ToList())
-        {
-            playerReadyStatus[key] = false;
-        }
-    }
-    catch {}
-
+    // 3. 物理重置我們自訂的字典與洗牌預約
+    playerReadyStatus.Clear(); 
     isShufflePending = false; 
-    OnRestartMatchCommand(null, null); // 這時它再去叫點名，就能精準抓到這 9 個 false 的活人了！
+    OnRestartMatchCommand(null, null); 
 
     // 4. 發送您指定的訊息到聊天框
     Server.PrintToChatAll(disconnectMsg); 
@@ -785,128 +776,75 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             ExecuteShuffleLogicWithReady(null); 
         }
 
-// =========================================================================
-// 同步動態洗牌分隊 + 官方原生隊名穩定版 (100% 閉包安全、絕不錯位、不報錯版)
-// =========================================================================
-public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
-{
-    int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
-
-    lock (_shuffleLock)
-    {
-        if (!isShufflePending) return;
-
-        List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
-            .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-            .ToList();
-
-        if (activePlayers.Count < 2) 
+        // =========================================================================
+        // 同步動態洗牌分隊 + 官方原生隊名穩定版 (不自訂隊名，絕不崩潰)
+        // =========================================================================
+        public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
         {
-            Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
-            isShufflePending = false; 
-            
-            var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
-            if (originalPlayer != null && originalPlayer.IsValid) OnPlayerReady(originalPlayer, null);
-            return;
-        }
+            int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
-        // 1. 物理換隊：Fisher-Yates 洗牌演算法
-        Random rng = new();
-        int n = activePlayers.Count;
-        while (n > 1) 
-        {
-            n--;
-            int k = rng.Next(n + 1);
-            (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
-        }
-
-        int half = activePlayers.Count / 2;
-        for (int i = 0; i < activePlayers.Count; i++) 
-        {
-            var player = activePlayers[i];
-            if (player == null || !player.IsValid) continue;
-
-            CsTeam targetTeam = (i < half) ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
-
-            if (player.TeamNum != (byte)targetTeam)
+            lock (_shuffleLock)
             {
-                player.ChangeTeam(targetTeam); 
-            }
-        }
-    } // <--- 2. lock 在這裡就完整結束，接下來進入非同步世界
+                if (!isShufflePending) return;
 
-    // 3. 延遲 0.5 秒
-    AddTimer(0.5f, () => {
-        if (matchStarted || playerReadyStatus.Count == 0) return;
-        
-        Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-        Log("[Shuffle] 洗牌同步完成");
-        UpdatePlayersMap(); 
+                List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
+                    .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    .ToList();
 
-        try 
-        {
-            // 🚀 【關鍵核心】：變數全部宣告在 AddTimer 內部！不引用外部任何東西，黑視窗絕對不報錯
-            string ctName = "team_A";
-            string tName = "team_B";
-
-            // 直接抓取伺服器當前所有活著的真人玩家
-            List<CCSPlayerController> livePlayers = Utilities.GetPlayers()
-                .Where(p => p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                .ToList();
-
-            if (livePlayers.Count > 0)
-            {
-                // 我們完全不看 player.TeamNum 是多少！
-                // 而是直接在內部，用跟上面一模一樣的「對半拆名單」邏輯：前排第一個就是 CT 隊長
-                var ctLeader = livePlayers.FirstOrDefault();
-                if (ctLeader != null)
+                if (activePlayers.Count < 2) 
                 {
-                    string cleanCt = RemoveSpecialCharacters(ctLeader.PlayerName);
-                    ctName = string.IsNullOrWhiteSpace(cleanCt) ? "team_A" : $"team_{cleanCt}";
+                    Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
+                    isShufflePending = false; 
+                    
+                    var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
+                    if (originalPlayer != null && originalPlayer.IsValid) OnPlayerReady(originalPlayer, null);
+                    return;
                 }
 
-                // 後排第一個就是 T 隊長
-                if (livePlayers.Count > 1)
+                // Fisher-Yates 洗牌演算法
+                Random rng = new();
+                int n = activePlayers.Count;
+                while (n > 1) 
                 {
-                    var tLeader = livePlayers.Skip(livePlayers.Count / 2).FirstOrDefault();
-                    if (tLeader != null)
+                    n--;
+                    int k = rng.Next(n + 1);
+                    (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
+                }
+
+              // 【型態安全修正】：設定 CsTeam 列舉 + CommitSuicide() 自殺換隊機制
+                int half = activePlayers.Count / 2;
+                for (int i = 0; i < activePlayers.Count; i++) 
+                {
+                    var player = activePlayers[i];
+                    if (player == null || !player.IsValid) continue;
+
+                    // 1. 直接宣告為標準的 CsTeam 列舉型態，絕不使用 int 混淆
+                    CsTeam targetTeam = (i < half) ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+
+                    // 2. 判斷目前的隊伍是否與目標隊伍不符 (注意：比對時將 targetTeam 轉成 int 比對 TeamNum)
+                    if (player.TeamNum != (byte)targetTeam)
                     {
-                        string cleanT = RemoveSpecialCharacters(tLeader.PlayerName);
-                        tName = string.IsNullOrWhiteSpace(cleanT) ? "team_B" : $"team_{cleanT}";
+                        // 3. 呼叫官方正統的換隊方法，傳入標準 CsTeam 列舉（解決 L826 編譯錯誤）
+                        player.ChangeTeam(targetTeam); 
                     }
                 }
-            }
 
-            // 4. 安全更新 MatchZy 內部字典
-            if (reverseTeamSides != null) 
-            {
-                if (!reverseTeamSides.ContainsKey("CT")) 
-                    reverseTeamSides["CT"] = new Team() { teamName = ctName };
-                else 
-                    reverseTeamSides["CT"].teamName = ctName;
 
-                if (!reverseTeamSides.ContainsKey("TERRORIST")) 
-                    reverseTeamSides["TERRORIST"] = new Team() { teamName = tName };
-                else 
-                    reverseTeamSides["TERRORIST"].teamName = tName;
-            }
+                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
+                AddTimer(1.0f, () => {
+                    // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
+                    if (matchStarted || playerReadyStatus.Count == 0) return;
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+                    Log("[Shuffle] 洗牌同步完成");
+                    // 在執行完所有的 ChangeTeam 指令之後
+                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
+                    
+                    // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
+                    // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
+                    StartMatchCountdown(); 
+                });
+            } //  結束 lock (_shuffleLock)
+        } //  結束 ExecuteShuffleLogicWithReady 方法
 
-            // 5. 直接鐵腕執行控制台指令修改原生 UI
-            Server.ExecuteCommand($"mp_teamname_1 \"{ctName}\"");
-            Server.ExecuteCommand($"mp_teamname_2 \"{tName}\"");
-            
-            Log($"[ShuffleName] 內部名單鎖定成功：CT: {ctName} | T: {tName}");
-        }
-        catch (Exception ex)
-        {
-            Log($"[ShuffleName - ERROR] 執行命名失敗: {ex.Message}");
-        }
-
-        // 直接去呼叫倒數方法
-        StartMatchCountdown(); 
-
-    }); // <--- 這裡是 AddTimer 的閉合
-} // <--- 這裡是 ExecuteShuffleLogicWithReady 方法的閉合
-
-} // <--- 3. 這裡是 class MatchZy 的閉合 (原檔案第 893 行)
-} // <--- 4. 這裡是 namespace MatchZy 的閉合 (原檔案第 894 行)
+    } // 結束 class MatchZy
+} //  結束 namespace MatchZy
