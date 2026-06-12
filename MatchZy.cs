@@ -246,49 +246,55 @@ namespace MatchZy
                 return EventPlayerConnectFullHandler(@event, info);
             });
             
-            // 1. 斷線事件處理：整合「倒數中止」與「刀場斷線自動移除名單」
+           // 1. 斷線事件處理：整合「倒數中止」與「刀場斷線自動移除名單」
             RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
                 var player = @event.Userid;
-                if (player == null) return HookResult.Continue;
+                
+                // 🛡️ 護甲 1：排除空指標、無效實體與機器人 (Bot 離開不影響比賽，直接跳出)
+                if (player == null || !player.IsValid || player.IsBot) return HookResult.Continue;
+                
                 int userId = (int)(player.UserId ?? -1);
+                byte teamNum = player.TeamNum; 
 
-// --- A. 倒數期間斷線：中止倒數 ---
-if (matchStartCountdownTimer != null)
-{
-    // 1. 定義您指定的專屬廣播訊息
-    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{player.PlayerName} {ChatColors.White}斷 開 連 線 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+                // --- A. 倒數期間斷線：中止倒數 ---
+                // 🛡️ 護甲 2：只有 CT(3) 或 T(2) 的「正式玩家」斷線，才需要中止倒數！觀戰者離開不干擾開賽。
+                if (matchStartCountdownTimer != null && (teamNum == 2 || teamNum == 3))
+                {
+                    // 安全獲取名字
+                    string playerName = string.IsNullOrEmpty(player.PlayerName) ? "未知玩家" : player.PlayerName;
+                    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{playerName} {ChatColors.White}斷 開 連 線 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
-    // 2. 立即停止計時器並關閉所有外掛倒數狀態
-    matchStartCountdownTimer.Kill();
-    matchStartCountdownTimer = null;
-    isCountdownActive = false;
-    matchStarted = false;
+                    // 立即停止計時器並關閉所有外掛倒數狀態
+                    matchStartCountdownTimer.Kill();
+                    matchStartCountdownTimer = null;
+                    isCountdownActive = false;
+                    matchStarted = false;
 
-    // 3. 物理重置我們自訂的字典與洗牌預約
-    playerReadyStatus.Clear(); 
-    isShufflePending = false; 
-    OnRestartMatchCommand(null, null); 
+                    // 物理重置我們自訂的字典與洗牌預約
+                    playerReadyStatus.Clear(); 
+                    isShufflePending = false; 
+                    OnRestartMatchCommand(null, null); 
 
-    // 4. 發送您指定的訊息到聊天框
-    Server.PrintToChatAll(disconnectMsg); 
-}
-// --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
-if (!isWarmup && !matchStarted && !isPractice)
-{
-    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
-    {
-        // 僅進行數值移除，不發送任何訊息或 Log
-        playerReadyStatus.Remove(userId);
-    }
+                    // 發送訊息到聊天框
+                    Server.PrintToChatAll(disconnectMsg); 
+                }
 
-    // 更新地圖玩家緩存，確保剩下的玩家指令（如 .stay / .switch）能被正確計算
-    UpdatePlayersMap();
-}
+                // --- B. 關鍵補強：刀場/選邊期間斷線，靜默移除名單以防止邏輯鎖死 ---
+                if (!isWarmup && !matchStarted && !isPractice)
+                {
+                    if (userId != -1 && playerReadyStatus.ContainsKey(userId)) 
+                    {
+                        // 僅進行數值移除，不發送任何訊息或 Log
+                        playerReadyStatus.Remove(userId);
+                    }
+
+                    // 更新地圖玩家緩存，確保剩下的玩家指令（如 .stay / .switch）能被正確計算
+                    UpdatePlayersMap();
+                }
 
                 // 呼叫原本可能定義在其他檔案的處理程序
                 return EventPlayerDisconnectHandler(@event, info);
             });
-
             RegisterEventHandler<EventCsWinPanelRound>(EventCsWinPanelRoundHandler, hookMode: HookMode.Pre);
             RegisterEventHandler<EventCsWinPanelMatch>(EventCsWinPanelMatchHandler);
             RegisterEventHandler<EventRoundStart>(EventRoundStartHandler);
