@@ -821,12 +821,14 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     // 1. 直接宣告為標準的 CsTeam 列舉型態，絕不使用 int 混淆
                     CsTeam targetTeam = (i < half) ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
 
+
                     // 2. 判斷目前的隊伍是否與目標隊伍不符 (注意：比對時將 targetTeam 轉成 int 比對 TeamNum)
-                    if (player.TeamNum != (byte)targetTeam)
-                    {
-                        // 3. 呼叫官方正統的換隊方法，傳入標準 CsTeam 列舉（解決 L826 編譯錯誤）
-                        player.ChangeTeam(targetTeam); 
-                    }
+if (player.TeamNum != (byte)targetTeam)
+{
+    // 3. 【核心修正】改用 MatchZy 內建的 SwitchPlayerTeam
+    // 強制在下一個伺服器影格瞬間刷新玩家陣營，徹底消滅 1 秒後的抓名時間差
+    SwitchPlayerTeam(player, targetTeam); 
+}
                 }
 
 
