@@ -749,7 +749,6 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
     if (player == null) Console.WriteLine("[MatchZy] 已 開 啟 隨 機 隊 伍 分 配");
 }
-}
 
 [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
 [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
@@ -767,7 +766,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     isShufflePending = false;
     Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
     if (player == null) Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
-}
 }
         // =========================================================================
         // 專門照顧 Utility.cs#L267 與其他檔案呼叫的舊名字（不帶參數版）
