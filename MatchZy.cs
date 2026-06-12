@@ -496,12 +496,11 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     if (message == ".r" || message == ".ready") {
         if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
             
-            if (isShufflePending) 
+           if (isShufflePending) 
             {
                 // 【隨機分隊專用道】
-                ExecuteShuffleLogic();     // 執行洗牌，裡面 0.2 秒後直接秒開賽
-                UpdatePlayersMap();        // 強制更新玩家隊伍緩存
-                return HookResult.Handled; //  徹底吃掉事件，100% 封鎖 7 秒倒數
+                ExecuteShuffleLogic();     // 執行洗牌，1秒後內部會自動更新快取與開賽
+                return HookResult.Handled; // 徹底吃掉事件，交給洗牌邏輯接管後續
             }
             else
             {
