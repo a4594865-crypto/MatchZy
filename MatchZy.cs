@@ -496,8 +496,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // 在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
     int currentEventUserId = @event.Userid; 
 
-   // =========================================================================
-    // 真正完美的分流（有洗牌直接超車秒開，沒洗牌老實走官方倒數）
+  // =========================================================================
+    // 真正完美的分流（有洗牌直接超車攔截，沒洗牌直接放行給官方）
     // =========================================================================
     if (message == ".r" || message == ".ready") {
         if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
@@ -508,19 +508,10 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 ExecuteShuffleLogic();     // 執行洗牌，1秒後內部會自動更新快取與開賽
                 return HookResult.Handled; // 徹底吃掉事件，交給洗牌邏輯接管後續
             }
-            else
-            {
-                // 【正規戰隊局專用道】
-                // 只有在「沒開洗牌」時，才把點火丟給下一幀，讓官方老老實實跑 7 秒倒數
-                Server.NextFrame(() => {
-                    var triggerPlayer = Utilities.GetPlayerFromUserid(NativeAPI.GetUseridFromIndex(currentEventUserId + 1));
-                    if (triggerPlayer != null && triggerPlayer.IsValid)
-                    {
-                        OnPlayerReady(triggerPlayer, null); 
-                    }
-                });
-                return HookResult.Handled; 
-            }
+            
+            // 【修改重點】：這裡原本的 else 區塊已經被徹底刪除！
+            // 如果沒開洗牌，系統什麼都不會攔截，直接「穿透」這個判斷，
+            // 讓它自然往下走，完美觸發底層原生的 UpdatePlayersMap() 防護！
         }
     }
     // 2. 如果倒數已經在跑，擋掉所有一般發話（維持你原本完美的發話管理）
