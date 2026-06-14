@@ -154,6 +154,10 @@ namespace MatchZy
                 }
 
                 if (matchStarted) return;
+                
+                // 🎯 【把這行終極核彈防護補上去！】：強制在開賽前 0 毫秒重新點名
+                UpdatePlayersMap(); 
+                
                 HandleMatchStart(); // 安全在 0 秒點火開賽
             }
         });
