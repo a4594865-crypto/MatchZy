@@ -496,10 +496,16 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // 在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
     int currentEventUserId = @event.Userid; 
 
-  // =========================================================================
+ // =========================================================================
     // 真正完美的分流（有洗牌直接超車攔截，沒洗牌直接放行給官方）
     // =========================================================================
     if (message == ".r" || message == ".ready") {
+        
+        // 🛑 【新增防線】：如果已經在倒數了，絕對禁止再觸發任何準備或洗牌邏輯！直接吃掉指令！
+        if (isCountdownActive) {
+            return HookResult.Handled;
+        }
+
         if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
             
            if (isShufflePending) 
@@ -509,7 +515,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 return HookResult.Handled; // 徹底吃掉事件，交給洗牌邏輯接管後續
             }
             
-            // 【修改重點】：這裡原本的 else 區塊已經被徹底刪除！
             // 如果沒開洗牌，系統什麼都不會攔截，直接「穿透」這個判斷，
             // 讓它自然往下走，完美觸發底層原生的 UpdatePlayersMap() 防護！
         }
