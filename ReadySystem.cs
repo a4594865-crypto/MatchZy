@@ -250,7 +250,7 @@ namespace MatchZy
         public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
         {
             // 🛡️ 終極防線：最後一人離開後，硬生生等 3 秒
-            AddTimer(3.0f, () => {
+            AddTimer(10.0f, () => {
                 int realPlayerCount = 0;
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -265,9 +265,9 @@ namespace MatchZy
                 {
                     if (isMatchLive || isKnifeRequired)
                     {
-                        Server.PrintToConsole("[MatchZy] 檢測到所有玩家中離，10 秒後執行 .restart。");
+                        Server.PrintToConsole("[MatchZy] 檢測到所有玩家中離，60 秒後執行 .restart。");
                         
-                        AddTimer(10.0f, () => {
+                        AddTimer(60.0f, () => {
                             Server.ExecuteCommand("css_restart"); 
                         });
                     }
