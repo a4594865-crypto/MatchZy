@@ -265,7 +265,7 @@ namespace MatchZy
                 {
                     if (isMatchLive || isKnifeRequired)
                     {
-                        Server.PrintToConsole("[MatchZy] 檢測到所有玩家中離，60 秒後執行 .restart。");
+                        Server.PrintToConsole("[MatchZy] 檢測到比賽中所有玩家中離，60 秒後執行 .restart。");
                         
                         AddTimer(60.0f, () => {
                             Server.ExecuteCommand("css_restart"); 
