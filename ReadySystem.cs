@@ -243,12 +243,14 @@ namespace MatchZy
         }
 
         // ==========================================
-        // 新增功能：玩家全退時，10秒後自動 .restart 重置比賽
+        // 🚀 新增功能：玩家全退時自動重置 (帶有 3 秒防護與 JSON 保護)
         // ==========================================
         [GameEventHandler]
-        public HookResult EventPlayerDisconnectHandler(EventPlayerDisconnect @event, GameEventInfo info)
+        // 🎯 這裡把函數名字改掉，避免跟 MatchZy 原本的代碼衝突！
+        public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
         {
-            Server.NextFrame(() => {
+            // 🛡️ 終極防線：最後一人離開後，硬生生等 3 秒
+            AddTimer(3.0f, () => {
                 int realPlayerCount = 0;
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -258,15 +260,14 @@ namespace MatchZy
                     }
                 }
 
-                // 伺服器清空確認
-                if (realPlayerCount == 0 && !isWarmup)
+                // 🎯 加入 !isMatchSetup：只要是 JSON 載入的正式比賽，腳本絕對不介入干擾
+                if (realPlayerCount == 0 && !isWarmup && !isMatchSetup)
                 {
-                    // 只有在比賽進行中 (Live 或 刀局) 發生全員中離才介入
                     if (isMatchLive || isKnifeRequired)
                     {
-                        Server.PrintToConsole("[MatchZy] 檢測到所有玩家中離，60 秒後執行 .restart。");
+                        Server.PrintToConsole("[MatchZy] 檢測到所有玩家中離，10 秒後執行 .restart。");
                         
-                        AddTimer(60.0f, () => {
+                        AddTimer(10.0f, () => {
                             Server.ExecuteCommand("css_restart"); 
                         });
                     }
