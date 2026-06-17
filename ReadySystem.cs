@@ -243,13 +243,12 @@ namespace MatchZy
         }
 
       // ==========================================
-        //  新增功能：玩家全退時自動重置 (帶有 3 秒防護與 JSON 保護)
+        // 新增功能：玩家少於 2 人時自動重置 (帶有 3 秒防護與 JSON 保護)
         // ==========================================
         [GameEventHandler]
-        //  這裡把函數名字改掉，避免跟 MatchZy 原本的代碼衝突！
         public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
         {
-            //  終極防線：最後一人離開後，硬生生等 3 秒
+            // 終極防線：有人離開後，硬生生等 3 秒
             AddTimer(3.0f, () => {
                 int realPlayerCount = 0;
                 foreach (var p in Utilities.GetPlayers())
@@ -260,8 +259,8 @@ namespace MatchZy
                     }
                 }
 
-                // 加入 !isMatchSetup：只要是 JSON 載入的正式比賽，腳本絕對不介入干擾
-                if (realPlayerCount == 0 && !isWarmup && !isMatchSetup)
+                // 核心修改：人數小於 2 人 (也就是 0 或 1)，且不是暖身、不是 JSON 賽事
+                if (realPlayerCount < 2 && !isWarmup && !isMatchSetup)
                 {
                     if (isMatchLive || isKnifeRequired)
                     {
