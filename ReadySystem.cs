@@ -242,8 +242,8 @@ namespace MatchZy
             }
         }
 
-      // ==========================================
-        // 新增功能：玩家少於 2 人時自動重置 (帶有 3 秒防護與 JSON 保護)
+        // ==========================================
+        //新增功能：玩家少於 2 人時自動重置 (涵蓋 LIVE、刀局與選邊卡死階段)
         // ==========================================
         [GameEventHandler]
         public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
@@ -259,10 +259,17 @@ namespace MatchZy
                     }
                 }
 
-                // 核心修改：人數小於 2 人 (也就是 0 或 1)，且不是暖身、不是 JSON 賽事
-                if (realPlayerCount < 2 && !isWarmup && !isMatchSetup)
+                // 核心修改：人數小於 2 人，且不是 JSON 賽事
+                if (realPlayerCount < 2 && !isMatchSetup)
                 {
-                    if (isMatchLive || isKnifeRequired)
+                    // 情況 1：正常比賽或刀局打到一半跳 Game (需排除常規暖身)
+                    bool isGhostMatch = (!isWarmup && (isMatchLive || isKnifeRequired));
+                    
+                    // 情況 2：刀局剛打完，正在等待 .stay / .switch 選邊 (這時候可能處於暖身狀態，所以獨立判斷)
+                    bool isStuckInSideSelection = isSideSelectionPhase;
+
+                    // 只要符合上述任何一種「死局」情況
+                    if (isGhostMatch || isStuckInSideSelection)
                     {
                         // 伺服器會在 120 秒後「默默」發射重啟指令
                         AddTimer(120.0f, () => {
