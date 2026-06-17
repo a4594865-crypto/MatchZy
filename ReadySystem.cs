@@ -264,9 +264,9 @@ namespace MatchZy
                     // 只有在比賽進行中 (Live 或 刀局) 發生全員中離才介入
                     if (isMatchLive || isKnifeRequired)
                     {
-                        Server.PrintToConsole("[MatchZy] 檢測到所有玩家中離，30 秒後執行 .restart。");
+                        Server.PrintToConsole("[MatchZy] 檢測到所有玩家中離，60 秒後執行 .restart。");
                         
-                        AddTimer(30.0f, () => {
+                        AddTimer(60.0f, () => {
                             Server.ExecuteCommand("css_restart"); 
                         });
                     }
