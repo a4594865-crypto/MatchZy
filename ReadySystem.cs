@@ -250,7 +250,7 @@ namespace MatchZy
         public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
         {
             // 🛡️ 終極防線：最後一人離開後，硬生生等 3 秒
-            AddTimer(10.0f, () => {
+            AddTimer(3.0f, () => {
                 int realPlayerCount = 0;
                 foreach (var p in Utilities.GetPlayers())
                 {
