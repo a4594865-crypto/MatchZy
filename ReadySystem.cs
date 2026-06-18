@@ -243,37 +243,43 @@ namespace MatchZy
         }
 
         // ==========================================
-        //新增功能：玩家少於 2 人時自動重置 (涵蓋 LIVE、刀局與選邊卡死階段)
+        //  新增功能：玩家少於 2 人時自動重置 (涵蓋 LIVE、刀局與選邊卡死階段，具備防延遲二次確認)
         // ==========================================
         [GameEventHandler]
         public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
         {
-            // 終極防線：有人離開後，硬生生等 3 秒
+            // 防線一：有人離開後，硬生生等 3 秒
             AddTimer(3.0f, () => {
-                int realPlayerCount = 0;
+                int initialPlayerCount = 0;
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p != null && p.IsValid && !p.IsBot)
-                    {
-                        realPlayerCount++;
-                    }
+                    if (p != null && p.IsValid && !p.IsBot) initialPlayerCount++;
                 }
 
-                // 核心修改：人數小於 2 人，且不是 JSON 賽事
-                if (realPlayerCount < 2 && !isMatchSetup)
+                // 核心判斷：人數小於 2 人，且不是 JSON 正式賽事
+                if (initialPlayerCount < 2 && !isMatchSetup)
                 {
-                    // 情況 1：正常比賽或刀局打到一半跳 Game (需排除常規暖身)
                     bool isGhostMatch = (!isWarmup && (isMatchLive || isKnifeRequired));
-                    
-                    // 情況 2：刀局剛打完，正在等待 .stay / .switch 選邊 (這時候可能處於暖身狀態，所以獨立判斷)
                     bool isStuckInSideSelection = isSideSelectionPhase;
 
-                    // 只要符合上述任何一種「死局」情況
+                    // 如果確定是死局
                     if (isGhostMatch || isStuckInSideSelection)
                     {
-                        // 伺服器會在 120 秒後「默默」發射重啟指令
+                        // 啟動 120 秒的重置倒數
                         AddTimer(120.0f, () => {
-                            Server.ExecuteCommand("css_restart"); 
+                            
+                            //  防延遲核心：120 秒到了！執行重置前「再點名一次」！
+                            int finalPlayerCount = 0;
+                            foreach (var p in Utilities.GetPlayers())
+                            {
+                                if (p != null && p.IsValid && !p.IsBot) finalPlayerCount++;
+                            }
+
+                            // 只有 120 秒後「依然少於 2 人」，而且依然不是暖身狀態，才痛下殺手！
+                            if (finalPlayerCount < 2 && !isWarmup)
+                            {
+                                Server.ExecuteCommand("css_restart"); 
+                            }
                         });
                     }
                 }
