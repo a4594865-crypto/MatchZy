@@ -496,29 +496,53 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // 在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
     int currentEventUserId = @event.Userid; 
 
- // =========================================================================
-    // 真正完美的分流（有洗牌直接超車攔截，沒洗牌直接放行給官方）
+    // =========================================================================
+    // 終極修復版分流：防盲目觸發、精準驗證第 10 票、手動寫入紀錄
     // =========================================================================
     if (message == ".r" || message == ".ready") {
         
-        // 🛑 【新增防線】：如果已經在倒數了，絕對禁止再觸發任何準備或洗牌邏輯！直接吃掉指令！
+        // 1. 如果已經在倒數了，絕對禁止再觸發任何準備或洗牌邏輯！直接吃掉指令！
         if (isCountdownActive) {
             return HookResult.Handled;
         }
 
-        if (!matchStarted && readyAvailable && GetReadyPlayersCount() >= (minimumReadyRequired - 1)) {
+        if (!matchStarted && readyAvailable) {
             
-           if (isShufflePending) 
-            {
-                // 【隨機分隊專用道】
-                ExecuteShuffleLogic();     // 執行洗牌，1秒後內部會自動更新快取與開賽
-                return HookResult.Handled; // 徹底吃掉事件，交給洗牌邏輯接管後續
+            // 取出發言的玩家
+            var chatPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
+            if (chatPlayer != null && chatPlayer.IsValid) {
+                
+                int uid = (int)(chatPlayer.UserId ?? -1);
+
+                // 2. 身分驗證：檢查他是不是「已經準備過」了？
+                bool isAlreadyReady = playerReadyStatus.ContainsKey(uid) && playerReadyStatus[uid] == true;
+
+                // 3. 只有「還沒準備的玩家」投下的票才算數！(防亂刷 .r)
+                if (!isAlreadyReady) {
+                    
+                    int currentReadyCount = GetReadyPlayersCount();
+
+                    // 4. 檢查：加上他這神聖的一票後，是不是剛好滿門檻？
+                    if ((currentReadyCount + 1) >= minimumReadyRequired) {
+                        
+                        if (isShufflePending) {
+                            // 決定性的最後一票！
+                            
+                            // 5. 手動幫他把紀錄寫進去！
+                            playerReadyStatus[uid] = true;
+
+                            // 啟動洗牌與秒開
+                            ExecuteShuffleLogic();     
+                            
+                            // 吃掉指令，不讓它往下走去干擾原生系統
+                            return HookResult.Handled; 
+                        }
+                    }
+                }
             }
-            
-            // 如果沒開洗牌，系統什麼都不會攔截，直接「穿透」這個判斷，
-            // 讓它自然往下走，完美觸發底層原生的 UpdatePlayersMap() 防護！
         }
     }
+
     // 2. 如果倒數已經在跑，擋掉所有一般發話（維持你原本完美的發話管理）
     if (isCountdownActive && !originalMessage.Contains("倒數：")) {
         return HookResult.Handled;
