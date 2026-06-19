@@ -242,43 +242,58 @@ namespace MatchZy
             }
         }
 
-        // ==========================================
-        //  新增功能：玩家少於 2 人時自動重置 (涵蓋 LIVE、刀局與選邊卡死階段，具備防延遲二次確認)
-        // ==========================================
+        // =========================================================================
+        // 🚀 終極修正版：伺服器完全 0 人時自動重置 (完美相容賽後結算面板)
+        // =========================================================================
         [GameEventHandler]
         public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
         {
-            // 防線一：有人離開後，硬生生等 3 秒
+            // 🛡️ 防線一：等 3 秒讓伺服器同步人數
             AddTimer(3.0f, () => {
+                
+                // 1. 全域鎖防護：擋掉重複計時器
+                if (isAutoResetTimerActive) return;
+
                 int initialPlayerCount = 0;
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p != null && p.IsValid && !p.IsBot) initialPlayerCount++;
                 }
 
-                // 核心判斷：人數小於 2 人，且不是 JSON 正式賽事
-                if (initialPlayerCount < 2 && !isMatchSetup)
+                // 2. 如果場上完全沒人 (0人)
+                if (initialPlayerCount == 0)
                 {
+                    // 【核心修正】：讀取 MatchZy 的底層階段，如果在「結算計分板 (PostGame)」，直接放行不處置！
+                    // 這代表比賽已經打完在等換圖了，這時候大家退服是正常的！
+                    if (IsPostGamePhase()) return; 
+
+                    // 如果是 JSON 賽事，也不自動處置
+                    if (isMatchSetup || mapReloadRequired) return;
+
+                    // 3. 死局狀態判定 (此時排除掉結算畫面了，代表是真的打到一半出事)
                     bool isGhostMatch = (!isWarmup && (isMatchLive || isKnifeRequired));
                     bool isStuckInSideSelection = isSideSelectionPhase;
 
-                    // 如果確定是死局
                     if (isGhostMatch || isStuckInSideSelection)
                     {
-                        // 啟動 120 秒的重置倒數
+                        // 點燃重置引信，鎖上全域鎖
+                        isAutoResetTimerActive = true; 
+
                         AddTimer(120.0f, () => {
                             
-                            //  防延遲核心：120 秒到了！執行重置前「再點名一次」！
+                            isAutoResetTimerActive = false;
+
                             int finalPlayerCount = 0;
                             foreach (var p in Utilities.GetPlayers())
                             {
                                 if (p != null && p.IsValid && !p.IsBot) finalPlayerCount++;
                             }
 
-                            // 只有 120 秒後「依然少於 2 人」，而且依然不是暖身狀態，才痛下殺手！
-                            if (finalPlayerCount < 2 && !isWarmup)
+                            // 最後覆核：120 秒後依然 0 人，且依然不是熱身，且不是在結算畫面，才真的重開！
+                            if (finalPlayerCount == 0 && !isWarmup && !IsPostGamePhase())
                             {
                                 Server.ExecuteCommand("css_restart"); 
+                                Log("[AutoReset] 偵測到比賽中途全體退服（0人），已自動重開比賽。");
                             }
                         });
                     }
