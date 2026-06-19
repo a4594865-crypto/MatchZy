@@ -37,6 +37,7 @@ namespace MatchZy
         public bool isWarmup = false;
         public bool isCountdownActive = false; // 加入這一行，宣告全域開關
         public bool isShufflePending = false; // 預約隨機分隊標記
+        public bool isAutoResetTimerActive = false;
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
         public bool isMatchLive = false;
