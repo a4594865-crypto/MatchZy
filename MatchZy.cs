@@ -322,9 +322,16 @@ AddCommandListener("jointeam", (player, info) =>
         return HookResult.Stop; 
     }
 
+    // 刀局結束後的「等待選邊期間」，絕對禁止換隊與觀戰！
+    if (isSideSelectionPhase)
+    {
+        player.PrintToChat($"{chatPrefix} 選 邊 期 間，禁 止 切 換 隊 伍 或 觀 戰");
+        return HookResult.Stop;
+    }
+
    // 刀局與正賽管制期間 // --- 以下為非倒數期間的正常比賽邏輯 ---
     
-    // 1. 如果是熱身階段（且沒在倒數），允許自由換隊、自由去觀戰
+    // 1. 如果是熱身階段（且沒在倒數，也不是在選邊），允許自由換隊、自由去觀戰
     if (isWarmup) return HookResult.Continue;
 
     // 2. 比賽正式開始後（包含刀局與正賽）
@@ -372,9 +379,10 @@ AddCommandListener("jointeam", (player, info) =>
             // 徹底禁用 ESC 投票系統
             AddCommandListener("callvote", (player, info) =>
             {
-                if (player != null && isMatchSetup) 
+                // 如果是正式賽程，或者「正在選邊階段」，全面禁用原生投票
+                if (player != null && (isMatchSetup || isSideSelectionPhase)) 
                 {
-                    player.PrintToChat($"{chatPrefix} 正 式 比 賽 期 間，內 建 投 票 功 能 已 被 禁 用");
+                    player.PrintToChat($"{chatPrefix} 正 式 比 賽 或 選 邊 期 間，內 建 投 票 功 能 已 被 禁 用");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
