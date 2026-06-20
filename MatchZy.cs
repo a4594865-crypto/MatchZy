@@ -501,13 +501,27 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
     var originalMessage = @event.Text.Trim();
     var message = originalMessage.ToLower();
-
-    // 在當前幀立刻算出 UID 並保存，絕對不能在 NextFrame 內讀取 @event
     int currentEventUserId = @event.Userid; 
 
     // =========================================================================
-    // 分流：防盲目觸發、精準驗證第 10 票、手動寫入紀錄
-    // =========================================================================
+    // 【跨外掛防禦網】：針對 SLAYER_PanoramaVote 的 RTV 與 Vote 指令攔截
+    //  =========================================================================
+    if (message == ".rtv" || message == "rtv" || message.StartsWith(".vote")) {
+        
+        // 倒數中「或者卡在選邊時」，絕對禁止呼叫投票面板！
+        if (isCountdownActive || isSideSelectionPhase) {
+            
+            var chatPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
+            if (chatPlayer != null && chatPlayer.IsValid) {
+                // 給玩家一個明確的警告，讓他知道為什麼不能投
+                chatPlayer.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
+            }
+            // 回傳 Handled 直接把這句話吃掉，讓你的投票外掛根本收不到這個指令！
+            return HookResult.Handled; 
+        }
+    }
+    // 👆 跨外掛防禦網結束 👆
+
    // =========================================================================
     // 分流：防盲目觸發、精準驗證第 10 票、手動寫入紀錄
     // =========================================================================
