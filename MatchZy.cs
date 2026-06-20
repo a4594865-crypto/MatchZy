@@ -773,8 +773,15 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     }
 
     isShufflePending = true;
-    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
-    if (player == null) Console.WriteLine("[MatchZy] 已 開 啟 隨 機 隊 伍 分 配");
+    
+    // 完美修正：把廣播包起來，判斷是誰下達的指令！
+    if (player != null) {
+        // 真人管理員手動輸入 ➔ 廣播給大家聽
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
+    } else {
+        // 投票系統後台觸發 (player 為 null) ➔ 保持安靜，只在後台留紀錄
+        Console.WriteLine("[MatchZy] 投票系統後台指令：已開啟隨機隊伍分配");
+    }
 }
 
 [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
@@ -784,15 +791,22 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         return;
     }
 
-    // ➕ 【加入這一段防護】
+    // 【加入這一段防護】
     if (isCountdownActive || matchStartCountdownTimer != null) {
         ReplyToUserCommand(player, "正 在 倒 數 準 備 開 賽，無 法 更 改 設 定");
         return;
     }
 
     isShufflePending = false;
-    Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
-    if (player == null) Console.WriteLine("[MatchZy] 已 取 消 隨 機 隊 伍 分 配");
+
+    // 完美修正：把廣播包起來，判斷是誰下達的指令！
+    if (player != null) {
+        // 真人管理員手動輸入 ➔ 廣播給大家聽
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
+    } else {
+        // 投票系統後台觸發 (player 為 null) ➔ 保持安靜，只在後台留紀錄
+        Console.WriteLine("[MatchZy] 投票系統後台指令：已取消隨機隊伍分配");
+    }
 }
         // =========================================================================
         // 專門照顧 Utility.cs#L267 與其他檔案呼叫的舊名字（不帶參數版）
