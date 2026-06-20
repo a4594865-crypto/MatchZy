@@ -251,14 +251,14 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
                 var player = @event.Userid;
                 
-                // 🛡️ 護甲 1：排除空指標、無效實體與機器人 (Bot 離開不影響比賽，直接跳出)
+                //  1：排除空指標、無效實體與機器人 (Bot 離開不影響比賽，直接跳出)
                 if (player == null || !player.IsValid || player.IsBot) return HookResult.Continue;
                 
                 int userId = (int)(player.UserId ?? -1);
                 byte teamNum = player.TeamNum; 
 
                 // --- A. 倒數期間斷線：中止倒數 ---
-                // 🛡️ 護甲 2：只有 CT(3) 或 T(2) 的「正式玩家」斷線，才需要中止倒數！觀戰者離開不干擾開賽。
+                //  2：只有 CT(3) 或 T(2) 的「正式玩家」斷線，才需要中止倒數！觀戰者離開不干擾開賽。
                 if (matchStartCountdownTimer != null && (teamNum == 2 || teamNum == 3))
                 {
                     // 安全獲取名字
@@ -498,7 +498,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     int currentEventUserId = @event.Userid; 
 
     // =========================================================================
-    // 終極修復版分流：防盲目觸發、精準驗證第 10 票、手動寫入紀錄
+    // 分流：防盲目觸發、精準驗證第 10 票、手動寫入紀錄
     // =========================================================================
     if (message == ".r" || message == ".ready") {
         
