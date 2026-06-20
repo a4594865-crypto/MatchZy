@@ -279,7 +279,7 @@ namespace MatchZy
                         // 點燃重置引信，鎖上全域鎖
                         isAutoResetTimerActive = true; 
 
-                        AddTimer(120.0f, () => {
+                       AddTimer(120.0f, () => {
                             
                             isAutoResetTimerActive = false;
 
@@ -289,11 +289,11 @@ namespace MatchZy
                                 if (p != null && p.IsValid && !p.IsBot) finalPlayerCount++;
                             }
 
-                            // 最後覆核：120 秒後依然 0 人，且依然不是熱身，且不是在結算畫面，才真的重開！
-                            if (finalPlayerCount == 0 && !isWarmup && !IsPostGamePhase())
+                            // 💡 修正盲點：如果 120 秒後 0 人，且 (不是熱身 或是 卡在選邊)，且不是在結算畫面，才重開！
+                            if (finalPlayerCount == 0 && (!isWarmup || isSideSelectionPhase) && !IsPostGamePhase())
                             {
                                 Server.ExecuteCommand("css_restart"); 
-                                Log("[AutoReset] 偵測到比賽中途全體退服（0人），已自動重開比賽。");
+                                Log("[AutoReset] 偵測到比賽中途（含刀局選邊）全體退服，已自動重開比賽。");
                             }
                         });
                     }
