@@ -24,7 +24,7 @@ namespace MatchZy
 
         private void PrintToAllChat(string message)
         {
-            // 只要訊息不含「倒數：」，在倒數期間一律封鎖
+            // 在倒數期間一律封鎖
             if (isCountdownActive && !message.Contains("倒數：")) return;
             
             Server.PrintToChatAll($"{chatPrefix} {message}");
@@ -168,17 +168,17 @@ namespace MatchZy
         {
             var p = playerData[key];
             
-            // 🛡️ 護甲 1：不只要有這個人，還必須確保他「有效」且「指標未遺失」，過濾掉剛斷線的鬼魂！
+            //  1：不只要有這個人，還必須確保他「有效」且「指標未遺失」，過濾掉剛斷線的鬼魂！
             if (p != null && p.IsValid && p.Handle != IntPtr.Zero)
             {
                 try 
                 {
-                    // 🛡️ 護甲 2：雙重防禦，避免在撈名字的極限瞬間指標死掉引發 Schema target points to null
+                    //  2：雙重防禦，避免在撈名字的極限瞬間指標死掉引發 Schema target points to null
                     unreadyPlayers.Add(p.PlayerName);
                 }
                 catch 
                 {
-                    // 🤫 終極消音防線：萬一發生極限時間差錯誤，直接吞掉，死死保住計時器絕對不卡死！
+                    // 終極消音防線：萬一發生極限時間差錯誤，直接吞掉，死死保住計時器絕對不卡死！
                 }
             }
         }
