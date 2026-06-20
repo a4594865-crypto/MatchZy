@@ -508,11 +508,14 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // =========================================================================
     // 分流：防盲目觸發、精準驗證第 10 票、手動寫入紀錄
     // =========================================================================
+   // =========================================================================
+    // 分流：防盲目觸發、精準驗證第 10 票、手動寫入紀錄
+    // =========================================================================
     if (message == ".r" || message == ".ready") {
         
-        // 1. 如果已經在倒數了，絕對禁止再觸發任何準備或洗牌邏輯！直接吃掉指令！
-        if (isCountdownActive) {
-            return HookResult.Handled;
+        //  倒數中「或者卡在選邊時」，絕對禁止任何準備或洗牌邏輯！
+        if (isCountdownActive || isSideSelectionPhase) {
+            return HookResult.Handled; // 直接吃掉指令，不給任何反應
         }
 
         if (!matchStarted && readyAvailable) {
@@ -583,9 +586,10 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
     if (message.StartsWith(".map"))
     {
-        if (isMatchSetup)
+        // 把 isSideSelectionPhase 一併加入鎖定條件
+        if (isMatchSetup || isSideSelectionPhase)
         {
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正式比賽地圖已鎖定{ChatColors.Default}，禁止更換！");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正 式 比 賽 或 選 邊 期 間{ChatColors.Default}，禁止更換！");
             return HookResult.Continue;
         }
         HandleMapChangeCommand(player, messageCommandArg);
@@ -766,6 +770,12 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
 
     if (isMatchSetup) { 
         ReplyToUserCommand(player, "比 賽 已 開 始，無 法 隨 機 分 隊");
+        return;
+    }
+
+    // 選邊期間絕對禁止洗牌，保護勝方權益！
+    if (isSideSelectionPhase) {
+        ReplyToUserCommand(player, "選 邊 期 間，無 法 更 改 隊 伍 設 定");
         return;
     }
 
