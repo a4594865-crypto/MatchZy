@@ -389,7 +389,11 @@ AddCommandListener("jointeam", (player, info) =>
             });
             AddCommandListener("noclip", OnConsoleNoClip);
 
-           
+            //  徹底封死控制台發起的跨外掛投票指令
+            AddCommandListener("css_rtv", BlockVoteInCriticalPhases);
+            AddCommandListener("css_vote", BlockVoteInCriticalPhases);
+            // 這邊結束 
+
             RegisterEventHandler<EventRoundEnd>((@event, info) =>
             {
                 // 原有的 RoundEnd 邏輯...
@@ -753,7 +757,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         // --- 指令函數與核心修正代碼 ---
         // ==========================================
 
-       // --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者與離線玩家 ---
+// --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者與離線玩家 ---
         public int GetReadyPlayersCount()
         {
             int count = 0;
@@ -774,6 +778,17 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             }
             return count;
         }
+        // 專門用來擋控制台跨外掛投票的共用函數
+        private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
+        {
+            if (player != null && (isCountdownActive || isSideSelectionPhase))
+            {
+                player.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
+                return HookResult.Stop; // 直接擋下控制台指令
+            }
+            return HookResult.Continue;
+        }
+        // 這邊結束
 [ConsoleCommand("css_shuffle", "預約隨機分隊")]
 [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
 public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
