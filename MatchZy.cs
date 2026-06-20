@@ -506,7 +506,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // =========================================================================
     // 【跨外掛防禦網】：針對 SLAYER_PanoramaVote 的 RTV 與 Vote 指令攔截
     //  =========================================================================
-    if (message == ".rtv" || message == "rtv" || message.StartsWith(".vote")) {
+    if (message == ".rtv" || message.StartsWith(".vote")) {
         
         // 倒數中「或者卡在選邊時」，絕對禁止呼叫投票面板！
         if (isCountdownActive || isSideSelectionPhase) {
@@ -520,7 +520,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             return HookResult.Handled; 
         }
     }
-    // 👆 跨外掛防禦網結束 👆
 
    // =========================================================================
     // 分流：防盲目觸發、精準驗證第 10 票、手動寫入紀錄
