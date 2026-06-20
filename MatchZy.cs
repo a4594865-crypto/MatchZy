@@ -809,6 +809,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         return;
     }
 
+    // 選邊期間也絕對禁止取消洗牌！
+    if (isSideSelectionPhase) {
+        ReplyToUserCommand(player, "選 邊 期 間，無 法 更 改 隊 伍 設 定");
+        return;
+    }
+
     // 【加入這一段防護】
     if (isCountdownActive || matchStartCountdownTimer != null) {
         ReplyToUserCommand(player, "正 在 倒 數 準 備 開 賽，無 法 更 改 設 定");
@@ -819,7 +825,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
 
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
-        // 真人管理員手動輸入 ➔ 廣播給大家聽
+        // 廣播給大家聽
         Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.LightRed}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
     } else {
         // 投票系統後台觸發 (player 為 null) ➔ 保持安靜，只在後台留紀錄
