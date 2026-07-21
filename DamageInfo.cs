@@ -152,7 +152,7 @@ namespace MatchZy
             byte callerTeam = player.TeamNum; 
 
             // 極簡字串：[傷害報告] 對 {B} 玩家造成-{80}
-            string message = $"[{ChatColors.Green}傷害報告{ChatColors.Default}] 對 {ChatColors.LightBlue}{killerName}{ChatColors.Default} 造成 {ChatColors.LightRed}-{damageGiven}{ChatColors.Default}";
+            string message = $"[{ChatColors.Green}傷害報告{ChatColors.Default}] 對 {ChatColors.Orange}{killerName}{ChatColors.Default} 造成 {ChatColors.LightRed}-{damageGiven}{ChatColors.Default}";
 
             // 遍歷所有玩家，只發送給相同隊伍的人 (包含死掉的隊友也能看到)
             foreach (var target in Utilities.GetPlayers())
