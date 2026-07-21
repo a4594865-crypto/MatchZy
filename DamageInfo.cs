@@ -42,7 +42,6 @@ namespace MatchZy
 
 		public Dictionary<int, Dictionary<int, DamagePlayerInfo>> playerDamageInfo = new Dictionary<int, Dictionary<int, DamagePlayerInfo>>();
         
-        // 新增：用來記錄「誰(Key) 被 誰(Value) 殺死」的死亡筆記本
         public Dictionary<int, int> playerKillers = new Dictionary<int, int>();
         
 		private void UpdatePlayerDamageInfo(EventPlayerHurt @event, int targetId)
@@ -116,7 +115,7 @@ namespace MatchZy
                     }
                 }
                 playerDamageInfo.Clear();
-                playerKillers.Clear(); // 新增：回合結束一併清空擊殺紀錄
+                playerKillers.Clear(); 
             }
             catch (Exception e)
             {
@@ -136,23 +135,36 @@ namespace MatchZy
             int callerId = (int)(player.UserId ?? -1);
             if (callerId == -1) return;
 
-            // 條件 1：確認玩家是否已陣亡，且被誰擊殺
+            // 條件 1：確認目標對象
             if (!playerKillers.TryGetValue(callerId, out int killerId)) return; 
 
-            // 條件 2：檢查擊殺者 (C) 是否還存活 (死了就不報位)
+            // 條件 2：檢查目標對象狀態 (倒下就不報位)
             if (!playerData.TryGetValue(killerId, out var killerController) || killerController == null || !killerController.IsValid) return;
             if (killerController.PlayerPawn.Value == null || killerController.PlayerPawn.Value.Health <= 0) return; 
 
-            // 條件 3：檢查 A 是否有對 C 造成傷害 (0 輸出就不廢話)
+            // 條件 3：檢查是否有有效傷害數據 (0 輸出就不廢話)
             if (!playerDamageInfo.TryGetValue(callerId, out var myAttacks) || !myAttacks.TryGetValue(killerId, out var damageToKiller)) return;
             if (damageToKiller.DamageHP <= 0) return; 
 
-            // 條件全部通過 ➔ 只印出 A 對 C 的有效輸出，不報剩餘血量讓玩家自己算
+            // 條件全部通過 ➔ 準備發送給隊友
             int damageGiven = damageToKiller.DamageHP;
-            int hitsGiven = damageToKiller.Hits;
             string killerName = killerController.PlayerName;
+            byte callerTeam = player.TeamNum; 
 
-            PrintToPlayerChat(player, $"{ChatColors.Green}To: [{damageGiven} / {hitsGiven} hits] - {killerName}{ChatColors.Default}");
+            // 極簡字串：[傷害報告] 對 {B} 玩家造成-{80}
+            string message = $"{ChatColors.Green}[傷害報告]{ChatColors.Default} 對 {ChatColors.LightBlue}{killerName}{ChatColors.Default} 玩家造成{ChatColors.LightRed}-{damageGiven}{ChatColors.Default}";
+
+            // 遍歷所有玩家，只發送給相同隊伍的人 (包含死掉的隊友也能看到)
+            foreach (var target in Utilities.GetPlayers())
+            {
+                if (target != null && target.IsValid && target.Connected == PlayerConnectedState.Connected && !target.IsBot)
+                {
+                    if (target.TeamNum == callerTeam)
+                    {
+                        PrintToPlayerChat(target, message);
+                    }
+                }
+            }
         }
     }
 
