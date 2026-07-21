@@ -208,7 +208,8 @@ namespace MatchZy
                 { ".savepos", OnSavePosCommand},
                 { ".shuffle", OnShuffleCommand },
                 { ".unshuffle", OnUnshuffleCommand },
-                { ".loadpos", OnLoadPosCommand}
+                { ".loadpos", OnLoadPosCommand},
+                { ".hp", OnHpCommand }
             };
 
     // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
@@ -462,11 +463,26 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             // });
 
             RegisterEventHandler<EventPlayerDeath>((@event, info) => {
-                // Setting money back to 16000 when a player dies in warmup
-                var player = @event.Userid;
+                var victim = @event.Userid;
+                var attacker = @event.Attacker;
+
+                // 1. 記錄是誰殺了這名玩家 (寫入死亡筆記本)
+                if (IsPlayerValid(victim) && IsPlayerValid(attacker))
+                {
+                    int victimId = (int)victim!.UserId!;
+                    int attackerId = (int)attacker!.UserId!;
+                    
+                    // 排除自殺，記錄擊殺者 ID
+                    if (victimId != attackerId)
+                    {
+                        playerKillers[victimId] = attackerId; 
+                    }
+                }
+
+                // 2. 保留原本熱身階段發錢的邏輯
                 if (!isWarmup) return HookResult.Continue;
-                if (!IsPlayerValid(player)) return HookResult.Continue;
-                if (player!.InGameMoneyServices != null) player.InGameMoneyServices.Account = 16000;
+                if (!IsPlayerValid(victim)) return HookResult.Continue;
+                if (victim!.InGameMoneyServices != null) victim.InGameMoneyServices.Account = 16000;
                 return HookResult.Continue;
             });
 
@@ -940,6 +956,23 @@ if (player.TeamNum != (byte)targetTeam)
                 });
             } //  結束 lock (_shuffleLock)
         } //  結束 ExecuteShuffleLogicWithReady 方法
+
+        [ConsoleCommand("css_hp", "查詢對擊殺者的傷害統計")]
+        [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
+        public void OnHpCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (player != null && player.IsValid)
+            {
+                // 核心防護：如果是 BO1/BO3 正式比賽，直接安靜結束，不顯示任何訊息
+                if (isMatchSetup) return;
+
+                // 熱身階段或比賽尚未開始，也不顯示
+                if (!matchStarted || isWarmup) return;
+
+                // 呼叫我們在 DamageInfo_2.cs 寫好的單人查詢邏輯
+                ShowSinglePlayerDamage(player);
+            }
+        }
 
     } // 結束 class MatchZy
 } //  結束 namespace MatchZy
