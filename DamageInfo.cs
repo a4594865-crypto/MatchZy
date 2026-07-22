@@ -6,55 +6,58 @@ using CounterStrikeSharp.API.Modules.Utils;
 using System;
 using System.Collections.Generic;
 
-namespace PreciseDamageReporter
+namespace MatchZy
 {
-    public class DamageReporterModule
+    public partial class MatchZy
     {
         // ==========================================
-        // 核心數據區 (極致輕量，連類別都拔掉了，純整數儲存)
+        // 核心數據區 (極致輕量，純整數儲存)
         // ==========================================
-        // 直接存 int (傷害量)，不再需要 DamagePlayerInfo 類別
         public Dictionary<int, Dictionary<int, int>> playerDamageInfo = new Dictionary<int, Dictionary<int, int>>();
         public Dictionary<int, int> playerKillers = new Dictionary<int, int>();
         public Dictionary<int, int> playerLastHealth = new Dictionary<int, int>();
 
         // ==========================================
-        // 事件攔截區
+        // 回合清理 & 廣播 (對接 Utility.cs 用)
         // ==========================================
         
-        public void OnPlayerHurt(EventPlayerHurt @event)
+        // 取代原本的 OnRoundEnd，MatchZy 規定要叫這個名字
+        public void InitPlayerDamageInfo()
         {
-            CCSPlayerController? attacker = @event.Attacker;
-            CCSPlayerController? victim = @event.Userid;
-
-            if (!IsPlayerValid(attacker) || !IsPlayerValid(victim)) return;
-            
-            if (attacker!.UserId == victim!.UserId) return;
-            
-            if (attacker.TeamNum == victim.TeamNum) return;
-
-            UpdatePlayerDamageInfo(@event, (int)victim.UserId!);
+            playerDamageInfo.Clear();
+            playerKillers.Clear();
+            playerLastHealth.Clear();
         }
 
-        public void OnPlayerDeath(EventPlayerDeath @event)
+        // MatchZy 要求的空方法，留空就不會洗頻，也不會讓 Utility.cs 報錯
+        public void ShowDamageInfo()
+        {
+        }
+
+        // ==========================================
+        // 擊殺者追蹤 (獨立攔截玩家死亡事件)
+        // ==========================================
+        [GameEventHandler(HookMode.Post)]
+        public HookResult OnPlayerDeath_DamageInfo(EventPlayerDeath @event, GameEventInfo info)
         {
             CCSPlayerController? attacker = @event.Attacker;
             CCSPlayerController? victim = @event.Userid;
 
-            if (!IsPlayerValid(attacker) || !IsPlayerValid(victim)) return;
+            if (!IsPlayerValidDamage(attacker) || !IsPlayerValidDamage(victim)) return HookResult.Continue;
             
-            // 一樣不記錄自己死掉或隊友擊殺
-            if (attacker!.UserId == victim!.UserId) return;
-            if (attacker.TeamNum == victim.TeamNum) return;
+            // 不記錄自己死掉或隊友擊殺
+            if (attacker!.UserId == victim!.UserId) return HookResult.Continue;
+            if (attacker.TeamNum == victim.TeamNum) return HookResult.Continue;
 
             playerKillers[(int)victim.UserId!] = (int)attacker.UserId!;
+            return HookResult.Continue;
         }
 
         // ==========================================
         // 核心算法區：血量追蹤與傷害計算
+        // (MatchZy 原生核心會自動呼叫這個方法，不需掛 OnPlayerHurt)
         // ==========================================
-        
-        private void UpdatePlayerDamageInfo(EventPlayerHurt @event, int targetId)
+        public void UpdatePlayerDamageInfo(EventPlayerHurt @event, int targetId)
         {
             CCSPlayerController? attacker = @event.Attacker;
             if (attacker == null) return;
@@ -95,10 +98,9 @@ namespace PreciseDamageReporter
             playerLastHealth[targetId] = currentHealth;
         }
 
-      // ==========================================
+        // ==========================================
         // 報位輸出區 (.hp 指令觸發)
         // ==========================================
-        
         public void ShowSinglePlayerDamage(CCSPlayerController player)
         {
             int callerId = (int)player.UserId!;
@@ -126,29 +128,11 @@ namespace PreciseDamageReporter
             // 輸出格式
             player.PrintToChat($"[{ChatColors.Green}傷害報告{ChatColors.Default}] {callerName} 對 {ChatColors.Orange}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害");
         }
-        // ==========================================
-        // 回合結束清理區 (防內存洩漏)
-        // ==========================================
-        
-        public void OnRoundEnd()
-        {
-            try
-            {
-                // 如果你有回合結束廣播的邏輯，可以寫在這裡
-            }
-            finally
-            {
-                playerDamageInfo.Clear();
-                playerKillers.Clear();
-                playerLastHealth.Clear();
-            }
-        }
 
         // ==========================================
         // 輔助驗證區
         // ==========================================
-        
-        private bool IsPlayerValid(CCSPlayerController? player)
+        private bool IsPlayerValidDamage(CCSPlayerController? player)
         {
             return player != null && player.IsValid && player.PlayerPawn != null && player.PlayerPawn.IsValid && !player.IsBot;
         }
