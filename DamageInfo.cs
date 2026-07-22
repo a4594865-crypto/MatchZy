@@ -1,7 +1,8 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
-
+using System;
+using System.Collections.Generic;
 
 namespace MatchZy
 {
@@ -40,28 +41,29 @@ namespace MatchZy
             }
         }
 
-		public Dictionary<int, Dictionary<int, DamagePlayerInfo>> playerDamageInfo = new Dictionary<int, Dictionary<int, DamagePlayerInfo>>();
+        public Dictionary<int, Dictionary<int, DamagePlayerInfo>> playerDamageInfo = new Dictionary<int, Dictionary<int, DamagePlayerInfo>>();
         
         public Dictionary<int, int> playerKillers = new Dictionary<int, int>();
         
-		private void UpdatePlayerDamageInfo(EventPlayerHurt @event, int targetId)
-		{
+        private void UpdatePlayerDamageInfo(EventPlayerHurt @event, int targetId)
+        {
             CCSPlayerController? attacker = @event.Attacker;
 
             if (!IsPlayerValid(attacker)) return;
-			int attackerId = (int)attacker!.UserId!;
-			if (!playerDamageInfo.TryGetValue(attackerId, out var attackerInfo))
-				playerDamageInfo[attackerId] = attackerInfo = new Dictionary<int, DamagePlayerInfo>();
+            int attackerId = (int)attacker!.UserId!;
+            if (!playerDamageInfo.TryGetValue(attackerId, out var attackerInfo))
+                playerDamageInfo[attackerId] = attackerInfo = new Dictionary<int, DamagePlayerInfo>();
 
-			if (!attackerInfo.TryGetValue(targetId, out var targetInfo))
-				attackerInfo[targetId] = targetInfo = new DamagePlayerInfo();
+            if (!attackerInfo.TryGetValue(targetId, out var targetInfo))
+                attackerInfo[targetId] = targetInfo = new DamagePlayerInfo();
 
-			targetInfo.DamageHP += @event.DmgHealth;
-			targetInfo.Hits++;
-		}
+            targetInfo.DamageHP += @event.DmgHealth;
+            targetInfo.Hits++;
+        }
 
         private void ShowDamageInfo()
         {
+            // 💡 這裡保留設定檔檢查，確保回合結束時如果 config 是 false，就不會自動洗頻
             if (!enableDamageReport.Value) return;
             try
             {
@@ -124,25 +126,25 @@ namespace MatchZy
 
         }
 
-        // ==========================================
-        // 硬核版：單一玩家專屬傷害報告 (.hp 觸發)
+       // ==========================================
+        // 硬核版：單一玩家專屬傷害報告 (.hp 觸發) (極簡不囉嗦版)
         // ==========================================
         public void ShowSinglePlayerDamage(CCSPlayerController player)
         {
-            if (!enableDamageReport.Value) return;
+            // 💡 已經把 `if (!enableDamageReport.Value) return;` 刪除！.hp 不受限於 config。
             if (player == null || !player.IsValid || player.IsBot) return;
 
             int callerId = (int)(player.UserId ?? -1);
             if (callerId == -1) return;
 
-            // 條件 1：確認目標對象
+            // 條件 1：確認目標對象 (無紀錄則安靜結束)
             if (!playerKillers.TryGetValue(callerId, out int killerId)) return; 
 
-            // 條件 2：檢查目標對象狀態 (倒下就不報位)
+            // 條件 2：檢查目標對象狀態 (對方若已死亡，倒下就不報位，安靜結束)
             if (!playerData.TryGetValue(killerId, out var killerController) || killerController == null || !killerController.IsValid) return;
             if (killerController.PlayerPawn.Value == null || killerController.PlayerPawn.Value.Health <= 0) return; 
 
-            // 條件 3：檢查是否有有效傷害數據 (0 輸出就不廢話)
+            // 條件 3：檢查是否有有效傷害數據 (0 輸出就不廢話，安靜結束)
             if (!playerDamageInfo.TryGetValue(callerId, out var myAttacks) || !myAttacks.TryGetValue(killerId, out var damageToKiller)) return;
             if (damageToKiller.DamageHP <= 0) return; 
 
@@ -166,11 +168,3 @@ namespace MatchZy
                 }
             }
         }
-    }
-
-	public class DamagePlayerInfo
-	{
-		public int DamageHP { get; set; } = 0;
-		public int Hits { get; set; } = 0;
-	}
-}
