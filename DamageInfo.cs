@@ -156,11 +156,11 @@ namespace MatchZy
             string damageMessage = "";
             if (player.TeamNum == (int)CsTeam.CounterTerrorist)
             {
-                damageMessage = $" {ChatColors.BlueGrey}[CT]{ChatColors.Default} {ChatColors.LightRed}●{ChatColors.Default} {ChatColors.BlueGrey}{callerName} : {ChatColors.Default} 命中 造 成 {ChatColors.Yellow}{killerName}{ChatColors.Default} {hitCount} 次 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+                damageMessage = $" {ChatColors.LightBlue}[CT]{ChatColors.Default} {ChatColors.LightRed}●{ChatColors.Default} {ChatColors.LightBlue}{callerName} : {ChatColors.Default} 命 中 {hitCount} 次 造 成 {ChatColors.Gold}{killerName}{ChatColors.Default} {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
             }
             else if (player.TeamNum == (int)CsTeam.Terrorist)
             {
-                damageMessage = $" {ChatColors.Yellow}[T]{ChatColors.Default} {ChatColors.LightRed}●{ChatColors.Default} {ChatColors.Yellow}{callerName} : {ChatColors.Default} 命中 造 成 {ChatColors.BlueGrey}{killerName}{ChatColors.Default} {hitCount} 次 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+                damageMessage = $" {ChatColors.Gold}[T]{ChatColors.Default} {ChatColors.LightRed}●{ChatColors.Default} {ChatColors.Gold}{callerName} : {ChatColors.Default} 命 中 {hitCount} 次 造 成 {ChatColors.LightBlue}{killerName}{ChatColors.Default} {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
             }
             else 
             {
