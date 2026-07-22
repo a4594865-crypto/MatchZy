@@ -16,6 +16,9 @@ namespace MatchZy
         public Dictionary<int, Dictionary<int, int>> playerDamageInfo = new Dictionary<int, Dictionary<int, int>>();
         public Dictionary<int, int> playerKillers = new Dictionary<int, int>();
         public Dictionary<int, int> playerLastHealth = new Dictionary<int, int>();
+        
+        // 【新增】紀錄命中次數的字典
+        public Dictionary<int, Dictionary<int, int>> playerHitInfo = new Dictionary<int, Dictionary<int, int>>();
 
         // ==========================================
         // 回合清理 & 廣播 (對接 Utility.cs 用)
@@ -27,6 +30,7 @@ namespace MatchZy
             playerDamageInfo.Clear();
             playerKillers.Clear();
             playerLastHealth.Clear();
+            playerHitInfo.Clear(); // 【新增】回合結束清除命中次數
         }
 
         // MatchZy 要求的空方法，留空就不會洗頻，也不會讓 Utility.cs 報錯
@@ -70,18 +74,23 @@ namespace MatchZy
             
             int attackerId = (int)attacker.UserId;
 
-            // 高效 O(1) 字典創建與查找
+            // 高效 O(1) 字典創建與查找 (傷害)
             if (!playerDamageInfo.TryGetValue(attackerId, out var attackerInfo))
             {
                 attackerInfo = new Dictionary<int, int>();
                 playerDamageInfo[attackerId] = attackerInfo;
             }
 
-            // 取出目前已累積的傷害，沒有就是 0
-            if (!attackerInfo.TryGetValue(targetId, out int currentDamage))
+            // 【新增】高效 O(1) 字典創建與查找 (命中次數)
+            if (!playerHitInfo.TryGetValue(attackerId, out var hitInfo))
             {
-                currentDamage = 0;
+                hitInfo = new Dictionary<int, int>();
+                playerHitInfo[attackerId] = hitInfo;
             }
+
+            // 取出目前已累積的傷害與次數，沒有就是 0
+            if (!attackerInfo.TryGetValue(targetId, out int currentDamage)) currentDamage = 0;
+            if (!hitInfo.TryGetValue(targetId, out int currentHits)) currentHits = 0;
 
             int currentHealth = @event.Health;          // 中槍後血量
             int systemDamage = @event.DmgHealth;        // 系統整數傷害
@@ -97,8 +106,9 @@ namespace MatchZy
                 actualDamage = systemDamage;
             }
 
-            // 直接將傷害加上去存起來
+            // 直接將傷害與次數加上去存起來
             attackerInfo[targetId] = currentDamage + actualDamage;
+            hitInfo[targetId] = currentHits + 1; // 【新增】每次受傷事件次數 +1
 
             // 存入當前血量，供下一發子彈計算
             playerLastHealth[targetId] = currentHealth;
@@ -115,7 +125,7 @@ namespace MatchZy
             int callerId = (int)player.UserId;
 
             // 條件 1：確認他是不是被殺死了，找他的擊殺者。
-            // 如果找不到（代表沒死過，或是已經報過位被清除了），直接中斷！
+            // 如果找不到（代表沒死過，或是已經報過位被清清除），直接中斷！
             if (!playerKillers.TryGetValue(callerId, out int killerId)) return;
 
             // 條件 2：取得擊殺者狀態
@@ -131,12 +141,32 @@ namespace MatchZy
             if (!playerDamageInfo.TryGetValue(callerId, out var myAttacks) || !myAttacks.TryGetValue(killerId, out int damageGiven)) return;
             if (damageGiven <= 0) return;
 
+            // 【新增】取得真實命中次數
+            int hitCount = 1;
+            if (playerHitInfo.TryGetValue(callerId, out var myHits) && myHits.TryGetValue(killerId, out int hits))
+            {
+                hitCount = hits;
+            }
+
             // 抓取名字
             string killerName = killerController.PlayerName;
             string callerName = player.PlayerName;
 
-            // 準備要發送到團隊頻道的訊息格式
-            string damageMessage = $"[{ChatColors.Green}傷害資訊{ChatColors.Default}] {ChatColors.BlueGrey}{callerName}{ChatColors.Default} 對 {ChatColors.Yellow}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+            // 【新增】準備要發送到團隊頻道的訊息格式 (依照陣營切換)
+            string damageMessage = "";
+            if (player.TeamNum == (int)CsTeam.CounterTerrorist)
+            {
+                damageMessage = $"{ChatColors.BlueGrey}[CT]{ChatColors.Default}● {ChatColors.BlueGrey}{callerName}：{ChatColors.Default} 命中 {ChatColors.Yellow}{killerName}{ChatColors.Default} {hitCount} 次 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+            }
+            else if (player.TeamNum == (int)CsTeam.Terrorist)
+            {
+                damageMessage = $"{ChatColors.Yellow}[T]{ChatColors.Default} {ChatColors.BlueGrey}{callerName}：{ChatColors.Default} 命中 {ChatColors.BlueGrey}{killerName}{ChatColors.Default} {hitCount} 次 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+            }
+            else 
+            {
+                // 預防萬一的預設輸出
+                damageMessage = $"[{ChatColors.Green}傷害資訊{ChatColors.Default}] {ChatColors.BlueGrey}{callerName}{ChatColors.Default} 對 {ChatColors.Yellow}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+            }
 
             // 掃描伺服器玩家，只發給「有效」、「非機器人」且「同隊」的隊友
             foreach (var teammate in Utilities.GetPlayers())
