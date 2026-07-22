@@ -45,11 +45,14 @@ namespace MatchZy
 
             if (!IsPlayerValidDamage(attacker) || !IsPlayerValidDamage(victim)) return HookResult.Continue;
             
+            // 【安全升級】攔截極端斷線狀況，防止 NullReferenceException 導致伺服器抖動
+            if (attacker!.UserId == null || victim!.UserId == null) return HookResult.Continue;
+            
             // 不記錄自己死掉或隊友擊殺
-            if (attacker!.UserId == victim!.UserId) return HookResult.Continue;
+            if (attacker.UserId == victim.UserId) return HookResult.Continue;
             if (attacker.TeamNum == victim.TeamNum) return HookResult.Continue;
 
-            playerKillers[(int)victim.UserId!] = (int)attacker.UserId!;
+            playerKillers[(int)victim.UserId] = (int)attacker.UserId;
             return HookResult.Continue;
         }
 
@@ -62,7 +65,10 @@ namespace MatchZy
             CCSPlayerController? attacker = @event.Attacker;
             if (attacker == null) return;
             
-            int attackerId = (int)attacker.UserId!;
+            // 【安全升級】攔截攻擊者斷線的空值
+            if (attacker.UserId == null) return;
+            
+            int attackerId = (int)attacker.UserId;
 
             // 高效 O(1) 字典創建與查找
             if (!playerDamageInfo.TryGetValue(attackerId, out var attackerInfo))
@@ -103,7 +109,10 @@ namespace MatchZy
         // ==========================================
         public void ShowSinglePlayerDamage(CCSPlayerController player)
         {
-            int callerId = (int)player.UserId!;
+            // 【安全升級】確保查詢指令的玩家 ID 存在
+            if (player.UserId == null) return;
+            
+            int callerId = (int)player.UserId;
 
             // 條件 1：確認他是不是被殺死了，找他的擊殺者。
             // 如果找不到（代表沒死過，或是已經報過位被清除了），直接中斷！
