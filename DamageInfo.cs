@@ -156,7 +156,7 @@ namespace MatchZy
             string damageMessage = "";
             if (player.TeamNum == (int)CsTeam.CounterTerrorist)
             {
-                damageMessage = $" {ChatColors.LightBlue}[CT]{ChatColors.Default} {ChatColors.LightRed}●{ChatColors.Default} {ChatColors.LightBlue}{callerName} : {ChatColors.Default} 命 中 {hitCount} 次 造 成 {ChatColors.Gold}{killerName}{ChatColors.Default} {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+                damageMessage = $" {ChatColors.LightBlue}[CT]{ChatColors.Default} {ChatColors.LightRed}●{ChatColors.Default} {ChatColors.LightBlue}{callerName} : {ChatColors.Default} 命 中 {hitCount} 次 造 成 {ChatColors.Gold}{killerName}{ChatColors.Default} {ChatColors.Red}- {damageGiven}{ChatColors.Default} 傷 害";
             }
             else if (player.TeamNum == (int)CsTeam.Terrorist)
             {
@@ -165,7 +165,7 @@ namespace MatchZy
             else 
             {
                 // 預防萬一的預設輸出
-                damageMessage = $"[{ChatColors.Green}傷害資訊{ChatColors.Default}] {ChatColors.BlueGrey}{callerName}{ChatColors.Default} 對 {ChatColors.Yellow}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+                damageMessage = $"[{ChatColors.Green}傷害資訊{ChatColors.Default}] {ChatColors.BlueGrey}{callerName}{ChatColors.Default} 對 {ChatColors.Yellow}{killerName}{ChatColors.Default} 造 成 {ChatColors.Red}- {damageGiven}{ChatColors.Default} 傷 害";
             }
 
             // 掃描伺服器玩家，只發給「有效」、「非機器人」且「同隊」的隊友
