@@ -99,13 +99,14 @@ namespace MatchZy
         }
 
         // ==========================================
-        // 報位輸出區 (.hp 指令觸發)
+        // 報位輸出區 (.hp 指令觸發 - 團隊頻道防洗頻版)
         // ==========================================
         public void ShowSinglePlayerDamage(CCSPlayerController player)
         {
             int callerId = (int)player.UserId!;
 
-            // 條件 1：確認他是不是被殺死了，找他的擊殺者
+            // 條件 1：確認他是不是被殺死了，找他的擊殺者。
+            // 如果找不到（代表沒死過，或是已經報過位被清除了），直接中斷！
             if (!playerKillers.TryGetValue(callerId, out int killerId)) return;
 
             // 條件 2：取得擊殺者狀態
@@ -125,8 +126,21 @@ namespace MatchZy
             string killerName = killerController.PlayerName;
             string callerName = player.PlayerName;
 
-            // 輸出格式
-            player.PrintToChat($"[{ChatColors.Green}傷害報告{ChatColors.Default}] {ChatColors.BlueGrey}{callerName}{ChatColors.Default} 對 {ChatColors.Yellow}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害");
+            // 準備要發送到團隊頻道的訊息格式
+            string damageMessage = $"[{ChatColors.Green}傷害資訊{ChatColors.Default}] {ChatColors.BlueGrey}{callerName}{ChatColors.Default} 對 {ChatColors.Yellow}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+
+            // 掃描伺服器玩家，只發給「有效」、「非機器人」且「同隊」的隊友
+            foreach (var teammate in Utilities.GetPlayers())
+            {
+                if (teammate != null && teammate.IsValid && !teammate.IsBot && teammate.TeamNum == player.TeamNum)
+                {
+                    teammate.PrintToChat(damageMessage);
+                }
+            }
+
+            // 【核心防洗頻機制】：報位完成後，立刻清除該玩家的這筆死亡紀錄！
+            // 這樣他再次輸入 .hp 時，會在最上面的「條件 1」瞬間被攔截，絕對無法洗頻。
+            playerKillers.Remove(callerId);
         }
 
         // ==========================================
