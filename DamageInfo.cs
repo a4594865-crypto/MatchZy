@@ -136,7 +136,7 @@ namespace MatchZy
             string callerName = player.PlayerName;
 
             // 準備要發送到團隊頻道的訊息格式
-            string damageMessage = $"{ChatColors.BlueGrey}{callerName}：{ChatColors.Default} 命中 {ChatColors.Yellow}{killerName}{ChatColors.Default} 1 次 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+            string damageMessage = $"[T] {ChatColors.LightRed}●{ChatColors.Default}{ChatColors.BlueGrey}{callerName}：{ChatColors.Default} 命中 {ChatColors.Yellow}{killerName}{ChatColors.Default} 1 次 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
 
             // 掃描伺服器玩家，只發給「有效」、「非機器人」且「同隊」的隊友
             foreach (var teammate in Utilities.GetPlayers())
