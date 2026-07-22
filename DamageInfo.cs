@@ -63,59 +63,63 @@ namespace MatchZy
 
         private void ShowDamageInfo()
         {
-            // 回合結束的自動報告依然受 config 控制，設為 false 就不洗頻
-            if (!enableDamageReport.Value) return;
             try
             {
-                HashSet<(int, int)> processedPairs = new HashSet<(int, int)>();
-
-                foreach (var entry in playerDamageInfo)
+                // 💡 把判斷式往內移：只有開啟設定時才印出回合結束戰報，但「不管有沒有開」，最後都一定會執行 Clear()
+                if (enableDamageReport.Value) 
                 {
-                    int attackerId = entry.Key;
-                    foreach (var (targetId, targetEntry) in entry.Value)
+                    HashSet<(int, int)> processedPairs = new HashSet<(int, int)>();
+
+                    foreach (var entry in playerDamageInfo)
                     {
-                        if (processedPairs.Contains((attackerId, targetId)) || processedPairs.Contains((targetId, attackerId)))
-                            continue;
-
-                        // Access and use the damage information as needed.
-                        int damageGiven = targetEntry.DamageHP;
-                        int hitsGiven = targetEntry.Hits;
-                        int damageTaken = 0;
-                        int hitsTaken = 0;
-
-                        if (playerDamageInfo.TryGetValue(targetId, out var targetInfo) && targetInfo.TryGetValue(attackerId, out var takenInfo))
+                        int attackerId = entry.Key;
+                        foreach (var (targetId, targetEntry) in entry.Value)
                         {
-                            damageTaken = takenInfo.DamageHP;
-                            hitsTaken = takenInfo.Hits;
+                            if (processedPairs.Contains((attackerId, targetId)) || processedPairs.Contains((targetId, attackerId)))
+                                continue;
+
+                            // Access and use the damage information as needed.
+                            int damageGiven = targetEntry.DamageHP;
+                            int hitsGiven = targetEntry.Hits;
+                            int damageTaken = 0;
+                            int hitsTaken = 0;
+
+                            if (playerDamageInfo.TryGetValue(targetId, out var targetInfo) && targetInfo.TryGetValue(attackerId, out var takenInfo))
+                            {
+                                damageTaken = takenInfo.DamageHP;
+                                hitsTaken = takenInfo.Hits;
+                            }
+
+                            if (!playerData.ContainsKey(attackerId) || !playerData.ContainsKey(targetId)) continue;
+
+                            var attackerController = playerData[attackerId];
+                            var targetController = playerData[targetId];
+
+                            if (attackerController != null && targetController != null)
+                            {
+                                if (!attackerController.IsValid || !targetController.IsValid) continue;
+                                if (attackerController.Connected != PlayerConnectedState.Connected) continue;
+                                if (targetController.Connected != PlayerConnectedState.Connected) continue;
+                                if (!attackerController.PlayerPawn.IsValid || !targetController.PlayerPawn.IsValid) continue;
+                                if (attackerController.PlayerPawn.Value == null || targetController.PlayerPawn.Value == null) continue;
+
+                                int attackerHP = attackerController.PlayerPawn.Value.Health < 0 ? 0 : attackerController.PlayerPawn.Value.Health;
+                                string attackerName = attackerController.PlayerName;
+
+                                int targetHP = targetController.PlayerPawn.Value.Health < 0 ? 0 : targetController.PlayerPawn.Value.Health;
+                                string targetName = targetController.PlayerName;
+
+                                PrintToPlayerChat(attackerController, $"{ChatColors.Green}To: [{damageGiven} / {hitsGiven} hits] From: [{damageTaken} / {hitsTaken} hits] - {targetName} - ({targetHP} hp){ChatColors.Default}");
+                                PrintToPlayerChat(targetController, $"{ChatColors.Green}To: [{damageTaken} / {hitsTaken} hits] From: [{damageGiven} / {hitsGiven} hits] - {attackerName} - ({attackerHP} hp){ChatColors.Default}");
+                            }
+
+                            // Mark this pair as processed to avoid duplicates.
+                            processedPairs.Add((attackerId, targetId));
                         }
-
-                        if (!playerData.ContainsKey(attackerId) || !playerData.ContainsKey(targetId)) continue;
-
-                        var attackerController = playerData[attackerId];
-                        var targetController = playerData[targetId];
-
-                        if (attackerController != null && targetController != null)
-                        {
-                            if (!attackerController.IsValid || !targetController.IsValid) continue;
-                            if (attackerController.Connected != PlayerConnectedState.Connected) continue;
-                            if (targetController.Connected != PlayerConnectedState.Connected) continue;
-                            if (!attackerController.PlayerPawn.IsValid || !targetController.PlayerPawn.IsValid) continue;
-                            if (attackerController.PlayerPawn.Value == null || targetController.PlayerPawn.Value == null) continue;
-
-                            int attackerHP = attackerController.PlayerPawn.Value.Health < 0 ? 0 : attackerController.PlayerPawn.Value.Health;
-                            string attackerName = attackerController.PlayerName;
-
-                            int targetHP = targetController.PlayerPawn.Value.Health < 0 ? 0 : targetController.PlayerPawn.Value.Health;
-                            string targetName = targetController.PlayerName;
-
-                            PrintToPlayerChat(attackerController, $"{ChatColors.Green}To: [{damageGiven} / {hitsGiven} hits] From: [{damageTaken} / {hitsTaken} hits] - {targetName} - ({targetHP} hp){ChatColors.Default}");
-                            PrintToPlayerChat(targetController, $"{ChatColors.Green}To: [{damageTaken} / {hitsTaken} hits] From: [{damageGiven} / {hitsGiven} hits] - {attackerName} - ({attackerHP} hp){ChatColors.Default}");
-                        }
-
-                        // Mark this pair as processed to avoid duplicates.
-                        processedPairs.Add((attackerId, targetId));
                     }
                 }
+
+                // 💡 關鍵修復：這兩行移到外面了！每回合結束必定清空，不會再出現傷害累積的問題！
                 playerDamageInfo.Clear();
                 playerKillers.Clear(); 
             }
@@ -123,7 +127,6 @@ namespace MatchZy
             {
                 Log($"[ShowDamageInfo FATAL] An error occurred: {e.Message}");
             }
-
         }
 
         // ==========================================
@@ -155,7 +158,7 @@ namespace MatchZy
             byte callerTeam = player.TeamNum; 
 
             // 加入玩家名：[{玩家名字}] 對 {對手名字} 造成 -{傷害}
-            string message = $"{ChatColors.Green}{callerName}{ChatColors.Default} 對 {ChatColors.Orange}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
+            string message = $"{callerName} 對 {ChatColors.Orange}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
 
             // 遍歷所有玩家，只發送給相同隊伍的人 (包含死掉的隊友也能看到)
             foreach (var target in Utilities.GetPlayers())
