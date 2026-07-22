@@ -126,7 +126,7 @@ namespace MatchZy
             string callerName = player.PlayerName;
 
             // 輸出格式
-            player.PrintToChat($"[{ChatColors.Green}傷害報告{ChatColors.Default}] {ChatColors.BlueGrey}{callerName}{ChatColors.Default} 對 {ChatColors.Gold}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害");
+            player.PrintToChat($"[{ChatColors.Green}傷害報告{ChatColors.Default}] {ChatColors.BlueGrey}{callerName}{ChatColors.Default} 對 {ChatColors.Yellow}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害");
         }
 
         // ==========================================
