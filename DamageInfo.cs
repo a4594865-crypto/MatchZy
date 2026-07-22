@@ -63,7 +63,7 @@ namespace MatchZy
 
         private void ShowDamageInfo()
         {
-            // 💡 這裡保留設定檔檢查，確保回合結束時如果 config 是 false，就不會自動洗頻
+            // 回合結束的自動報告依然受 config 控制，設為 false 就不洗頻
             if (!enableDamageReport.Value) return;
             try
             {
@@ -126,12 +126,12 @@ namespace MatchZy
 
         }
 
-       // ==========================================
+        // ==========================================
         // 硬核版：單一玩家專屬傷害報告 (.hp 觸發) (極簡不囉嗦版)
         // ==========================================
         public void ShowSinglePlayerDamage(CCSPlayerController player)
         {
-            // 💡 已經把 `if (!enableDamageReport.Value) return;` 刪除！.hp 不受限於 config。
+            // 已移除對 enableDamageReport.Value 的限制，隨時可查
             if (player == null || !player.IsValid || player.IsBot) return;
 
             int callerId = (int)(player.UserId ?? -1);
@@ -168,3 +168,11 @@ namespace MatchZy
                 }
             }
         }
+    }
+
+    public class DamagePlayerInfo
+    {
+        public int DamageHP { get; set; } = 0;
+        public int Hits { get; set; } = 0;
+    }
+}
