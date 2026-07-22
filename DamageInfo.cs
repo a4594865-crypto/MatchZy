@@ -151,10 +151,11 @@ namespace MatchZy
             // 條件全部通過 ➔ 準備發送給隊友
             int damageGiven = damageToKiller.DamageHP;
             string killerName = killerController.PlayerName;
+            string callerName = player.PlayerName; // 取得發送者的名字
             byte callerTeam = player.TeamNum; 
 
-            // 極簡字串：[傷害報告] 對 {B} 玩家造成-{80}
-            string message = $"[{ChatColors.Green}傷害報告{ChatColors.Default}] 對 {ChatColors.Orange}{killerName}{ChatColors.Default} 造成 {ChatColors.LightRed}-{damageGiven}{ChatColors.Default}";
+            // 加入玩家名：[{玩家名字}] 對 {對手名字} 造成 -{傷害}
+            string message = $"{ChatColors.Green}{callerName}{ChatColors.Default} 對 {ChatColors.Orange}{killerName}{ChatColors.Default} 造 成 {ChatColors.LightRed}- {damageGiven}{ChatColors.Default} 傷 害";
 
             // 遍歷所有玩家，只發送給相同隊伍的人 (包含死掉的隊友也能看到)
             foreach (var target in Utilities.GetPlayers())
