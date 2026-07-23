@@ -105,12 +105,12 @@ public partial class MatchZy
 
         techPauseElapsedTime = 0;
 
-        // ▼▼▼ 新增：在計時器啟動前，立刻先印出第 0 秒的狀態 (300秒)，與官方原生 UI 完美同步！ ▼▼▼
+        // ▼▼▼ 確保第 0 秒的狀態 (300秒)，與官方原生 UI 完美同步！ ▼▼▼
         foreach (var p in Utilities.GetPlayers())
         {
             if (p != null && p.IsValid && !p.IsBot)
             {
-                p.PrintToCenter("技 術 暫 停 中 : 300 秒");
+                p.PrintToCenter("技 術 暫 停 中：300 秒");
             }
         }
         // ▲▲▲ 新增結束 ▲▲▲
@@ -136,15 +136,16 @@ public partial class MatchZy
                 unpauseData["t"] = false;
                 PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上 限，系 統 自 動 解 除 暫 停");
                 
-                // 結束時，發送最後一次置中提示告訴玩家暫停結束
+                // ▼▼▼ 依照你的嚴格要求，將 300 秒自然「結束」的提示獨立保留在這裡 ▼▼▼
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p != null && p.IsValid && !p.IsBot)
                     {
-                        p.PrintToCenter(" 技 術 暫 停 結 束 ");
+                        p.PrintToCenter(" 技 術 暫 停 已 結 束 ");
                     }
                 }
-                
+                // ▲▲▲ 結束 ▲▲▲
+
                 KillTechPauseTimer();
             }
             else
@@ -169,8 +170,26 @@ public partial class MatchZy
 
     public void KillTechPauseTimer()
     {
-        techPauseAutoUnpauseTimer?.Kill();
-        techPauseAutoUnpauseTimer = null;
+        if (techPauseAutoUnpauseTimer != null)
+        {
+            // ▼▼▼ 核心防護：只有在時間小於 300 秒 (提早手動解除) 時，才顯示「已解除」▼▼▼
+            // 如果是自然結束，這時 techPauseElapsedTime 已經是 300，就會自動跳過這段，不互相干擾！
+            if (techPauseElapsedTime < 300)
+            {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot)
+                    {
+                        p.PrintToCenter("技 術 暫 停 已 被 解 除");
+                    }
+                }
+            }
+            // ▲▲▲ 新增結束 ▲▲▲
+            
+            techPauseAutoUnpauseTimer.Kill();
+            techPauseAutoUnpauseTimer = null;
+        }
+
         techPauseElapsedTime = 0;
     }
 
