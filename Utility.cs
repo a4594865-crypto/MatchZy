@@ -309,7 +309,7 @@ namespace MatchZy
             PrintToAllChat($"{ChatColors.Green}======================");
 
             // ▼▼▼ 修改：只有 HUD 延遲 1.5 秒，避開重啟畫面被刷掉 ▼▼▼
-            AddTimer(1.5f, () => 
+            AddTimer(2.0f, () => 
             {
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -388,7 +388,7 @@ namespace MatchZy
             PrintToAllChat($"{ChatColors.Lime}★ ★ ★ {ChatColors.Default}比賽正式開始！祝各位好運！ {ChatColors.Lime}★ ★ ★");
 
             // ▼▼▼ 修改：只有 HUD 延遲 1.5 秒，避開重啟畫面被刷掉 ▼▼▼
-            AddTimer(1.5f, () => 
+            AddTimer(2.0f, () => 
             {
                 foreach (var p in Utilities.GetPlayers())
                 {
