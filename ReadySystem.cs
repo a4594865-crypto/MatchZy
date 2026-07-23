@@ -130,7 +130,7 @@ namespace MatchZy
             
             foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
             {
-                p.PrintToCenter($"比 賽 開 始 倒 數 : {countdownRemaining} 秒");
+                p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
                 p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
             }
             
@@ -150,7 +150,7 @@ namespace MatchZy
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
                             // 【新增】：畫面置中純文字提示
-                            p.PrintToCenter($"比 賽 開 始 倒 數: {countdownRemaining} 秒");
+                            p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
                         
