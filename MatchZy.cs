@@ -844,7 +844,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p != null && p.IsValid && !p.IsBot)
+            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
             {
                 p.PrintToCenter("已 開 啟 隨 機 隊 伍 分 配");
             }
@@ -884,7 +884,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p != null && p.IsValid && !p.IsBot)
+            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
             {
                 p.PrintToCenter("已 取 消 隨 機 隊 伍 分 配");
             }
