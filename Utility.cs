@@ -17,8 +17,6 @@ namespace MatchZy
 {
     public partial class MatchZy
     {
-        public bool pendingKnifeRoundUI = false;
-        public bool pendingLiveRoundUI = false;
         public const string warmupCfgPath = "MatchZy/warmup.cfg";
         public const string knifeCfgPath = "MatchZy/knife.cfg";
         public const string liveCfgPath = "MatchZy/live.cfg";
@@ -302,15 +300,26 @@ namespace MatchZy
                 Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
             }
 
-            // 5. 【關鍵執行】最後才讓伺服器重啟，確保換隊指令已經先被伺服器受理
+           // 5. 【關鍵執行】最後才讓伺服器重啟，確保換隊指令已經先被伺服器受理
             Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
 
+            // 文字廣播不延遲，立刻發送
             PrintToAllChat($"{ChatColors.Green}======================");
             PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
             PrintToAllChat($"{ChatColors.Green}======================");
 
-            // ▼▼▼ 修改：不使用計時器，直接掛上標記交給回合開始事件處理 ▼▼▼
-            pendingKnifeRoundUI = true;
+            // ▼▼▼ 修改：只有 HUD 延遲 1.5 秒，避開重啟畫面被刷掉 ▼▼▼
+            AddTimer(1.5f, () => 
+            {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot)
+                    {
+                        p.PrintToCenter("★ 刀 局 開 始 ！ 勝 者 選 邊 ★");
+                    }
+                }
+            });
+            // ▲▲▲ 修改結束 ▲▲▲
         }
         private void SendSideSelectionMessage()
         {
@@ -372,14 +381,23 @@ namespace MatchZy
             lastBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.txt";
             lastMatchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.json";
 
-            // This is to reload the map once it is over so that all flags are reset accordingly
            // This is to reload the map once it is over so that all flags are reset accordingly
             Server.ExecuteCommand("mp_match_end_restart true");
 
+            // 文字廣播不延遲，立刻發送
             PrintToAllChat($"{ChatColors.Lime}★ ★ ★ {ChatColors.Default}比賽正式開始！祝各位好運！ {ChatColors.Lime}★ ★ ★");
 
-            // ▼▼▼ 修改：不使用計時器，直接掛上標記交給回合開始事件處理 ▼▼▼
-            pendingLiveRoundUI = true;
+            // ▼▼▼ 修改：只有 HUD 延遲 1.5 秒，避開重啟畫面被刷掉 ▼▼▼
+            AddTimer(1.5f, () => 
+            {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot)
+                    {
+                        p.PrintToCenter("★ 比 賽 正 式 開 始！祝 各 位 好 運 ★");
+                    }
+                }
+            });
             // ▲▲▲ 修改結束 ▲▲▲
 
             var goingLiveEvent = new GoingLiveEvent
@@ -1070,7 +1088,7 @@ namespace MatchZy
             return t1score + t2score;
         }
 
-       public void HandlePostRoundStartEvent(EventRoundStart @event)
+        public void HandlePostRoundStartEvent(EventRoundStart @event)
         {
             if (isDryRun) RandomizeSpawns();
             if (!matchStarted) return;
@@ -1079,25 +1097,6 @@ namespace MatchZy
             CreateMatchZyRoundDataBackup();
             InitPlayerDamageInfo();
             UpdateHostname();
-
-            // ▼▼▼ 新增：完全無計時器，透過引擎原生事件精準觸發 UI ▼▼▼
-            if (pendingKnifeRoundUI)
-            {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p != null && p.IsValid && !p.IsBot) p.PrintToCenter("★ 刀 局 開 始 ！ 勝 者 選 邊 ★");
-                }
-                pendingKnifeRoundUI = false; // 顯示完立刻關閉標記
-            }
-            else if (pendingLiveRoundUI)
-            {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p != null && p.IsValid && !p.IsBot) p.PrintToCenter("★ 比 賽 正 式 開 始！祝 各 位 好 運 ★");
-                }
-                pendingLiveRoundUI = false; // 顯示完立刻關閉標記
-            }
-            // ▲▲▲ 新增結束 ▲▲▲
         }
 
        private void HandlePostRoundEndEvent(EventRoundEnd @event)
