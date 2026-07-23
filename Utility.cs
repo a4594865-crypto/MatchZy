@@ -301,7 +301,7 @@ namespace MatchZy
     }
 
     // 5. 【關鍵執行】最後才讓伺服器重啟，確保換隊指令已經先被伺服器受理
-    Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
+    Server.ExecuteCommand("mp_restartgame 0;mp_warmup_end;");
 
     PrintToAllChat($"{ChatColors.Green}======================");
     PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
