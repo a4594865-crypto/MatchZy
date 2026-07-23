@@ -368,7 +368,7 @@ namespace MatchZy
             });
         }
 
-        private void StartLive()
+       private void StartLive()
         {
             SetupLiveFlagsAndCfg();
             StartDemoRecording();
@@ -380,7 +380,17 @@ namespace MatchZy
             // This is to reload the map once it is over so that all flags are reset accordingly
             Server.ExecuteCommand("mp_match_end_restart true");
 
-           PrintToAllChat($"{ChatColors.Lime}★ ★ ★ {ChatColors.Default}比賽正式開始！祝各位好運！ {ChatColors.Lime}★ ★ ★");
+            PrintToAllChat($"{ChatColors.Lime}★ ★ ★ {ChatColors.Default}比賽正式開始！祝各位好運！ {ChatColors.Lime}★ ★ ★");
+
+            // ▼▼▼ 新增：在聊天室廣播的同時，也在全體玩家畫面正中央顯示開賽提示 ▼▼▼
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p != null && p.IsValid && !p.IsBot)
+                {
+                    p.PrintToCenter("★ 比 賽 正 式 開 始！祝 各 位 好 運 ★");
+                }
+            }
+            // ▲▲▲ 新增結束 ▲▲▲
 
             var goingLiveEvent = new GoingLiveEvent
             {
@@ -393,7 +403,6 @@ namespace MatchZy
                 await SendEventAsync(goingLiveEvent);
             });
         }
-
         private void KillPhaseTimers()
         {
             unreadyPlayerMessageTimer?.Kill();
