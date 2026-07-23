@@ -203,7 +203,7 @@ namespace MatchZy
                     if (p != null && p.IsValid && !p.IsBot)
                     {
                         // 覆蓋原本卡住的倒數秒數，明確告訴玩家倒數已中斷
-                        p.PrintToCenter("~ 倒 數 中 斷 ~"); 
+                        p.PrintToCenter(" 倒 數 中 斷 "); 
                     }
                 }
                 // ▲▲▲ 新增結束 ▲▲▲
