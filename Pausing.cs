@@ -105,6 +105,16 @@ public partial class MatchZy
 
         techPauseElapsedTime = 0;
 
+        // ▼▼▼ 新增：在計時器啟動前，立刻先印出第 0 秒的狀態 (300秒)，與官方原生 UI 完美同步！ ▼▼▼
+        foreach (var p in Utilities.GetPlayers())
+        {
+            if (p != null && p.IsValid && !p.IsBot)
+            {
+                p.PrintToCenter("技 術 暫 停 中 : 300 秒");
+            }
+        }
+        // ▲▲▲ 新增結束 ▲▲▲
+
         // 建立 300 秒倒數計時器，改為每 1.0 秒觸發一次來更新 UI
         techPauseAutoUnpauseTimer = AddTimer(1.0f, () =>
         {
@@ -131,7 +141,7 @@ public partial class MatchZy
                 {
                     if (p != null && p.IsValid && !p.IsBot)
                     {
-                        p.PrintToCenter("~ 技 術 暫 停 結 束 ~");
+                        p.PrintToCenter(" 技 術 暫 停 結 束 ");
                     }
                 }
                 
