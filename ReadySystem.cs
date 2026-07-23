@@ -108,8 +108,6 @@ namespace MatchZy
         // --- 直接開始 7 秒音效倒數（修正版：絕不提前點火 + 兼容隨機秒開不重生 + 完美同步置中 UI） ---
         public void StartMatchCountdown()
         {
-            // 【修改 1】：把原本 isShufflePending 的秒開攔截整段刪除！讓它往下走。
-
             if (matchStartCountdownTimer != null) return;
 
             // 倒數第 1 秒立刻全體回巢重生 (雙重重生就在這裡發生，但無傷大雅)
@@ -134,16 +132,13 @@ namespace MatchZy
                 p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
             }
             
-          // 印完第 7 秒後，立刻減 1，讓 1 秒後的計時器從 6 秒開始接手
+            // 印完第 7 秒後，立刻減 1，讓 1 秒後的計時器從 6 秒開始接手
             countdownRemaining--; 
-            // ▲▲▲ 新增結束 ▲▲▲
 
             matchStartCountdownTimer = AddTimer(1.0f, () => {
                 Server.NextFrame(() => {
                     // ▼▼▼ 終極防禦：攔截「殘留的 NextFrame 幽靈呼叫」 ▼▼▼
-                    // 如果倒數已經被 CancelMatchCountdown 中斷，絕對不允許這發殘彈去覆蓋中斷畫面！
                     if (!isCountdownActive || matchStartCountdownTimer == null) return;
-                    // ▲▲▲ 防禦結束 ▲▲▲
 
                     if (countdownRemaining > 0)
                     {
@@ -154,7 +149,7 @@ namespace MatchZy
 
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
-                            // 【新增】：畫面置中純文字提示
+                            // 畫面置中純文字提示
                             p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
@@ -168,7 +163,13 @@ namespace MatchZy
                         matchStartCountdownTimer = null;
                         isCountdownActive = false; 
 
-                        // 【修改 2】：在這裡才把隨機洗牌的標記安全關閉！
+                        // 【新增】：瞬間清除畫面上的「1 秒」殘影！避免視覺卡頓
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                        {
+                            p.PrintToCenter(" "); 
+                        }
+
+                        // 在這裡才把隨機洗牌的標記安全關閉
                         if (isShufflePending) 
                         {
                             isShufflePending = false;
@@ -176,7 +177,7 @@ namespace MatchZy
 
                         if (matchStarted) return;
                         
-                        //  【把這行終極核彈防護補上去！】：強制在開賽前 0 毫秒重新點名
+                        // 強制在開賽前 0 毫秒重新點名
                         UpdatePlayersMap(); 
                         
                         HandleMatchStart(); // 安全在 0 秒點火開賽
