@@ -166,7 +166,7 @@ namespace MatchZy
                         // 【新增】：開賽瞬間發送最後一次置中提示
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
-                            p.PrintToCenter(" 比 賽 開 始 ");
+                            p.PrintToCenter(" 比 賽 已 正 式 開 始 ");
                         }
 
                         // 【修改 2】：在這裡才把隨機洗牌的標記安全關閉！
@@ -203,7 +203,7 @@ namespace MatchZy
                     if (p != null && p.IsValid && !p.IsBot)
                     {
                         // 覆蓋原本卡住的倒數秒數，明確告訴玩家倒數已中斷
-                        p.PrintToCenter(" 倒 數 中 斷 "); 
+                        p.PrintToCenter(" 比 賽 倒 數 中 斷 "); 
                     }
                 }
                 // ▲▲▲ 新增結束 ▲▲▲
