@@ -301,7 +301,7 @@ namespace MatchZy
             }
 
            // 5. 【關鍵執行】最後才讓伺服器重啟，確保換隊指令已經先被伺服器受理
-            Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
+            Server.ExecuteCommand("mp_restartgame 0;mp_warmup_end;");
 
             // 文字廣播不延遲，立刻發送
             PrintToAllChat($"{ChatColors.Green}======================");
@@ -309,7 +309,7 @@ namespace MatchZy
             PrintToAllChat($"{ChatColors.Green}======================");
 
             // ▼▼▼ 修改：只有 HUD 延遲 1.5 秒，避開重啟畫面被刷掉 ▼▼▼
-            AddTimer(2.0f, () => 
+            AddTimer(1.5f, () => 
             {
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -388,7 +388,7 @@ namespace MatchZy
             PrintToAllChat($"{ChatColors.Lime}★ ★ ★ {ChatColors.Default}比賽正式開始！祝各位好運！ {ChatColors.Lime}★ ★ ★");
 
             // ▼▼▼ 修改：只有 HUD 延遲 1.5 秒，避開重啟畫面被刷掉 ▼▼▼
-            AddTimer(2.0f, () => 
+            AddTimer(1.5f, () => 
             {
                 foreach (var p in Utilities.GetPlayers())
                 {
