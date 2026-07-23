@@ -108,7 +108,7 @@ public partial class MatchZy
         // ▼▼▼ 確保第 0 秒的狀態 (300秒)，與官方原生 UI 完美同步！ ▼▼▼
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p != null && p.IsValid && !p.IsBot)
+            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
             {
                 p.PrintToCenter("技 術 暫 停 中：300 秒");
             }
@@ -139,7 +139,7 @@ public partial class MatchZy
                 // ▼▼▼ 依照你的嚴格要求，將 300 秒自然「結束」的提示獨立保留在這裡 ▼▼▼
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p != null && p.IsValid && !p.IsBot)
+                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
                         p.PrintToCenter(" 技 術 暫 停 已 結 束 ");
                     }
@@ -159,7 +159,7 @@ public partial class MatchZy
                 // 【畫面置中提示】：每 1 秒在畫面正下方更新剩餘秒數
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p != null && p.IsValid && !p.IsBot)
+                    
                     {
                         p.PrintToCenter($"技 術 暫 停 中 : {remaining} 秒");
                     }
