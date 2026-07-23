@@ -105,8 +105,8 @@ public partial class MatchZy
 
         techPauseElapsedTime = 0;
 
-        // 建立 300 秒倒數計時器
-        techPauseAutoUnpauseTimer = AddTimer(30.0f, () =>
+        // 建立 300 秒倒數計時器，改為每 1.0 秒觸發一次來更新 UI
+        techPauseAutoUnpauseTimer = AddTimer(1.0f, () =>
         {
             if (!isPaused)
             {
@@ -114,7 +114,9 @@ public partial class MatchZy
                 return;
             }
 
-            techPauseElapsedTime += 30;
+            // 每次觸發增加 1 秒
+            techPauseElapsedTime += 1;
+            int remaining = 300 - techPauseElapsedTime;
 
             if (techPauseElapsedTime >= 300)
             {
@@ -123,12 +125,34 @@ public partial class MatchZy
                 unpauseData["ct"] = false;
                 unpauseData["t"] = false;
                 PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上 限，系 統 自 動 解 除 暫 停");
+                
+                // 結束時，發送最後一次置中提示告訴玩家暫停結束
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot)
+                    {
+                        p.PrintToCenter("~ 技 術 暫 停 結 束 ~");
+                    }
+                }
+                
                 KillTechPauseTimer();
             }
             else
             {
-                int remaining = 300 - techPauseElapsedTime;
-                PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 除 還 剩 \u0004{remaining} 秒\u0001 ");
+                // 【聊天室提示】：每隔 30 秒才在聊天室廣播一次，避免洗頻
+                if (techPauseElapsedTime % 30 == 0)
+                {
+                    PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 除 還 剩 \u0004{remaining} 秒\u0001 ");
+                }
+
+                // 【畫面置中提示】：每 1 秒在畫面正下方更新剩餘秒數
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot)
+                    {
+                        p.PrintToCenter($"技 術 暫 停 中 : {remaining} 秒");
+                    }
+                }
             }
         }, TimerFlags.REPEAT);
     }
