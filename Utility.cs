@@ -266,61 +266,47 @@ namespace MatchZy
         }
 
         private void StartKnifeRound()
-        {
-            // 1. 先殺掉準備提示計時器 (與原邏輯一致)
-            if (unreadyPlayerMessageTimer != null)
-            {
-                unreadyPlayerMessageTimer.Kill();
-                unreadyPlayerMessageTimer = null;
-            }
+{
+    // 1. 先殺掉準備提示計時器 (與原邏輯一致)
+    if (unreadyPlayerMessageTimer != null)
+    {
+        unreadyPlayerMessageTimer.Kill();
+        unreadyPlayerMessageTimer = null;
+    }
 
-            // 2. 【核心隔離：在狀態變更前洗牌】
-            // 此時 isCountdownActive 應剛結束或被設為 false，洗牌換隊不會觸發「倒數中止」邏輯
-            if (isShufflePending) 
-            {
-                ExecuteShuffleLogic(); 
-            }
+    // 2. 【核心隔離：在狀態變更前洗牌】
+    // 此時 isCountdownActive 應剛結束或被設為 false，洗牌換隊不會觸發「倒數中止」邏輯
+    if (isShufflePending) 
+    {
+        ExecuteShuffleLogic(); 
+    }
 
-            // 3. 設定比賽階段 (與原邏輯一致)
-            matchStarted = true;
-            isKnifeRound = true;
-            readyAvailable = false;
-            isWarmup = false;
+    // 3. 設定比賽階段 (與原邏輯一致)
+    matchStarted = true;
+    isKnifeRound = true;
+    readyAvailable = false;
+    isWarmup = false;
 
-            // 4. 根據 CFG 存在與否執行指令
-            var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath);
-            if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
-            {
-                Log($"[StartKnifeRound] Starting Knife! Executing Knife CFG from {knifeCfgPath}");
-                Server.ExecuteCommand($"exec {knifeCfgPath}");
-            }
-            else
-            {
-                Log($"[StartKnifeRound] Starting Knife! Knife CFG not found, using default CFG!");
-                Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
-            }
+    // 4. 根據 CFG 存在與否執行指令
+    var absolutePath = Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath);
+    if (File.Exists(Path.Join(Server.GameDirectory + "/csgo/cfg", knifeCfgPath)))
+    {
+        Log($"[StartKnifeRound] Starting Knife! Executing Knife CFG from {knifeCfgPath}");
+        Server.ExecuteCommand($"exec {knifeCfgPath}");
+    }
+    else
+    {
+        Log($"[StartKnifeRound] Starting Knife! Knife CFG not found, using default CFG!");
+        Server.ExecuteCommand("mp_ct_default_secondary \"\";mp_free_armor 1;mp_freezetime 10;mp_give_player_c4 0;mp_maxmoney 0;mp_respawn_immunitytime 0;mp_respawn_on_death_ct 0;mp_respawn_on_death_t 0;mp_roundtime 1.92;mp_roundtime_defuse 1.92;mp_roundtime_hostage 1.92;mp_t_default_secondary \"\";mp_round_restart_delay 3;mp_team_intro_time 0;");
+    }
 
-           // 5. 【關鍵執行】最後才讓伺服器重啟，確保換隊指令已經先被伺服器受理
-            Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
+    // 5. 【關鍵執行】最後才讓伺服器重啟，確保換隊指令已經先被伺服器受理
+    Server.ExecuteCommand("mp_restartgame 1;mp_warmup_end;");
 
-            // 文字廣播不延遲，立刻發送
-            PrintToAllChat($"{ChatColors.Green}======================");
-            PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
-            PrintToAllChat($"{ChatColors.Green}======================");
-
-            // ▼▼▼ 修改：只有 HUD 延遲 1.5 秒，避開重啟畫面被刷掉 ▼▼▼
-            AddTimer(1.5f, () => 
-            {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p != null && p.IsValid && !p.IsBot)
-                    {
-                        p.PrintToCenter("★ 刀 局 開 始 ！ 勝 者 選 邊 ★");
-                    }
-                }
-            });
-            // ▲▲▲ 修改結束 ▲▲▲
-        }
+    PrintToAllChat($"{ChatColors.Green}======================");
+    PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
+    PrintToAllChat($"{ChatColors.Green}======================");
+}
         private void SendSideSelectionMessage()
         {
             if (!isSideSelectionPhase) return;
@@ -372,7 +358,7 @@ namespace MatchZy
             });
         }
 
-       private void StartLive()
+        private void StartLive()
         {
             SetupLiveFlagsAndCfg();
             StartDemoRecording();
@@ -381,24 +367,10 @@ namespace MatchZy
             lastBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.txt";
             lastMatchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.json";
 
-           // This is to reload the map once it is over so that all flags are reset accordingly
+            // This is to reload the map once it is over so that all flags are reset accordingly
             Server.ExecuteCommand("mp_match_end_restart true");
 
-            // 文字廣播不延遲，立刻發送
-            PrintToAllChat($"{ChatColors.Lime}★ ★ ★ {ChatColors.Default}比賽正式開始！祝各位好運！ {ChatColors.Lime}★ ★ ★");
-
-            // ▼▼▼ 修改：只有 HUD 延遲 1.5 秒，避開重啟畫面被刷掉 ▼▼▼
-            AddTimer(1.5f, () => 
-            {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p != null && p.IsValid && !p.IsBot)
-                    {
-                        p.PrintToCenter("★ 比 賽 正 式 開 始！祝 各 位 好 運 ★");
-                    }
-                }
-            });
-            // ▲▲▲ 修改結束 ▲▲▲
+           PrintToAllChat($"{ChatColors.Lime}★ ★ ★ {ChatColors.Default}比賽正式開始！祝各位好運！ {ChatColors.Lime}★ ★ ★");
 
             var goingLiveEvent = new GoingLiveEvent
             {
@@ -411,6 +383,7 @@ namespace MatchZy
                 await SendEventAsync(goingLiveEvent);
             });
         }
+
         private void KillPhaseTimers()
         {
             unreadyPlayerMessageTimer?.Kill();
