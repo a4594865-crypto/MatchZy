@@ -134,7 +134,7 @@ namespace MatchZy
                 p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
             }
             
-            // 印完第 7 秒後，立刻減 1，讓 1 秒後的計時器從 6 秒開始接手
+          // 印完第 7 秒後，立刻減 1，讓 1 秒後的計時器從 6 秒開始接手
             countdownRemaining--; 
             // ▲▲▲ 新增結束 ▲▲▲
 
@@ -168,12 +168,6 @@ namespace MatchZy
                         matchStartCountdownTimer = null;
                         isCountdownActive = false; 
 
-                        // 【新增】：開賽瞬間發送最後一次置中提示
-                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
-                        {
-                            p.PrintToCenter(" 比 賽 已 正 式 開 始 ");
-                        }
-
                         // 【修改 2】：在這裡才把隨機洗牌的標記安全關閉！
                         if (isShufflePending) 
                         {
@@ -190,7 +184,6 @@ namespace MatchZy
                 });
             }, TimerFlags.REPEAT);
         }
-
        public void CancelMatchCountdown(string reason)
         {
             if (matchStartCountdownTimer != null)
