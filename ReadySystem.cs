@@ -105,7 +105,7 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-        // --- 直接開始 7 秒音效倒數（修正版：絕不提前點火 + 兼容隨機秒開不重生） ---
+        // --- 直接開始 7 秒音效倒數（修正版：絕不提前點火 + 兼容隨機秒開不重生 + 完美同步置中 UI） ---
         public void StartMatchCountdown()
         {
             // 【修改 1】：把原本 isShufflePending 的秒開攔截整段刪除！讓它往下走。
@@ -124,6 +124,20 @@ namespace MatchZy
             isCountdownActive = true; 
             countdownRemaining = 7; // 精準設定為 7 秒
 
+            // ▼▼▼ 新增：手動補發第 0 秒 (倒數 7 秒) 的狀態，與音效、UI 完美同步！ ▼▼▼
+            string initialColor = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
+            PrintToAllChat($"倒數：{initialColor}{countdownRemaining}");
+            
+            foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+            {
+                p.PrintToCenter($"比 賽 開 始 倒 數 : {countdownRemaining} 秒");
+                p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
+            }
+            
+            // 印完第 7 秒後，立刻減 1，讓 1 秒後的計時器從 6 秒開始接手
+            countdownRemaining--; 
+            // ▲▲▲ 新增結束 ▲▲▲
+
             matchStartCountdownTimer = AddTimer(1.0f, () => {
                 Server.NextFrame(() => {
                     if (countdownRemaining > 0)
@@ -135,6 +149,8 @@ namespace MatchZy
 
                         foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
+                            // 【新增】：畫面置中純文字提示
+                            p.PrintToCenter($"比 賽 開 始 倒 數: {countdownRemaining} 秒");
                             p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
                         
@@ -146,6 +162,12 @@ namespace MatchZy
                         matchStartCountdownTimer?.Kill();
                         matchStartCountdownTimer = null;
                         isCountdownActive = false; 
+
+                        // 【新增】：開賽瞬間發送最後一次置中提示
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                        {
+                            p.PrintToCenter(" 比 賽 開 始 ");
+                        }
 
                         // 【修改 2】：在這裡才把隨機洗牌的標記安全關閉！
                         if (isShufflePending) 
@@ -174,6 +196,17 @@ namespace MatchZy
 
                 // --- 核心改動 ---
                 Server.PrintToChatAll($"{reason}");
+
+                // ▼▼▼ 新增：處理 HUD 框，避免畫面卡在「倒數 X 秒」▼▼▼
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot)
+                    {
+                        // 覆蓋原本卡住的倒數秒數，明確告訴玩家倒數已中斷
+                        p.PrintToCenter("~ 倒 數 中 斷 ~"); 
+                    }
+                }
+                // ▲▲▲ 新增結束 ▲▲▲
 
                 PrintUnreadyPlayers();
             }
@@ -289,7 +322,7 @@ namespace MatchZy
                                 if (p != null && p.IsValid && !p.IsBot) finalPlayerCount++;
                             }
 
-                            // 💡 修正盲點：如果 120 秒後 0 人，且 (不是熱身 或是 卡在選邊)，且不是在結算畫面，才重開！
+                            //  修正盲點：如果 120 秒後 0 人，且 (不是熱身 或是 卡在選邊)，且不是在結算畫面，才重開！
                             if (finalPlayerCount == 0 && (!isWarmup || isSideSelectionPhase) && !IsPostGamePhase())
                             {
                                 Server.ExecuteCommand("css_restart"); 
