@@ -126,7 +126,7 @@ namespace MatchZy
             string initialColor = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
             PrintToAllChat($"倒數：{initialColor}{countdownRemaining}");
             
-            foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+            foreach (var p in Utilities.GetPlayers().Where(p => p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3)))
             {
                 p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
                 p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
