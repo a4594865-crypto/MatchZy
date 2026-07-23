@@ -184,7 +184,8 @@ namespace MatchZy
                 });
             }, TimerFlags.REPEAT);
         }
-       public void CancelMatchCountdown(string reason)
+
+        public void CancelMatchCountdown(string reason)
         {
             if (matchStartCountdownTimer != null)
             {
@@ -194,19 +195,6 @@ namespace MatchZy
 
                 // --- 核心改動 ---
                 Server.PrintToChatAll($"{reason}");
-
-                // ▼▼▼ 終極修正：加上 0.2 秒延遲，完美閃避 CS2 引擎在斷線瞬間「強制清空 HUD」的底層機制 ▼▼▼
-                AddTimer(0.2f, () => {
-                    foreach (var p in Utilities.GetPlayers())
-                    {
-                        if (p != null && p.IsValid && !p.IsBot)
-                        {
-                            // 等引擎刷新完上方頭像後，再把這句印上去，保證絕對不會被吃掉！
-                            p.PrintToCenter(" 比 賽 倒 數 中 斷 "); 
-                        }
-                    }
-                });
-                // ▲▲▲ 修正結束 ▲▲▲
 
                 PrintUnreadyPlayers();
             }
