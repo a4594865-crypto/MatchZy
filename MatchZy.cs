@@ -906,74 +906,83 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         // =========================================================================
         // 同步動態洗牌分隊 + 官方原生隊名穩定版 (不自訂隊名，絕不崩潰)
         // =========================================================================
-        public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
-        {
-            int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
-
-            lock (_shuffleLock)
-            {
-                if (!isShufflePending) return;
-
-                List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
-                    .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                    .ToList();
-
-                if (activePlayers.Count < 1) 
-                {
-                    Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
-                    isShufflePending = false; 
-                    
-                    var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
-                    if (originalPlayer != null && originalPlayer.IsValid) OnPlayerReady(originalPlayer, null);
-                    return;
-                }
-
-                // Fisher-Yates 洗牌演算法
-                Random rng = new();
-                int n = activePlayers.Count;
-                while (n > 1) 
-                {
-                    n--;
-                    int k = rng.Next(n + 1);
-                    (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
-                }
-
-              // 【型態安全修正】：設定 CsTeam 列舉 + CommitSuicide() 自殺換隊機制
-                int half = activePlayers.Count / 2;
-                for (int i = 0; i < activePlayers.Count; i++) 
-                {
-                    var player = activePlayers[i];
-                    if (player == null || !player.IsValid) continue;
-
-                    // 1. 直接宣告為標準的 CsTeam 列舉型態，絕不使用 int 混淆
-                    CsTeam targetTeam = (i < half) ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
-
-
-                    // 2. 判斷目前的隊伍是否與目標隊伍不符 (注意：比對時將 targetTeam 轉成 int 比對 TeamNum)
-if (player.TeamNum != (byte)targetTeam)
+       public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
 {
-    // 3. 【核心修正】改用 MatchZy 內建的 SwitchPlayerTeam
-    // 強制在下一個伺服器影格瞬間刷新玩家陣營，徹底消滅 1 秒後的抓名時間差
-    SwitchPlayerTeam(player, targetTeam); 
-}
+    int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
+
+    lock (_shuffleLock)
+    {
+        if (!isShufflePending) return;
+
+        List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
+            .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+            .ToList();
+
+        if (activePlayers.Count < 1) 
+        {
+            Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
+            isShufflePending = false; 
+            
+            var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
+            if (originalPlayer != null && originalPlayer.IsValid) OnPlayerReady(originalPlayer, null);
+            return;
+        }
+
+        // Fisher-Yates 洗牌演算法
+        Random rng = new();
+        int n = activePlayers.Count;
+        while (n > 1) 
+        {
+            n--;
+            int k = rng.Next(n + 1);
+            (activePlayers[k], activePlayers[n]) = (activePlayers[n], activePlayers[k]);
+        }
+
+        // 【型態安全修正】：設定 CsTeam 列舉 + CommitSuicide() 自殺換隊機制
+        int half = activePlayers.Count / 2;
+        for (int i = 0; i < activePlayers.Count; i++) 
+        {
+            var player = activePlayers[i];
+            if (player == null || !player.IsValid) continue;
+
+            // 1. 直接宣告為標準的 CsTeam 列舉型態，絕不使用 int 混淆
+            CsTeam targetTeam = (i < half) ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+
+            // 2. 判斷目前的隊伍是否與目標隊伍不符 (注意：比對時將 targetTeam 轉成 int 比對 TeamNum)
+            if (player.TeamNum != (byte)targetTeam)
+            {
+                // 3. 【核心修正】改用 MatchZy 內建的 SwitchPlayerTeam
+                // 強制在下一個伺服器影格瞬間刷新玩家陣營，徹底消滅 1 秒後的抓名時間差
+                SwitchPlayerTeam(player, targetTeam); 
+            }
+        }
+
+        // 延遲 1.0 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
+        AddTimer(1.0f, () => {
+            // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
+            if (matchStarted || playerReadyStatus.Count == 0) return;
+            
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
+            Log("[Shuffle] 洗牌同步完成");
+
+            // ▼▼▼ 新增：發送全服中央底部提示 ▼▼▼
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p != null && p.IsValid && !p.IsBot)
+                {
+                    p.PrintToCenter("隨 機 分 隊 完 成 ！ 隊 伍 已 鎖 定");
                 }
+            }
 
-
-                // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
-                AddTimer(1.0f, () => {
-                    // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
-                    if (matchStarted || playerReadyStatus.Count == 0) return;
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-                    Log("[Shuffle] 洗牌同步完成");
-                    // 在執行完所有的 ChangeTeam 指令之後
-                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
-                    
-                    // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
-                    // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
-                    StartMatchCountdown(); 
-                });
-            } //  結束 lock (_shuffleLock)
-        } //  結束 ExecuteShuffleLogicWithReady 方法
+            // 在執行完所有的 ChangeTeam 指令之後
+            UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
+            
+            // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
+            // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
+            StartMatchCountdown(); 
+        });
+    } //  結束 lock (_shuffleLock)
+} //  結束 ExecuteShuffleLogicWithReady 方法
 
         [ConsoleCommand("css_hp", "查詢對擊殺者的傷害統計")]
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
