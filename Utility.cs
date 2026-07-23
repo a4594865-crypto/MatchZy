@@ -17,6 +17,8 @@ namespace MatchZy
 {
     public partial class MatchZy
     {
+        public bool pendingKnifeRoundUI = false;
+        public bool pendingLiveRoundUI = false;
         public const string warmupCfgPath = "MatchZy/warmup.cfg";
         public const string knifeCfgPath = "MatchZy/knife.cfg";
         public const string liveCfgPath = "MatchZy/live.cfg";
@@ -307,15 +309,8 @@ namespace MatchZy
             PrintToAllChat($"{ChatColors.Red}★{ChatColors.Default} 刀局開始，勝者選邊 {ChatColors.Red}★");
             PrintToAllChat($"{ChatColors.Green}======================");
 
-            // ▼▼▼ 新增：發送全服中央底部提示 ▼▼▼
-            foreach (var p in Utilities.GetPlayers())
-            {
-                if (p != null && p.IsValid && !p.IsBot)
-                {
-                    p.PrintToCenter("★ 刀 局 開 始 ！ 勝 者 選 邊 ★");
-                }
-            }
-            // ▲▲▲ 新增結束 ▲▲▲
+            // ▼▼▼ 修改：不使用計時器，直接掛上標記交給回合開始事件處理 ▼▼▼
+            pendingKnifeRoundUI = true;
         }
         private void SendSideSelectionMessage()
         {
@@ -378,19 +373,14 @@ namespace MatchZy
             lastMatchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.json";
 
             // This is to reload the map once it is over so that all flags are reset accordingly
+           // This is to reload the map once it is over so that all flags are reset accordingly
             Server.ExecuteCommand("mp_match_end_restart true");
 
             PrintToAllChat($"{ChatColors.Lime}★ ★ ★ {ChatColors.Default}比賽正式開始！祝各位好運！ {ChatColors.Lime}★ ★ ★");
 
-            // ▼▼▼ 新增：在聊天室廣播的同時，也在全體玩家畫面正中央顯示開賽提示 ▼▼▼
-            foreach (var p in Utilities.GetPlayers())
-            {
-                if (p != null && p.IsValid && !p.IsBot)
-                {
-                    p.PrintToCenter("★ 比 賽 正 式 開 始！祝 各 位 好 運 ★");
-                }
-            }
-            // ▲▲▲ 新增結束 ▲▲▲
+            // ▼▼▼ 修改：不使用計時器，直接掛上標記交給回合開始事件處理 ▼▼▼
+            pendingLiveRoundUI = true;
+            // ▲▲▲ 修改結束 ▲▲▲
 
             var goingLiveEvent = new GoingLiveEvent
             {
@@ -1080,7 +1070,7 @@ namespace MatchZy
             return t1score + t2score;
         }
 
-        public void HandlePostRoundStartEvent(EventRoundStart @event)
+       public void HandlePostRoundStartEvent(EventRoundStart @event)
         {
             if (isDryRun) RandomizeSpawns();
             if (!matchStarted) return;
@@ -1089,6 +1079,25 @@ namespace MatchZy
             CreateMatchZyRoundDataBackup();
             InitPlayerDamageInfo();
             UpdateHostname();
+
+            // ▼▼▼ 新增：完全無計時器，透過引擎原生事件精準觸發 UI ▼▼▼
+            if (pendingKnifeRoundUI)
+            {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot) p.PrintToCenter("★ 刀 局 開 始 ！ 勝 者 選 邊 ★");
+                }
+                pendingKnifeRoundUI = false; // 顯示完立刻關閉標記
+            }
+            else if (pendingLiveRoundUI)
+            {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot) p.PrintToCenter("★ 比 賽 正 式 開 始！祝 各 位 好 運 ★");
+                }
+                pendingLiveRoundUI = false; // 顯示完立刻關閉標記
+            }
+            // ▲▲▲ 新增結束 ▲▲▲
         }
 
        private void HandlePostRoundEndEvent(EventRoundEnd @event)
