@@ -168,24 +168,10 @@ public partial class MatchZy
         }, TimerFlags.REPEAT);
     }
 
-    public void KillTechPauseTimer()
+   public void KillTechPauseTimer()
     {
         if (techPauseAutoUnpauseTimer != null)
         {
-            // ▼▼▼ 核心防護：只有在時間小於 300 秒 (提早手動解除) 時，才顯示「已解除」▼▼▼
-            // 如果是自然結束，這時 techPauseElapsedTime 已經是 300，就會自動跳過這段，不互相干擾！
-            if (techPauseElapsedTime < 300)
-            {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p != null && p.IsValid && !p.IsBot)
-                    {
-                        p.PrintToCenter("技 術 暫 停 已 被 解 除");
-                    }
-                }
-            }
-            // ▲▲▲ 新增結束 ▲▲▲
-            
             techPauseAutoUnpauseTimer.Kill();
             techPauseAutoUnpauseTimer = null;
         }
