@@ -918,7 +918,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
                     .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     .ToList();
 
-                if (activePlayers.Count < 2) 
+                if (activePlayers.Count < 1) 
                 {
                     Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
                     isShufflePending = false; 
