@@ -957,32 +957,21 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             }
         }
 
-        // 延遲 1.0 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
-        AddTimer(1.0f, () => {
-            // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
-            if (matchStarted || playerReadyStatus.Count == 0) return;
-            
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定。");
-            Log("[Shuffle] 洗牌同步完成");
-
-            // ▼▼▼ 新增：發送全服中央底部提示 ▼▼▼
-            foreach (var p in Utilities.GetPlayers())
-            {
-                if (p != null && p.IsValid && !p.IsBot)
-                {
-                    p.PrintToCenter("隨 機 分 隊 完 成 ！ 隊 伍 已 鎖 定");
-                }
-            }
-
-            // 在執行完所有的 ChangeTeam 指令之後
-            UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
-            
-            // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
-            // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
-            StartMatchCountdown(); 
-        });
-    } //  結束 lock (_shuffleLock)
-} //  結束 ExecuteShuffleLogicWithReady 方法
+      // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
+                AddTimer(1.0f, () => {
+                    // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
+                    if (matchStarted || playerReadyStatus.Count == 0) return;
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定");
+                    Log("[Shuffle] 洗牌同步完成");
+                    // 在執行完所有的 ChangeTeam 指令之後
+                    UpdatePlayersMap(); // 刷新 MatchZy 全域玩家隊伍分佈圖快取
+                    
+                    // 【核心修正點】：不要在這裡秒開，也不要把標記關掉！
+                    // 直接去呼叫倒數方法，讓 StartMatchCountdown 內部的 isShufflePending 防護盾去決定秒開、不重生
+                    StartMatchCountdown(); 
+                });
+            } //  結束 lock (_shuffleLock)
+        } //  結束 ExecuteShuffleLogicWithReady 方法
 
         [ConsoleCommand("css_hp", "查詢對擊殺者的傷害統計")]
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
