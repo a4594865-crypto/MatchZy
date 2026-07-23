@@ -140,6 +140,11 @@ namespace MatchZy
 
             matchStartCountdownTimer = AddTimer(1.0f, () => {
                 Server.NextFrame(() => {
+                    // ▼▼▼ 終極防禦：攔截「殘留的 NextFrame 幽靈呼叫」 ▼▼▼
+                    // 如果倒數已經被 CancelMatchCountdown 中斷，絕對不允許這發殘彈去覆蓋中斷畫面！
+                    if (!isCountdownActive || matchStartCountdownTimer == null) return;
+                    // ▲▲▲ 防禦結束 ▲▲▲
+
                     if (countdownRemaining > 0)
                     {
                         // 3, 2, 1 秒顯示紅色，7, 6, 5, 4 秒顯示綠色
