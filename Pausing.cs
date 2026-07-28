@@ -91,6 +91,10 @@ public partial class MatchZy
             return;
         }
 
+        // ▼▼▼ 新增：判斷發起暫停的陣營文字 ▼▼▼
+        string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反 恐 精 英" : "恐 怖 份 子";
+        // ▲▲▲ 新增結束 ▲▲▲
+
         // 扣除次數並執行技術暫停
         techPausesLeft[teamKey]--;
         Server.ExecuteCommand("mp_pause_match;");
@@ -110,7 +114,8 @@ public partial class MatchZy
         {
             if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
             {
-                p.PrintToCenter("技 術 暫 停 中：300 秒");
+                // 改為包含陣營變數
+                p.PrintToCenter($"{sideName} 技 術 暫 停 中：300 秒");
             }
         }
         // ▲▲▲ 新增結束 ▲▲▲
@@ -159,9 +164,11 @@ public partial class MatchZy
                 // 【畫面置中提示】：每 1 秒在畫面正下方更新剩餘秒數
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    
+                    // 這裡幫你把防呆過濾的 if 補回去了，避免因為取到無效玩家報錯
+                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"技 術 暫 停 中 : {remaining} 秒");
+                        // 改為包含陣營變數
+                        p.PrintToCenter($"{sideName} 技 術 暫 停 中 : {remaining} 秒");
                     }
                 }
             }
