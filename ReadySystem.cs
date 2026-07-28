@@ -105,14 +105,12 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-        // =========================================================================
-        // 直接開始 7 秒音效倒數（終極流暢版：解決 HUD 延遲與吃字問題）
-        // =========================================================================
+        // --- 直接開始 7 秒音效倒數（修正版：絕不提前點火 + 兼容隨機秒開不重生 + 完美同步置中 UI） ---
         public void StartMatchCountdown()
         {
             if (matchStartCountdownTimer != null) return;
 
-            // 倒數第 1 秒立刻全體回巢重生 (雙重重生就在這裡發生)
+            // 倒數第 1 秒立刻全體回巢重生 (雙重重生就在這裡發生，但無傷大雅)
             foreach (var p in Utilities.GetPlayers())
             {
                 if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
@@ -122,72 +120,69 @@ namespace MatchZy
             }
 
             isCountdownActive = true; 
-            countdownRemaining = 7; 
+            countdownRemaining = 7; // 精準設定為 7 秒
 
-            // ▼▼▼ 修正 1：文字不受重生影響，第一時間立刻噴出 ▼▼▼
+            // ▼▼▼ 新增：手動補發第 0 秒 (倒數 7 秒) 的狀態，與音效、UI 完美同步！ ▼▼▼
             string initialColor = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
             PrintToAllChat($"倒數：{initialColor}{countdownRemaining}");
             
-            // ▼▼▼ 修正 2：避開 Respawn 造成的 UI 重置卡頓 ▼▼▼
-            // 加入 0.1 秒的極短緩衝。讓客戶端完全跑完重生黑屏後，瞬間把 HUD 與音效貼在畫面上，完美解決第一秒覺得卡頓的錯覺。
-            AddTimer(0.1f, () => {
-                foreach (var p in Utilities.GetPlayers().Where(p => p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3)))
-                {
-                    p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
-                    p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
-                }
-            });
+            foreach (var p in Utilities.GetPlayers().Where(p => p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3)))
+            {
+                p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
+                p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
+            }
             
+            // 印完第 7 秒後，立刻減 1，讓 1 秒後的計時器從 6 秒開始接手
             countdownRemaining--; 
 
-            // ▼▼▼ 修正 3：徹底拔除 Server.NextFrame 導致的 1 Tick 延遲 ▼▼▼
-            // 直接由 AddTimer 精準驅動，HUD、音效、文字將達到 100% 毫秒級同步！
             matchStartCountdownTimer = AddTimer(1.0f, () => {
-                
-                if (!isCountdownActive || matchStartCountdownTimer == null) return;
+                Server.NextFrame(() => {
+                    // ▼▼▼ 終極防禦：攔截「殘留的 NextFrame 幽靈呼叫」 ▼▼▼
+                    if (!isCountdownActive || matchStartCountdownTimer == null) return;
 
-                if (countdownRemaining > 0)
-                {
-                    // 3, 2, 1 秒顯示紅色，7, 6, 5, 4 秒顯示綠色
-                    string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
-                    
-                    PrintToAllChat($"倒數：{color}{countdownRemaining}");
-
-                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                    if (countdownRemaining > 0)
                     {
-                        // 畫面置中純文字提示 (零延遲執行)
-                        p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
-                        p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
-                    }
-                    
-                    countdownRemaining--;
-                }
-                else
-                {
-                    // 當 countdownRemaining 減到 0 時，關閉計時器
-                    matchStartCountdownTimer?.Kill();
-                    matchStartCountdownTimer = null;
-                    isCountdownActive = false; 
+                        // 3, 2, 1 秒顯示紅色，7, 6, 5, 4 秒顯示綠色
+                        string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
+                        
+                        PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                    // 瞬間清除畫面上的「1 秒」殘影！避免視覺卡頓
-                    foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                        {
+                            // 畫面置中純文字提示
+                            p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
+                            p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
+                        }
+                        
+                        countdownRemaining--;
+                    }
+                    else
                     {
-                        p.PrintToCenter(" "); 
-                    }
+                        // 當 countdownRemaining 減到 0 時，關閉計時器
+                        matchStartCountdownTimer?.Kill();
+                        matchStartCountdownTimer = null;
+                        isCountdownActive = false; 
 
-                    // 在這裡才把隨機洗牌的標記安全關閉
-                    if (isShufflePending) 
-                    {
-                        isShufflePending = false;
-                    }
+                        // 【新增】：瞬間清除畫面上的「1 秒」殘影！避免視覺卡頓
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
+                        {
+                            p.PrintToCenter(" "); 
+                        }
 
-                    if (matchStarted) return;
-                    
-                    // 強制在開賽前 0 毫秒重新點名
-                    UpdatePlayersMap(); 
-                    
-                    HandleMatchStart(); // 安全在 0 秒點火開賽
-                }
+                        // 在這裡才把隨機洗牌的標記安全關閉
+                        if (isShufflePending) 
+                        {
+                            isShufflePending = false;
+                        }
+
+                        if (matchStarted) return;
+                        
+                        // 強制在開賽前 0 毫秒重新點名
+                        UpdatePlayersMap(); 
+                        
+                        HandleMatchStart(); // 安全在 0 秒點火開賽
+                    }
+                });
             }, TimerFlags.REPEAT);
         }
 
@@ -199,6 +194,7 @@ namespace MatchZy
                 matchStartCountdownTimer = null;
                 isCountdownActive = false; 
 
+                // --- 核心改動 ---
                 Server.PrintToChatAll($"{reason}");
 
                 PrintUnreadyPlayers();
