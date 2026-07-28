@@ -35,7 +35,8 @@ namespace MatchZy
 
         public void SetupRoundBackupFile()
         {
-            string backupFilePrefix = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}";
+            // ▼ 修改此處：套用 txtBackupPrefix，讓 CS2 底層引擎生成對應前綴的 TXT
+            string backupFilePrefix = $"{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}";
             Server.ExecuteCommand($"mp_backup_round_file {backupFilePrefix}");
         }
 
@@ -225,7 +226,7 @@ namespace MatchZy
             }
             string backupFolder = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup");
             string filePath = Path.Combine(backupFolder, fileName);
- 
+
             if (!File.Exists(filePath))
             {
                 ReplyToUserCommand(player, Localizer["matchzy.backup.restoredoesntexist", fileName]);
