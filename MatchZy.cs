@@ -316,7 +316,6 @@ AddCommandListener("jointeam", (player, info) =>
     // --- 核心邏輯：只要正在倒數中，管你在不在熱身，通通不准換隊 ---
     if (matchStartCountdownTimer != null || isCountdownActive)
     {
-        // 顯示警告訊息給該玩家
         player.PrintToChat($"{chatPrefix} 倒 數 期 間 禁 止 切 換 隊 伍 或 觀 戰");
         return HookResult.Stop; 
     }
@@ -338,7 +337,6 @@ AddCommandListener("jointeam", (player, info) =>
         if (isKnifeRound) 
         {
             byte currentTeam = player.TeamNum;
-            // ▼ 修正點：加入 targetTeam == "0" 防堵自動選擇
             if ((currentTeam == 2 || currentTeam == 3) && (targetTeam == "0" || targetTeam == "1" || targetTeam == "2" || targetTeam == "3"))
             {
                 player.PrintToChat($"{chatPrefix} 刀 局 期 間，禁 止 互 換 隊 伍");
@@ -346,16 +344,21 @@ AddCommandListener("jointeam", (player, info) =>
             }
         }
 
-        // 【關鍵差別點二：LIVE正賽期間（非刀局）才放行觀戰】
-        // 允許去觀戰 (targetTeam "1" 是觀戰)
-        if (targetTeam == "1") return HookResult.Continue;
-
-        // 5. 正式局（LIVE後）限制：禁止 T/CT 互換 
+        // 【關鍵差別點二：LIVE正賽期間（非刀局），保護補位機制，但鎖死場上選手】
         byte playerTeam = player.TeamNum;
-        // ▼ 修正點：加入 targetTeam == "0" 防堵正式比賽時利用自動選擇自殺換隊
-        if ((targetTeam == "0" || targetTeam == "2" || targetTeam == "3") && (playerTeam == 2 || playerTeam == 3))
+
+        // 情況 A：如果你目前是「觀戰者 (1)」或「剛連線未分配 (0)」
+        // 允許你自由選擇隊伍 (包含點選自動選擇 0、加入 T 2、加入 CT 3) 來補位！
+        if (playerTeam == 0 || playerTeam == 1)
         {
-            player.PrintToChat($"{chatPrefix} 比 賽 已 開 始，禁 止 互 換 隊 伍");
+            return HookResult.Continue; 
+        }
+
+        // 情況 B：如果你目前已經是場上的「T (2)」或「CT (3)」選手
+        // 絕對禁止你使用任何指令 (包含 0 自動、1 觀戰、2 T、3 CT) 逃跑或換隊！
+        if (playerTeam == 2 || playerTeam == 3)
+        {
+            player.PrintToChat($"{chatPrefix} 比 賽 已 開 始，禁 止 切 換 隊 伍");
             return HookResult.Stop; 
         }
     }
