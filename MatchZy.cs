@@ -863,7 +863,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
         // 1. 真人管理員手動輸入 ➔ 聊天室廣播給大家聽
-        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 自 洗 牌");
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
