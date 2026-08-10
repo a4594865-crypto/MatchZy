@@ -399,7 +399,7 @@ AddCommandListener("jointeam", (player, info) =>
             });
             AddCommandListener("noclip", OnConsoleNoClip);
 
-            //  徹底封死控制台發起的跨外掛投票指令
+            //  徹底封死控制台發起的跨外掛投票指令 (加入 css_slayer_vote 專屬密語防衝突)
             AddCommandListener("css_rtv", BlockVoteInCriticalPhases);
             AddCommandListener("css_vote", BlockVoteInCriticalPhases);
             AddCommandListener("css_slayer_vote", BlockVoteInCriticalPhases);
@@ -530,14 +530,18 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     //  =========================================================================
     if (message.StartsWith(".rtv") || message.StartsWith(".vote")) {
         
-        // 倒數中「或者卡在選邊時」，絕對禁止呼叫投票面板！
-        if (isCountdownActive || isSideSelectionPhase) {
+        // 加入 isMatchSetup 判斷：正式比賽，或是倒數/選邊時，絕對禁止呼叫投票面板！
+        if (isMatchSetup || isCountdownActive || isSideSelectionPhase) {
             
             var chatPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
             if (chatPlayer != null && chatPlayer.IsValid) {
-                // 給玩家一個明確的警告，讓他知道為什麼不能投
-                chatPlayer.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
-                chatPlayer.PrintToCenter("已 禁 止 發 起 任 何 投 票");
+                if (isMatchSetup) {
+                    chatPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 何 投 票");
+                    chatPlayer.PrintToCenter("已 禁 止 發 起 任 何 投 票");
+                } else {
+                    chatPlayer.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
+                    chatPlayer.PrintToCenter("已 禁 止 發 起 任 何 投 票");
+                }
             }
             // 回傳 Handled 直接把這句話吃掉，投票外掛根本收不到這個指令
             return HookResult.Handled; 
@@ -799,17 +803,31 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             }
             return count;
         }
+
         // 專門用來擋控制台跨外掛投票的共用函數
         private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
         {
-            if (player != null && (isCountdownActive || isSideSelectionPhase))
+            if (player == null) return HookResult.Continue;
+
+            // 1. 【新增防護】：如果是 BO1/BO3 正式比賽，無論如何全面禁止投票！
+            if (isMatchSetup)
+            {
+                player.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 何 投 票");
+                player.PrintToCenter("已 禁 止 發 起 任 何 投 票");
+                return HookResult.Stop; 
+            }
+
+            // 2. 【原有防護】：一般路人局的「倒數」或「選邊」期間，禁止干擾
+            if (isCountdownActive || isSideSelectionPhase)
             {
                 player.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
-                player.PrintToCenter("已 禁 止 發 起 任 何 投 票")
-                return HookResult.Stop; // 直接擋下控制台指令
+                player.PrintToCenter("已 禁 止 發 起 任 何 投 票");
+                return HookResult.Stop; 
             }
+
             return HookResult.Continue;
         }
+
         // 這邊結束
 [ConsoleCommand("css_shuffle", "預約隨機分隊")]
 [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
@@ -845,7 +863,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
         // 1. 真人管理員手動輸入 ➔ 聊天室廣播給大家聽
-        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 自 洗 牌");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
@@ -885,7 +903,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
         // 1. 聊天室廣播給大家聽
-        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Orange}已 取 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Orange}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
