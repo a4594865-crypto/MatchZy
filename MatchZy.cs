@@ -402,6 +402,7 @@ AddCommandListener("jointeam", (player, info) =>
             //  徹底封死控制台發起的跨外掛投票指令
             AddCommandListener("css_rtv", BlockVoteInCriticalPhases);
             AddCommandListener("css_vote", BlockVoteInCriticalPhases);
+            AddCommandListener("css_slayer_vote", BlockVoteInCriticalPhases);
             // 這邊結束 
 
             RegisterEventHandler<EventRoundEnd>((@event, info) =>
@@ -536,6 +537,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             if (chatPlayer != null && chatPlayer.IsValid) {
                 // 給玩家一個明確的警告，讓他知道為什麼不能投
                 chatPlayer.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
+                chatPlayer.PrintToCenter("已 禁 止 發 起 任 何 投 票");
             }
             // 回傳 Handled 直接把這句話吃掉，投票外掛根本收不到這個指令
             return HookResult.Handled; 
@@ -803,6 +805,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             if (player != null && (isCountdownActive || isSideSelectionPhase))
             {
                 player.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
+                player.PrintToCenter("已 禁 止 發 起 任 何 投 票")
                 return HookResult.Stop; // 直接擋下控制台指令
             }
             return HookResult.Continue;
