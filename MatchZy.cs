@@ -538,10 +538,10 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             if (chatPlayer != null && chatPlayer.IsValid) {
                 if (isMatchSetup) {
                     chatPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 何 投 票");
-                    chatPlayer.PrintToCenter("正 式 比 賽 期 間 ， 禁 止 投 票");
+                    chatPlayer.PrintToCenter("正 式 比 賽 期 間 ， 禁 止 發 起 投 票");
                 } else {
                     chatPlayer.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
-                    chatPlayer.PrintToCenter("倒 數 或 選 邊 期 間 ， 禁 止 投 票");
+                    chatPlayer.PrintToCenter("倒 數 或 選 邊 ， 禁 止 發 起 投 票");
                 }
             }
             // 回傳 Handled 直接把這句話吃掉，投票外掛根本收不到這個指令
