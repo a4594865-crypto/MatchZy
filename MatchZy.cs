@@ -389,10 +389,10 @@ AddCommandListener("jointeam", (player, info) =>
             // 徹底禁用 ESC 投票系統
             AddCommandListener("callvote", (player, info) =>
             {
-                // 如果是正式賽程，或者「正在選邊階段」，全面禁用原生投票
-                if (player != null && (isMatchSetup || isSideSelectionPhase)) 
+                // 完美防禦：正賽與刀局也全面禁用 ESC 換圖
+                if (player != null && (isMatchSetup || isCountdownActive || isSideSelectionPhase || isKnifeRound || matchStarted)) 
                 {
-                    player.PrintToChat($"{chatPrefix} 正 式 比 賽 或 選 邊 期 間，內 建 投 票 功 能 已 被 禁 用");
+                    player.PrintToChat($"{chatPrefix} 比 賽 進 行 中 或 關 鍵 階 段，內 建 投 票 功 能 已 被 禁 用");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
@@ -531,8 +531,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     //  =========================================================================
     if (message.StartsWith(".rtv") || message.StartsWith(".vote")) {
         
-        // 加入 isMatchSetup 判斷：正式比賽，或是倒數/選邊時，絕對禁止呼叫投票面板！
-        if (isMatchSetup || isCountdownActive || isSideSelectionPhase) {
+        // 完美防禦：加入 isKnifeRound 與 matchStarted，徹底禁止正賽呼叫投票面板！
+        if (isMatchSetup || isCountdownActive || isSideSelectionPhase || isKnifeRound || matchStarted) {
             
             var chatPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
             if (chatPlayer != null && chatPlayer.IsValid) {
@@ -540,8 +540,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     chatPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 何 投 票");
                     chatPlayer.PrintToCenter("正 式 比 賽 期 間 ， 禁 止 發 起 投 票");
                 } else {
-                    chatPlayer.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
-                    chatPlayer.PrintToCenter("倒 數 或 選 邊 ， 禁 止 發 起 投 票");
+                    chatPlayer.PrintToChat($"{chatPrefix} 比 賽 進 行 中 或 關 鍵 階 段，禁 止 發 起 任 何 投 票");
+                    chatPlayer.PrintToCenter("比 賽 進 行 中 ， 禁 止 發 起 投 票");
                 }
             }
             // 回傳 Handled 直接把這句話吃掉，投票外掛根本收不到這個指令
@@ -826,11 +826,12 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 return HookResult.Stop; 
             }
 
-            // 2. 【原有防護】：一般路人局的「倒數」或「選邊」期間，禁止干擾
-            if (isCountdownActive || isSideSelectionPhase)
+            // 2. 【原有防護】：一般路人局的「倒數/選邊/刀局/正賽」期間，禁止干擾
+            // 完美防禦：加入刀局與正賽鎖定
+            if (isCountdownActive || isSideSelectionPhase || isKnifeRound || matchStarted)
             {
-                targetPlayer.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
-                targetPlayer.PrintToCenter("倒 數 或 選 邊 期 間 ， 禁 止 投 票");
+                targetPlayer.PrintToChat($"{chatPrefix} 比 賽 進 行 中 或 關 鍵 階 段，禁 止 發 起 任 何 投 票");
+                targetPlayer.PrintToCenter("比 賽 進 行 中 ， 禁 止 投 票");
                 return HookResult.Stop; 
             }
 
