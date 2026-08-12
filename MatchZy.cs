@@ -632,7 +632,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         // 把 isSideSelectionPhase 一併加入鎖定條件
         if (isMatchSetup || isSideSelectionPhase)
         {
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正 式 比 賽 或 選 邊 期 間{ChatColors.Default}，禁止更換！");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}正 式 比 賽 或 選 邊 期 間{ChatColors.Default}，禁止更換！");
             return HookResult.Continue;
         }
         HandleMapChangeCommand(player, messageCommandArg);
