@@ -392,7 +392,7 @@ AddCommandListener("jointeam", (player, info) =>
                 // 完美防禦：正賽與刀局也全面禁用 ESC 換圖
                 if (player != null && (isMatchSetup || isCountdownActive || isSideSelectionPhase || isKnifeRound || matchStarted)) 
                 {
-                    player.PrintToChat($"{chatPrefix} 比 賽 進 行 中 或 關 鍵 階 段，內 建 投 票 功 能 已 被 禁 用");
+                    player.PrintToChat($"{chatPrefix} 比 賽 進 行 中 ，內 建 投 票 功 能 已 被 禁 用");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
@@ -540,7 +540,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     chatPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 何 投 票");
                     chatPlayer.PrintToCenter("正 式 比 賽 期 間 ， 禁 止 發 起 投 票");
                 } else {
-                    chatPlayer.PrintToChat($"{chatPrefix} 比 賽 進 行 中 或 關 鍵 階 段，禁 止 發 起 任 何 投 票");
+                    chatPlayer.PrintToChat($"{chatPrefix} 比 賽 進 行 中 ，禁 止 發 起 任 何 投 票");
                     chatPlayer.PrintToCenter("比 賽 進 行 中 ， 禁 止 發 起 投 票");
                 }
             }
@@ -822,7 +822,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             if (isMatchSetup)
             {
                 targetPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 何 投 票");
-                targetPlayer.PrintToCenter("正 式 比 賽 期 間 ， 禁 止 投 票");
+                targetPlayer.PrintToCenter("正 式 比 賽 期 間 ， 禁 止 發 起 投 票");
                 return HookResult.Stop; 
             }
 
@@ -830,8 +830,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             // 完美防禦：加入刀局與正賽鎖定
             if (isCountdownActive || isSideSelectionPhase || isKnifeRound || matchStarted)
             {
-                targetPlayer.PrintToChat($"{chatPrefix} 比 賽 進 行 中 或 關 鍵 階 段，禁 止 發 起 任 何 投 票");
-                targetPlayer.PrintToCenter("比 賽 進 行 中 ， 禁 止 投 票");
+                targetPlayer.PrintToChat($"{chatPrefix} 比 賽 進 行 中，禁 止 發 起 任 何 投 票");
+                targetPlayer.PrintToCenter("比 賽 進 行 中 ， 禁 止 發 起 投 票");
                 return HookResult.Stop; 
             }
 
