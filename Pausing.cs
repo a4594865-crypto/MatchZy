@@ -250,7 +250,7 @@ public partial class MatchZy
         string maxTimeString = maxM > 0 ? $"{maxM}分{maxS:D2}秒" : $"{maxS}秒";
 
         PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{tacPausesLeft[teamKey]} {ChatColors.Default}次");
-        PrintToAllChat($" 暫 停 將 在 \u0004{matchzy_tac_pause_duration}秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.unp\u0001 解 除")
+        PrintToAllChat($" 暫 停 將 在 \u0004{matchzy_tac_pause_duration}秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
 
