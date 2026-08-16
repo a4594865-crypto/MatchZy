@@ -11,11 +11,11 @@ public partial class MatchZy
     // ==========================================
     // ▼ 設定檔變數區 (配合 MatchZy 設定檔動態修改) ▼
     // ==========================================
-    public int matchzy_tech_pause_duration = 300; // 技術暫停預設 300 秒
-    public int matchzy_max_tech_pauses_allowed = 2; // 技術暫停預設每隊 2 次
+    public int matchzy_tech_pause_duration = 300; 
+    public int matchzy_max_tech_pauses_allowed = 2; 
 
-    public int matchzy_tac_pause_duration = 90; // 戰術暫停預設 90 秒
-    public int matchzy_max_tac_pauses_allowed = 3; // 戰術暫停預設每隊 3 次
+    public int matchzy_tac_pause_duration = 90; 
+    public int matchzy_max_tac_pauses_allowed = 3; 
 
     // ==========================================
     // ▼ 暫停次數與計時器全域變數區 ▼
@@ -46,7 +46,6 @@ public partial class MatchZy
     {
         if (!isMatchLive) return;
 
-        // 【互鎖防護】如果正在跑戰術暫停，禁止觸發技術暫停
         if (tacPauseAutoUnpauseTimer != null)
         {
             if (player != null) PrintToPlayerChat(player, " 目前正處於【戰術暫停】，無法啟用技術暫停。");
@@ -60,6 +59,16 @@ public partial class MatchZy
         }
 
         var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        
+        // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 (購買階段)」才能發起暫停 ▼▼▼
+        if (gameRules != null && !gameRules.FreezePeriod)
+        {
+            if (player != null) 
+                PrintToPlayerChat(player, $" {ChatColors.Red}目前回合正在進行中，請於【回合凍結時間 (購買階段)】再啟用暫停。");
+            return;
+        }
+        // ▲▲▲ 防護結束 ▲▲▲
+
         bool isOfficialTacActive = gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
 
         if (isPaused || isOfficialTacActive)
@@ -107,11 +116,9 @@ public partial class MatchZy
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
         
-        // 重置同意狀態
         untData["t"] = false;
         untData["ct"] = false;
 
-        // 換算聊天室廣播預設秒數
         int maxM = matchzy_tech_pause_duration / 60;
         int maxS = matchzy_tech_pause_duration % 60;
         string maxTimeString = maxM > 0 ? $"{maxM}分{maxS:D2}秒" : $"{maxS}秒";
@@ -137,7 +144,7 @@ public partial class MatchZy
                 isPaused = false;
                 untData["ct"] = false;
                 untData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004 {maxTimeString} \u0001上 限，系 統 自 動 解 除 暫 停");
+                PrintToAllChat($" 技 術 暫 停 已達\u0004 {maxTimeString} \u0001上 限，系 統 自 自 動 解 除 暫 停");
                 
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -174,7 +181,6 @@ public partial class MatchZy
     {
         if (!isMatchLive) return;
 
-        // 【互鎖防護】如果正在跑技術暫停，禁止觸發戰術暫停
         if (techPauseAutoUnpauseTimer != null)
         {
             if (player != null) PrintToPlayerChat(player, " 目前正處於【技術暫停】，無法啟用戰術暫停。");
@@ -188,6 +194,16 @@ public partial class MatchZy
         }
 
         var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        
+        // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 (購買階段)」才能發起暫停 ▼▼▼
+        if (gameRules != null && !gameRules.FreezePeriod)
+        {
+            if (player != null) 
+                PrintToPlayerChat(player, $" {ChatColors.Red}目前回合正在進行中，請於【回合凍結時間 (購買階段)】再啟用暫停。");
+            return;
+        }
+        // ▲▲▲ 防護結束 ▲▲▲
+
         bool isOfficialTacActive = gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
 
         if (isPaused || isOfficialTacActive)
@@ -218,7 +234,7 @@ public partial class MatchZy
             return;
         }
 
-        string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反 恐 小 組" : "恐 怖 份 子";
+        string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反恐小組" : "恐怖份子";
         tacPausesLeft[teamKey]--;
         
         int currentPauseUsed = matchzy_max_tac_pauses_allowed - tacPausesLeft[teamKey]; 
@@ -226,7 +242,6 @@ public partial class MatchZy
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
         
-        // 重置同意狀態
         unpData["t"] = false;
         unpData["ct"] = false;
 
@@ -285,7 +300,7 @@ public partial class MatchZy
     }
 
 
-    // ==========================================
+// ==========================================
     // 🚫 解除指令攔截與同意機制 (.unt 與 .unp)
     // ==========================================
 
@@ -300,23 +315,30 @@ public partial class MatchZy
             return;
         }
 
-        if (techPauseAutoUnpauseTimer == null) return; // 沒在技術暫停就不理會
+        if (techPauseAutoUnpauseTimer == null) return; 
 
         string team = player.TeamNum == 2 ? "t" : "ct";
         string teamName = player.TeamNum == 2 ? "恐 怖 份 子" : "反 恐 小 組";
+        // 自動判斷對手陣營名稱
+        string opponentTeamName = player.TeamNum == 2 ? "反 恐 小 組" : "恐 怖 份 子"; 
 
         if (!untData[team])
         {
             untData[team] = true;
-            PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 已 準 備 解 除 技 術 暫 停。");
-        }
-
-        if (untData["t"] && untData["ct"])
-        {
-            Server.ExecuteCommand("mp_unpause_match;");
-            isPaused = false;
-            PrintToAllChat(" 雙 方 皆 已 同 意，技 術 暫 停 解 除。");
-            KillTechPauseTimer();
+            
+            // 判斷是否雙方都已同意
+            if (untData["t"] && untData["ct"])
+            {
+                Server.ExecuteCommand("mp_unpause_match;");
+                isPaused = false;
+                PrintToAllChat($" {ChatColors.Green}雙 方 皆 已 同 意，技 術 暫 停 解 除。");
+                KillTechPauseTimer();
+            }
+            else
+            {
+                // 單方發起時，顯示要求對方確認的提示
+                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想 要 解 除 技 術 暫 停。 {ChatColors.Green}{opponentTeamName}{ChatColors.Default}，請 輸 入 {ChatColors.Orange}.unt{ChatColors.Default} 來 確 定。");
+            }
         }
     }
 
@@ -331,23 +353,30 @@ public partial class MatchZy
             return;
         }
 
-        if (tacPauseAutoUnpauseTimer == null) return; // 沒在戰術暫停就不理會
+        if (tacPauseAutoUnpauseTimer == null) return; 
 
         string team = player.TeamNum == 2 ? "t" : "ct";
         string teamName = player.TeamNum == 2 ? "恐 怖 份 子" : "反 恐 小 組";
+        // 自動判斷對手陣營名稱
+        string opponentTeamName = player.TeamNum == 2 ? "反 恐 小 組" : "恐 怖 份 子"; 
 
         if (!unpData[team])
         {
             unpData[team] = true;
-            PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 已 準 備 解 除 戰 術 暫 停。");
-        }
-
-        if (unpData["t"] && unpData["ct"])
-        {
-            Server.ExecuteCommand("mp_unpause_match;");
-            isPaused = false;
-            PrintToAllChat(" 雙 方 皆 已 同 意，戰 術 暫 停 解 除。");
-            KillTacPauseTimer();
+            
+            // 判斷是否雙方都已同意
+            if (unpData["t"] && unpData["ct"])
+            {
+                Server.ExecuteCommand("mp_unpause_match;");
+                isPaused = false;
+                PrintToAllChat($" {ChatColors.Green}雙 方 皆 已 同 意，戰 術 暫 停 解 除。");
+                KillTacPauseTimer();
+            }
+            else
+            {
+                // 單方發起時，完美呈現你指定的互動格式
+                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想 要 解 除 暫 停。 {ChatColors.Green}{opponentTeamName}{ChatColors.Default}，請 輸 入 {ChatColors.Orange}.unp{ChatColors.Default} 來 確 定。");
+            }
         }
     }
 
