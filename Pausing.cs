@@ -311,7 +311,7 @@ public partial class MatchZy
     {
         if (tacPauseAutoUnpauseTimer != null)
         {
-            PrintToPlayerChat(player, $" 目 前 為 戰術暫停，請 雙 方 輸 入 {ChatColors.Green}.unp{ChatColors.Default} 來 解 除");
+            PrintToPlayerChat(player, $" 目 前 為 {ChatColors.Green}戰術暫停{ChatColors.Default}，請 雙 方 輸 入 {ChatColors.Green}.unp{ChatColors.Default} 來 解 除");
             return;
         }
 
@@ -337,7 +337,7 @@ public partial class MatchZy
             else
             {
                 // 單方發起時，顯示要求對方確認的提示
-                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想要解除技術暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default}請輸入 {ChatColors.Orange}.unt{ChatColors.Default} 來解除");
+                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想解除技術暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default}請輸入 {ChatColors.Orange}.unt{ChatColors.Default} 來同意");
             }
         }
     }
@@ -349,7 +349,7 @@ public partial class MatchZy
     {
         if (techPauseAutoUnpauseTimer != null)
         {
-            PrintToPlayerChat(player, $" 目 前 為 技術暫停，請 雙 方 輸 入 {ChatColors.Green}.unt{ChatColors.Default} 來 解 除");
+            PrintToPlayerChat(player, $" 目 前 為 {ChatColors.Green}技術暫停{ChatColors.Default}，請 雙 方 輸 入 {ChatColors.Green}.unt{ChatColors.Default} 來 解 除");
             return;
         }
 
@@ -375,7 +375,7 @@ public partial class MatchZy
             else
             {
                 // 單方發起時，完美呈現你指定的互動格式
-                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想要解除暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default} 請輸入 {ChatColors.Orange}.unp{ChatColors.Default} 來解除");
+                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想解除暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default} 請輸入 {ChatColors.Orange}.unp{ChatColors.Default} 來同意");
             }
         }
     }
