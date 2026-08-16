@@ -48,7 +48,7 @@ public partial class MatchZy
 
         if (tacPauseAutoUnpauseTimer != null)
         {
-            if (player != null) PrintToPlayerChat(player, " 目前正處於【戰術暫停】，無法啟用技術暫停。");
+            if (player != null) PrintToPlayerChat(player, " 目前正處於 戰術暫停，無法啟用技術暫停。");
             return;
         }
 
@@ -64,7 +64,7 @@ public partial class MatchZy
         if (gameRules != null && !gameRules.FreezePeriod)
         {
             if (player != null) 
-                PrintToPlayerChat(player, $" {ChatColors.Red}目前回合正在進行中，請於【回合凍結時間 (購買階段)】再啟用暫停。");
+                PrintToPlayerChat(player, $" 回合已開始，指令無法使用");
             return;
         }
         // ▲▲▲ 防護結束 ▲▲▲
@@ -108,7 +108,7 @@ public partial class MatchZy
             return;
         }
 
-        string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反 恐 小 組" : "恐 怖 份 子";
+        string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反恐小組" : "恐怖份子";
         techPausesLeft[teamKey]--;
         
         int currentPauseUsed = matchzy_max_tech_pauses_allowed - techPausesLeft[teamKey]; 
@@ -165,7 +165,7 @@ public partial class MatchZy
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"{sideName} 技 術 暫 停 {timeString} ({currentPauseUsed}/{matchzy_max_tech_pauses_allowed})");
+                        p.PrintToCenter($"{sideName} 技 術 暫 停 {timeString} ( {currentPauseUsed} / {matchzy_max_tech_pauses_allowed} )");
                     }
                 }
                 techPauseElapsedTime += 1;
@@ -199,7 +199,7 @@ public partial class MatchZy
         if (gameRules != null && !gameRules.FreezePeriod)
         {
             if (player != null) 
-                PrintToPlayerChat(player, $" {ChatColors.Red}目前回合正在進行中，請於【回合凍結時間 (購買階段)】再啟用暫停。");
+                PrintToPlayerChat(player, $" {ChatColors.Red}回合已開始，指令無法使用");
             return;
         }
         // ▲▲▲ 防護結束 ▲▲▲
@@ -291,7 +291,7 @@ public partial class MatchZy
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"{sideName} 暫 停 {timeString} ({currentPauseUsed}/{matchzy_max_tac_pauses_allowed})");
+                        p.PrintToCenter($"{sideName} 暫 停 {timeString} ( {currentPauseUsed} / {matchzy_max_tac_pauses_allowed} )");
                     }
                 }
                 tacPauseElapsedTime += 1;
@@ -318,9 +318,9 @@ public partial class MatchZy
         if (techPauseAutoUnpauseTimer == null) return; 
 
         string team = player.TeamNum == 2 ? "t" : "ct";
-        string teamName = player.TeamNum == 2 ? "恐 怖 份 子" : "反 恐 小 組";
+        string teamName = player.TeamNum == 2 ? "恐怖份子" : "反恐小組";
         // 自動判斷對手陣營名稱
-        string opponentTeamName = player.TeamNum == 2 ? "反 恐 小 組" : "恐 怖 份 子"; 
+        string opponentTeamName = player.TeamNum == 2 ? "反恐小組" : "恐怖份子"; 
 
         if (!untData[team])
         {
@@ -356,9 +356,9 @@ public partial class MatchZy
         if (tacPauseAutoUnpauseTimer == null) return; 
 
         string team = player.TeamNum == 2 ? "t" : "ct";
-        string teamName = player.TeamNum == 2 ? "恐 怖 份 子" : "反 恐 小 組";
+        string teamName = player.TeamNum == 2 ? "恐怖份子" : "反恐小組";
         // 自動判斷對手陣營名稱
-        string opponentTeamName = player.TeamNum == 2 ? "反 恐 小 組" : "恐 怖 份 子"; 
+        string opponentTeamName = player.TeamNum == 2 ? "反恐小組" : "恐怖份子"; 
 
         if (!unpData[team])
         {
