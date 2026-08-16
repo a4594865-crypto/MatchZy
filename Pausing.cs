@@ -165,7 +165,7 @@ public partial class MatchZy
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"{sideName} 技 術 暫 停 {timeString} ( {currentPauseUsed} / {matchzy_max_tech_pauses_allowed} )");
+                        p.PrintToCenter($"{sideName} 技術暫停 {timeString} ( {currentPauseUsed} / {matchzy_max_tech_pauses_allowed} )");
                     }
                 }
                 techPauseElapsedTime += 1;
@@ -183,7 +183,7 @@ public partial class MatchZy
 
         if (techPauseAutoUnpauseTimer != null)
         {
-            if (player != null) PrintToPlayerChat(player, $" 正處於【 {ChatColors.Green}技術暫停{ChatColors.Default} 】，無法啟用戰術暫停");
+            if (player != null) PrintToPlayerChat(player, $" 正處於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無法啟用戰術暫停");
             return;
         }
 
@@ -270,7 +270,7 @@ public partial class MatchZy
                 isPaused = false;
                 unpData["ct"] = false;
                 unpData["t"] = false;
-                PrintToAllChat($" 戰 術 暫 停 已達\u0004 {maxTimeString} \u0001上 限，系 統 自 動 解 除 暫 停");
+                PrintToAllChat($" 戰 術 暫 停 已達\u0004 {matchzy_tac_pause_duration}秒 \u0001上 限，系 統 自 動 解 除 暫 停");
                 
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -291,7 +291,7 @@ public partial class MatchZy
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"{sideName} 暫 停 {timeString} ( {currentPauseUsed} / {matchzy_max_tac_pauses_allowed} )");
+                        p.PrintToCenter($"{sideName} 暫停 {timeString} ( {currentPauseUsed} / {matchzy_max_tac_pauses_allowed} )");
                     }
                 }
                 tacPauseElapsedTime += 1;
