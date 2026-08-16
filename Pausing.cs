@@ -48,7 +48,7 @@ public partial class MatchZy
 
         if (tacPauseAutoUnpauseTimer != null)
         {
-            if (player != null) PrintToPlayerChat(player, " 目前正處於 {ChatColors.Green}戰術暫停{ChatColors.Default}，無法啟用技術暫停。");
+            if (player != null) PrintToPlayerChat(player, " 正處於 {ChatColors.Green}戰術暫停{ChatColors.Default}，無法啟用技術暫停。");
             return;
         }
 
@@ -189,7 +189,7 @@ public partial class MatchZy
 
         if (tacPauseAutoUnpauseTimer != null)
         {
-            if (player != null) PrintToPlayerChat(player, " 已經在戰術暫停中。");
+            if (player != null) PrintToPlayerChat(player, " 已 經 在{ChatColors.Green}戰術暫停{ChatColors.Default} 中。");
             return;
         }
 
