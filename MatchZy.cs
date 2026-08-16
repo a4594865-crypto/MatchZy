@@ -121,11 +121,21 @@ namespace MatchZy
                 { ".stay", OnTeamStay },
                 { ".switch", OnTeamSwitch },
                 { ".swap", OnTeamSwitch },
-                { ".tech", OnTechCommand },
-                { ".p", OnPauseCommand },
-                { ".pause", OnPauseCommand },
-                { ".unpause", OnUnpauseCommand },
-                { ".up", OnUnpauseCommand },
+                
+                // ▼▼▼ 雙軌暫停系統專屬指令註冊 ▼▼▼
+                { ".tech", (player, command) => TechPause(player, command) },
+                { ".p", (player, command) => TacPause(player, command) },
+                { ".pause", (player, command) => TacPause(player, command) },
+                
+                // 註冊新的專屬解除指令
+                { ".unt", (player, command) => { if (player != null) HandleUntCommand(player); } },
+                { ".unp", (player, command) => { if (player != null) HandleUnpCommand(player); } },
+                
+                // 完美封殺舊指令！只要打 .up 或 .unpause，直接跳出中文防呆提示，不觸發任何暫停解除
+                { ".up", (player, command) => { if (player != null) player.PrintToChat($"{chatPrefix} {ChatColors.Default}請確認目前暫停類型，並輸入 {ChatColors.Green}.unt{ChatColors.Default} (技術) 或 {ChatColors.Green}.unp{ChatColors.Default} (戰術) 來解除！"); } },
+                { ".unpause", (player, command) => { if (player != null) player.PrintToChat($"{chatPrefix} {ChatColors.Default}請確認目前暫停類型，並輸入 {ChatColors.Green}.unt{ChatColors.Default} (技術) 或 {ChatColors.Green}.unp{ChatColors.Default} (戰術) 來解除！"); } },
+                // ▲▲▲ 雙軌暫停系統註冊結束 ▲▲▲
+
                 { ".forcepause", OnForcePauseCommand },
                 { ".fp", OnForcePauseCommand },
                 { ".forceunpause", OnForceUnpauseCommand },
