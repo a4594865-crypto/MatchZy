@@ -8,44 +8,64 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
-    // 使用字串 "matchzyTeam1" 與 "matchzyTeam2" 作為字典 Key
-    public Dictionary<string, int> techPausesLeft = new() { { "matchzyTeam1", 1 }, { "matchzyTeam2", 1 } };
+    // ==========================================
+    // ▼ 設定檔變數區 (配合 MatchZy 設定檔動態修改) ▼
+    // ==========================================
+    public int matchzy_tech_pause_duration = 300; // 技術暫停預設 300 秒
+    public int matchzy_max_tech_pauses_allowed = 2; // 技術暫停預設每隊 2 次
 
-    // 用來控制 300 秒自動解除暫停的計時器變數
+    public int matchzy_tac_pause_duration = 90; // 戰術暫停預設 90 秒
+    public int matchzy_max_tac_pauses_allowed = 3; // 戰術暫停預設每隊 3 次
+
+    // ==========================================
+    // ▼ 暫停次數與計時器全域變數區 ▼
+    // ==========================================
+    public Dictionary<string, int> techPausesLeft = new() { { "matchzyTeam1", 2 }, { "matchzyTeam2", 2 } };
+    public Dictionary<string, int> tacPausesLeft = new() { { "matchzyTeam1", 3 }, { "matchzyTeam2", 3 } };
+
     public CounterStrikeSharp.API.Modules.Timers.Timer? techPauseAutoUnpauseTimer = null;
+    public CounterStrikeSharp.API.Modules.Timers.Timer? tacPauseAutoUnpauseTimer = null;
     
-    // 紀錄暫停經過時間的變數
     public int techPauseElapsedTime = 0;
+    public int tacPauseElapsedTime = 0;
 
     public Dictionary<Team, int> technicalPauseUsed = new();
     public int lastTechPauseDuration = 0;
 
-    /// <summary>
-    /// 技術暫停 (.tech) 的核心實作方法
-    /// </summary>
+    // ==========================================
+    // ▼ 獨立雙方解除同意紀錄 (.unt 與 .unp 專用) ▼
+    // ==========================================
+    public Dictionary<string, bool> untData = new() { { "ct", false }, { "t", false } };
+    public Dictionary<string, bool> unpData = new() { { "ct", false }, { "t", false } };
+
+
+    // ==========================================
+    // 🛠️ 技術暫停 (.tech) 核心方法
+    // ==========================================
     public void TechPause(CCSPlayerController? player, CommandInfo? command)
     {
         if (!isMatchLive) return;
 
-        // 防線 3：如果目前正在跑「300秒技術暫停」，禁止重複觸發
-        if (techPauseAutoUnpauseTimer != null)
+        // 【互鎖防護】如果正在跑戰術暫停，禁止觸發技術暫停
+        if (tacPauseAutoUnpauseTimer != null)
         {
-            if (player != null)
-            {
-                ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
-            }
+            if (player != null) PrintToPlayerChat(player, " 目前正處於【戰術暫停】，無法啟用技術暫停。");
             return;
         }
 
-        // 
+        if (techPauseAutoUnpauseTimer != null)
+        {
+            if (player != null) ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
+            return;
+        }
+
         var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
         bool isOfficialTacActive = gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
 
         if (isPaused || isOfficialTacActive)
         {
-            if (player != null)
-                PrintToPlayerChat(player, $" 正 處 於【 暫 停 狀 態 】中，無 法 啟 用 技 術 暫 停");
-            return; // 
+            if (player != null) PrintToPlayerChat(player, $" 正 處 於【 暫 停 狀 態 】中，無 法 啟 用 技 術 暫 停");
+            return; 
         }
 
         if (player == null)
@@ -68,22 +88,10 @@ public partial class MatchZy
         if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
 
         Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
+        string teamKey = playerMatchTeam == matchzyTeam1 ? "matchzyTeam1" : (playerMatchTeam == matchzyTeam2 ? "matchzyTeam2" : "");
+        if (string.IsNullOrEmpty(teamKey)) return;
 
-        string teamKey = "";
         string currentTeamName = playerMatchTeam.teamName;
-
-        if (playerMatchTeam == matchzyTeam1)
-        {
-            teamKey = "matchzyTeam1";
-        }
-        else if (playerMatchTeam == matchzyTeam2)
-        {
-            teamKey = "matchzyTeam2";
-        }
-        else
-        {
-            return;
-        }
 
         if (techPausesLeft[teamKey] <= 0)
         {
@@ -91,36 +99,28 @@ public partial class MatchZy
             return;
         }
 
-        // ▼▼▼ 新增：判斷發起暫停的陣營文字 ▼▼▼
-        string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反 恐 精 英" : "恐 怖 份 子";
-        // ▲▲▲ 新增結束 ▲▲▲
-
-        // 扣除次數並執行技術暫停
+        string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反 恐 小 組" : "恐 怖 份 子";
         techPausesLeft[teamKey]--;
+        
+        int currentPauseUsed = matchzy_max_tech_pauses_allowed - techPausesLeft[teamKey]; 
+
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
         
-        unpauseData["t"] = false;
-        unpauseData["ct"] = false;
-        unpauseData["pauseTeam"] = currentTeamName; 
+        // 重置同意狀態
+        untData["t"] = false;
+        untData["ct"] = false;
+
+        // 換算聊天室廣播預設秒數
+        int maxM = matchzy_tech_pause_duration / 60;
+        int maxS = matchzy_tech_pause_duration % 60;
+        string maxTimeString = maxM > 0 ? $"{maxM}分{maxS:D2}秒" : $"{maxS}秒";
 
         PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 技 術 暫 停。剩 餘 次 數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次。");
-        PrintToAllChat($" 暫 停 將 在 \u0004300秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.up\u0001 解 除。");
+        PrintToAllChat($" 暫 停 將 在 \u0004{maxTimeString}\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.unt\u0001 解 除。");
 
         techPauseElapsedTime = 0;
 
-        // ▼▼▼ 確保第 0 秒的狀態 (300秒)，與官方原生 UI 完美同步！ ▼▼▼
-        foreach (var p in Utilities.GetPlayers())
-        {
-            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-            {
-                // 改為包含陣營變數
-                p.PrintToCenter($"{sideName} 技 術 暫 停 中：300 秒");
-            }
-        }
-        // ▲▲▲ 新增結束 ▲▲▲
-
-        // 建立 300 秒倒數計時器，改為每 1.0 秒觸發一次來更新 UI
         techPauseAutoUnpauseTimer = AddTimer(1.0f, () =>
         {
             if (!isPaused)
@@ -129,19 +129,16 @@ public partial class MatchZy
                 return;
             }
 
-            // 每次觸發增加 1 秒
-            techPauseElapsedTime += 1;
-            int remaining = 300 - techPauseElapsedTime;
+            int remaining = matchzy_tech_pause_duration - techPauseElapsedTime;
 
-            if (techPauseElapsedTime >= 300)
+            if (techPauseElapsedTime >= matchzy_tech_pause_duration)
             {
                 Server.ExecuteCommand("mp_unpause_match;");
                 isPaused = false;
-                unpauseData["ct"] = false;
-                unpauseData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004 300 秒 \u0001上 限，系 統 自 動 解 除 暫 停");
+                untData["ct"] = false;
+                untData["t"] = false;
+                PrintToAllChat($" 技 術 暫 停 已達\u0004 {maxTimeString} \u0001上 限，系 統 自 動 解 除 暫 停");
                 
-                // ▼▼▼ 依照你的嚴格要求，將 300 秒自然「結束」的提示獨立保留在這裡 ▼▼▼
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
@@ -149,47 +146,251 @@ public partial class MatchZy
                         p.PrintToCenter(" 技 術 暫 停 已 結 束 ");
                     }
                 }
-                // ▲▲▲ 結束 ▲▲▲
-
                 KillTechPauseTimer();
             }
             else
             {
-                // 【聊天室提示】：每隔 30 秒才在聊天室廣播一次，避免洗頻
-                if (techPauseElapsedTime % 30 == 0)
-                {
-                    PrintToAllChat($" 技 術 暫 停 中... 距 離 自 動 解 除 還 剩 \u0004{remaining} 秒\u0001 ");
-                }
+                int m = remaining / 60;
+                int s = remaining % 60;
+                string timeString = m > 0 ? $"{m}分{s:D2}秒" : $"{s}秒";
 
-                // 【畫面置中提示】：每 1 秒在畫面正下方更新剩餘秒數
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    // 這裡幫你把防呆過濾的 if 補回去了，避免因為取到無效玩家報錯
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        // 改為包含陣營變數
-                        p.PrintToCenter($"{sideName} 技 術 暫 停 中 : {remaining} 秒");
+                        p.PrintToCenter($"{sideName} 技 術 暫 停 {timeString} ({currentPauseUsed}/{matchzy_max_tech_pauses_allowed})");
                     }
                 }
+                techPauseElapsedTime += 1;
             }
         }, TimerFlags.REPEAT);
     }
 
-   public void KillTechPauseTimer()
+
+    // ==========================================
+    // 🛡️ 戰術暫停 (.P) 核心方法
+    // ==========================================
+    public void TacPause(CCSPlayerController? player, CommandInfo? command)
+    {
+        if (!isMatchLive) return;
+
+        // 【互鎖防護】如果正在跑技術暫停，禁止觸發戰術暫停
+        if (techPauseAutoUnpauseTimer != null)
+        {
+            if (player != null) PrintToPlayerChat(player, " 目前正處於【技術暫停】，無法啟用戰術暫停。");
+            return;
+        }
+
+        if (tacPauseAutoUnpauseTimer != null)
+        {
+            if (player != null) PrintToPlayerChat(player, " 目前已經在戰術暫停中。");
+            return;
+        }
+
+        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        bool isOfficialTacActive = gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
+
+        if (isPaused || isOfficialTacActive)
+        {
+            if (player != null) PrintToPlayerChat(player, $" 正 處 於【 暫 停 狀 態 】中，無 法 啟 用 戰 術 暫 停");
+            return; 
+        }
+
+        if (player == null)
+        {
+            ForcePauseMatch(player, command);
+            return;
+        }
+
+        if (IsHalfTimePhase()) return;
+        if (IsPostGamePhase()) return;
+        if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
+
+        Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
+        string teamKey = playerMatchTeam == matchzyTeam1 ? "matchzyTeam1" : (playerMatchTeam == matchzyTeam2 ? "matchzyTeam2" : "");
+        if (string.IsNullOrEmpty(teamKey)) return;
+
+        string currentTeamName = playerMatchTeam.teamName;
+
+        if (tacPausesLeft[teamKey] <= 0)
+        {
+            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 您 的 {ChatColors.Green}戰 術 暫 停 {ChatColors.Default}次 數 已 用 完");
+            return;
+        }
+
+        string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反 恐 小 組" : "恐 怖 份 子";
+        tacPausesLeft[teamKey]--;
+        
+        int currentPauseUsed = matchzy_max_tac_pauses_allowed - tacPausesLeft[teamKey]; 
+
+        Server.ExecuteCommand("mp_pause_match;");
+        isPaused = true;
+        
+        // 重置同意狀態
+        unpData["t"] = false;
+        unpData["ct"] = false;
+
+        int maxM = matchzy_tac_pause_duration / 60;
+        int maxS = matchzy_tac_pause_duration % 60;
+        string maxTimeString = maxM > 0 ? $"{maxM}分{maxS:D2}秒" : $"{maxS}秒";
+
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{tacPausesLeft[teamKey]} {ChatColors.Default}次。");
+        PrintToAllChat($" 暫 停 將 在 \u0004{maxTimeString}\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.unp\u0001 解 除。");
+
+        tacPauseElapsedTime = 0;
+
+        tacPauseAutoUnpauseTimer = AddTimer(1.0f, () =>
+        {
+            if (!isPaused)
+            {
+                KillTacPauseTimer();
+                return;
+            }
+
+            int remaining = matchzy_tac_pause_duration - tacPauseElapsedTime;
+
+            if (tacPauseElapsedTime >= matchzy_tac_pause_duration)
+            {
+                Server.ExecuteCommand("mp_unpause_match;");
+                isPaused = false;
+                unpData["ct"] = false;
+                unpData["t"] = false;
+                PrintToAllChat($" 戰 術 暫 停 已達\u0004 {maxTimeString} \u0001上 限，系 統 自 動 解 除 暫 停");
+                
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    {
+                        p.PrintToCenter(" 戰 術 暫 停 已 結 束 ");
+                    }
+                }
+                KillTacPauseTimer();
+            }
+            else
+            {
+                int m = remaining / 60;
+                int s = remaining % 60;
+                string timeString = m > 0 ? $"{m}分{s:D2}秒" : $"{s}秒";
+
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    {
+                        p.PrintToCenter($"{sideName} 暫 停 {timeString} ({currentPauseUsed}/{matchzy_max_tac_pauses_allowed})");
+                    }
+                }
+                tacPauseElapsedTime += 1;
+            }
+        }, TimerFlags.REPEAT);
+    }
+
+
+    // ==========================================
+    // 🚫 解除指令攔截與同意機制 (.unt 與 .unp)
+    // ==========================================
+
+    /// <summary>
+    /// 處理玩家輸入 .unt (解技術暫停)
+    /// </summary>
+    public void HandleUntCommand(CCSPlayerController player)
+    {
+        if (tacPauseAutoUnpauseTimer != null)
+        {
+            PrintToPlayerChat(player, " 目前為戰術暫停，請輸入 .unp 來解除。");
+            return;
+        }
+
+        if (techPauseAutoUnpauseTimer == null) return; // 沒在技術暫停就不理會
+
+        string team = player.TeamNum == 2 ? "t" : "ct";
+        string teamName = player.TeamNum == 2 ? "恐 怖 份 子" : "反 恐 小 組";
+
+        if (!untData[team])
+        {
+            untData[team] = true;
+            PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 已 準 備 解 除 技 術 暫 停。");
+        }
+
+        if (untData["t"] && untData["ct"])
+        {
+            Server.ExecuteCommand("mp_unpause_match;");
+            isPaused = false;
+            PrintToAllChat(" 雙 方 皆 已 同 意，技 術 暫 停 解 除。");
+            KillTechPauseTimer();
+        }
+    }
+
+    /// <summary>
+    /// 處理玩家輸入 .unp (解戰術暫停)
+    /// </summary>
+    public void HandleUnpCommand(CCSPlayerController player)
+    {
+        if (techPauseAutoUnpauseTimer != null)
+        {
+            PrintToPlayerChat(player, " 目前為技術暫停，請雙方輸入 .unt 來解除。");
+            return;
+        }
+
+        if (tacPauseAutoUnpauseTimer == null) return; // 沒在戰術暫停就不理會
+
+        string team = player.TeamNum == 2 ? "t" : "ct";
+        string teamName = player.TeamNum == 2 ? "恐 怖 份 子" : "反 恐 小 組";
+
+        if (!unpData[team])
+        {
+            unpData[team] = true;
+            PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 已 準 備 解 除 戰 術 暫 停。");
+        }
+
+        if (unpData["t"] && unpData["ct"])
+        {
+            Server.ExecuteCommand("mp_unpause_match;");
+            isPaused = false;
+            PrintToAllChat(" 雙 方 皆 已 同 意，戰 術 暫 停 解 除。");
+            KillTacPauseTimer();
+        }
+    }
+
+
+    // ==========================================
+    // 🧹 計時器銷毀與次數重置區
+    // ==========================================
+
+    public void KillTechPauseTimer()
     {
         if (techPauseAutoUnpauseTimer != null)
         {
             techPauseAutoUnpauseTimer.Kill();
             techPauseAutoUnpauseTimer = null;
         }
-
         techPauseElapsedTime = 0;
+        untData["t"] = false;
+        untData["ct"] = false;
+    }
+
+    public void KillTacPauseTimer()
+    {
+        if (tacPauseAutoUnpauseTimer != null)
+        {
+            tacPauseAutoUnpauseTimer.Kill();
+            tacPauseAutoUnpauseTimer = null;
+        }
+        tacPauseElapsedTime = 0;
+        unpData["t"] = false;
+        unpData["ct"] = false;
     }
 
     public void ResetTechPauseCount()
     {
-        techPausesLeft["matchzyTeam1"] = 1;
-        techPausesLeft["matchzyTeam2"] = 1;
+        techPausesLeft["matchzyTeam1"] = matchzy_max_tech_pauses_allowed;
+        techPausesLeft["matchzyTeam2"] = matchzy_max_tech_pauses_allowed;
         KillTechPauseTimer();
+    }
+
+    public void ResetTacPauseCount()
+    {
+        tacPausesLeft["matchzyTeam1"] = matchzy_max_tac_pauses_allowed;
+        tacPausesLeft["matchzyTeam2"] = matchzy_max_tac_pauses_allowed;
+        KillTacPauseTimer();
     }
 }
