@@ -20,8 +20,8 @@ public partial class MatchZy
     // ==========================================
     // ▼ 暫停次數與計時器全域變數區 ▼
     // ==========================================
-    public Dictionary<string, int> techPausesLeft = new() { { "matchzyTeam1", matchzy_max_tech_pauses_allowed }, { "matchzyTeam2", matchzy_max_tech_pauses_allowed } };
-    public Dictionary<string, int> tacPausesLeft = new() { { "matchzyTeam1", matchzy_max_tac_pauses_allowed }, { "matchzyTeam2", matchzy_max_tac_pauses_allowed } };
+    public Dictionary<string, int> techPausesLeft = new() { { "matchzyTeam1", 1 }, { "matchzyTeam2", 1 } };
+    public Dictionary<string, int> tacPausesLeft = new() { { "matchzyTeam1", 3 }, { "matchzyTeam2", 3 } };
 
     public CounterStrikeSharp.API.Modules.Timers.Timer? techPauseAutoUnpauseTimer = null;
     public CounterStrikeSharp.API.Modules.Timers.Timer? tacPauseAutoUnpauseTimer = null;
