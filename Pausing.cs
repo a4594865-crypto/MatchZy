@@ -64,7 +64,7 @@ public partial class MatchZy
         if (gameRules != null && !gameRules.FreezePeriod)
         {
             if (player != null) 
-                PrintToPlayerChat(player, $" 回合已開始，指令無法使用");
+                PrintToPlayerChat(player, $" {ChatColors.Orange}回合已開始，指令無法使用");
             return;
         }
         // ▲▲▲ 防護結束 ▲▲▲
