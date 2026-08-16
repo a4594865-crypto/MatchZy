@@ -48,7 +48,7 @@ public partial class MatchZy
 
         if (tacPauseAutoUnpauseTimer != null)
         {
-            if (player != null) PrintToPlayerChat(player, " 目前正處於 戰術暫停，無法啟用技術暫停。");
+            if (player != null) PrintToPlayerChat(player, " 目前正處於 {ChatColors.Green}戰術暫停{ChatColors.Default}，無法啟用技術暫停。");
             return;
         }
 
@@ -73,7 +73,7 @@ public partial class MatchZy
 
         if (isPaused || isOfficialTacActive)
         {
-            if (player != null) PrintToPlayerChat(player, $" 正 處 於【 暫 停 狀 態 】中，無 法 啟 用 技 術 暫 停");
+            if (player != null) PrintToPlayerChat(player, $" 正 處 於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 技 術 暫 停");
             return; 
         }
 
@@ -183,13 +183,13 @@ public partial class MatchZy
 
         if (techPauseAutoUnpauseTimer != null)
         {
-            if (player != null) PrintToPlayerChat(player, " 目前正處於【技術暫停】，無法啟用戰術暫停。");
+            if (player != null) PrintToPlayerChat(player, " 正處於【 {ChatColors.Green}技術暫停{ChatColors.Default} 】，無法啟用戰術暫停。");
             return;
         }
 
         if (tacPauseAutoUnpauseTimer != null)
         {
-            if (player != null) PrintToPlayerChat(player, " 目前已經在戰術暫停中。");
+            if (player != null) PrintToPlayerChat(player, " 已經在戰術暫停中。");
             return;
         }
 
@@ -199,7 +199,7 @@ public partial class MatchZy
         if (gameRules != null && !gameRules.FreezePeriod)
         {
             if (player != null) 
-                PrintToPlayerChat(player, $" {ChatColors.Red}回合已開始，指令無法使用");
+                PrintToPlayerChat(player, $" {ChatColors.Orange}回合已開始，指令無法使用");
             return;
         }
         // ▲▲▲ 防護結束 ▲▲▲
@@ -208,7 +208,7 @@ public partial class MatchZy
 
         if (isPaused || isOfficialTacActive)
         {
-            if (player != null) PrintToPlayerChat(player, $" 正 處 於【 暫 停 狀 態 】中，無 法 啟 用 戰 術 暫 停");
+            if (player != null) PrintToPlayerChat(player, $" 正 處 於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 戰 術 暫 停");
             return; 
         }
 
@@ -311,7 +311,7 @@ public partial class MatchZy
     {
         if (tacPauseAutoUnpauseTimer != null)
         {
-            PrintToPlayerChat(player, " 目前為戰術暫停，請輸入 .unp 來解除。");
+            PrintToPlayerChat(player, " 目 前 為 戰術暫停，請 雙 方 輸 入 {ChatColors.Green}.unp{ChatColors.Default} 來 解 除。");
             return;
         }
 
@@ -349,7 +349,7 @@ public partial class MatchZy
     {
         if (techPauseAutoUnpauseTimer != null)
         {
-            PrintToPlayerChat(player, " 目前為技術暫停，請雙方輸入 .unt 來解除。");
+            PrintToPlayerChat(player, " 目 前 為 技術暫停，請雙方輸入 {ChatColors.Green}.unt{ChatColors.Default} 來解除。");
             return;
         }
 
