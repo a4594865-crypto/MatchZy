@@ -337,7 +337,7 @@ public partial class MatchZy
             else
             {
                 // 單方發起時，顯示要求對方確認的提示
-                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想 要 解 除 技 術 暫 停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default}，請 輸 入 {ChatColors.Orange}.unt{ChatColors.Default} 來 確 定。");
+                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想要解除技術暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default}請輸入 {ChatColors.Orange}.unt{ChatColors.Default} 來解除");
             }
         }
     }
@@ -375,7 +375,7 @@ public partial class MatchZy
             else
             {
                 // 單方發起時，完美呈現你指定的互動格式
-                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想 要 解 除 暫 停。 {ChatColors.Green}{opponentTeamName}{ChatColors.Default}，請 輸 入 {ChatColors.Orange}.unp{ChatColors.Default} 來 確 定。");
+                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想要解除暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default} 請輸入 {ChatColors.Orange}.unp{ChatColors.Default} 來解除");
             }
         }
     }
