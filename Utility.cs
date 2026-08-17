@@ -135,7 +135,9 @@ namespace MatchZy
         private bool IsPlayerAdmin(CCSPlayerController? player, string command = "", params string[] permissions)
         {
             if (everyoneIsAdmin.Value) return true; // Everyone is treated as admin if matchzy_everyone_is_admin is true.
-            string[] updatedPermissions = permissions.Concat(new[] { "@css/root" }).ToArray();
+            string[] updatedPermissions = new string[permissions.Length + 1];
+            permissions.CopyTo(updatedPermissions, 0);
+            updatedPermissions[permissions.Length] = "@css/root";
             RequiresPermissionsOr attr = new(updatedPermissions)
             {
                 Command = command
@@ -200,7 +202,11 @@ namespace MatchZy
     }
     else
     {
-        int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true && playerData.ContainsKey(kv.Key));
+        int countOfReadyPlayers = 0;
+        foreach (var kv in playerReadyStatus)
+        {
+            if (kv.Value == true && playerData.ContainsKey(kv.Key)) countOfReadyPlayers++;
+        }
         
         if (isMatchSetup)
         {
@@ -543,7 +549,9 @@ namespace MatchZy
             try
             {
                 var playerEntities = Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller");
-                Log($"[UpdatePlayersMap] CCSPlayerController count: {playerEntities.Count<CCSPlayerController>()} matchModeOnly: {matchModeOnly}");
+                int playerEntitiesCount = 0;
+                foreach (var _ in playerEntities) playerEntitiesCount++;
+                Log($"[UpdatePlayersMap] CCSPlayerController count: {playerEntitiesCount} matchModeOnly: {matchModeOnly}");
                 connectedPlayers = 0;
 
                 // Clear the playerData dictionary by creating a new instance to add fresh data.
@@ -583,15 +591,20 @@ namespace MatchZy
                 }
 
                 // Removing disconnected players from playerReadyStatus
-                foreach (var key in playerReadyStatus.Keys.ToList())
+                List<int> keysToRemove = new List<int>();
+                foreach (var key in playerReadyStatus.Keys)
                 {
                     if (!playerData.ContainsKey(key))
                     {
-                        // Key is not present in playerData, so remove it from playerReadyStatus
-                        playerReadyStatus.Remove(key);
+                        keysToRemove.Add(key);
                     }
                 }
-                Log($"[UpdatePlayersMap] CCSPlayerController count: {playerEntities.Count<CCSPlayerController>()}, RealPlayersCount: {GetRealPlayersCount()}");
+                foreach (var key in keysToRemove)
+                {
+                    // Key is not present in playerData, so remove it from playerReadyStatus
+                    playerReadyStatus.Remove(key);
+                }
+                Log($"[UpdatePlayersMap] CCSPlayerController count: {playerEntitiesCount}, RealPlayersCount: {GetRealPlayersCount()}");
             }
             catch (Exception e)
             {
@@ -730,7 +743,11 @@ namespace MatchZy
     // 或者比賽已經開始，就直接跳出，避免重複觸發 StartMatchCountdown
     if (!readyAvailable || matchStarted || matchStartCountdownTimer != null) return;
 
-    int countOfReadyPlayers = playerReadyStatus.Count(kv => kv.Value == true);
+    int countOfReadyPlayers = 0;
+    foreach (var kv in playerReadyStatus)
+    {
+        if (kv.Value == true) countOfReadyPlayers++;
+    }
     bool liveRequired = false;
 
     if (isMatchSetup)
@@ -1162,7 +1179,12 @@ namespace MatchZy
         public bool IsTeamSwapRequired()
         {
             // Handling OTs and side swaps (Referred from Get5)
-            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
+            CCSGameRules gameRules = null!;
+            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+            {
+                gameRules = entity.GameRules!;
+                break;
+            }
             int roundsPlayed = gameRules.TotalRoundsPlayed;
 
             int roundsPerHalf = ConVar.Find("mp_maxrounds")!.GetPrimitiveValue<int>() / 2;
@@ -1603,7 +1625,11 @@ namespace MatchZy
 
         public CCSGameRules GetGameRules()
         {
-            return Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
+            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+            {
+                return entity.GameRules!;
+            }
+            return null!;
         }
 
         public int GetGamePhase()
@@ -1641,7 +1667,12 @@ namespace MatchZy
 
         public bool IsTacticalTimeoutActive()
         {
-            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
+            CCSGameRules gameRules = null!;
+            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+            {
+                gameRules = entity.GameRules!;
+                break;
+            }
 
             return (gameRules.CTTimeOutActive || gameRules.TerroristTimeOutActive) && gameRules.FreezePeriod;
         }
@@ -1651,7 +1682,12 @@ namespace MatchZy
             Dictionary<ulong, Dictionary<string, object>> playerStatsDictionary = new Dictionary<ulong, Dictionary<string, object>>();
             List<StatsPlayer> playerStatsListTeam1 = new();
             List<StatsPlayer> playerStatsListTeam2 = new();
-            var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
+            CCSGameRules gameRules = null!;
+            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+            {
+                gameRules = entity.GameRules!;
+                break;
+            }
             int roundsPlayed = gameRules.TotalRoundsPlayed;
             try
             {
@@ -1978,7 +2014,18 @@ namespace MatchZy
 
             if (isWhitelistRequired == true)
             {
-                if (!whiteList.Contains(steamId.ToString()))
+                bool isWhitelisted = false;
+                string targetSteamId = steamId.ToString();
+                foreach (string id in whiteList)
+                {
+                    if (id == targetSteamId)
+                    {
+                        isWhitelisted = true;
+                        break;
+                    }
+                }
+
+                if (!isWhitelisted)
                 {
                     Log($"[EventPlayerConnectFull] KICKING PLAYER STEAMID: {steamId}, Name: {player.PlayerName} (Not whitelisted!)");
                     PrintToAllChat($"Kicking player {player.PlayerName} - Not whitelisted.");
@@ -2064,13 +2111,18 @@ namespace MatchZy
         public void DropWeaponByDesignerName(CCSPlayerController player, string weaponName)
         {
             if (!IsPlayerValid(player) || player.PlayerPawn.Value!.WeaponServices is null) return;
-            var matchedWeapon = player.PlayerPawn.Value!.WeaponServices!.MyWeapons
-                .Where(weapon => weapon.Value!.DesignerName == weaponName).FirstOrDefault();
-
-            if (matchedWeapon != null && matchedWeapon.IsValid)
+            
+            foreach (var weapon in player.PlayerPawn.Value.WeaponServices.MyWeapons)
             {
-                player.PlayerPawn.Value.WeaponServices.ActiveWeapon.Raw = matchedWeapon.Raw;
-                player.DropActiveWeapon();
+                if (weapon != null && weapon.Value != null && weapon.Value.DesignerName == weaponName)
+                {
+                    if (weapon.IsValid)
+                    {
+                        player.PlayerPawn.Value.WeaponServices.ActiveWeapon.Raw = weapon.Raw;
+                        player.DropActiveWeapon();
+                    }
+                    break;
+                }
             }
         }
 
@@ -2078,10 +2130,22 @@ namespace MatchZy
         {
             List<CCSPlayerController> players = Utilities.GetPlayers();
 
+            List<Position> ctSpawns = new List<Position>();
+            foreach (var position in spawnsData[(byte)CsTeam.CounterTerrorist])
+            {
+                ctSpawns.Add(new Position(position));
+            }
+
+            List<Position> tSpawns = new List<Position>();
+            foreach (var position in spawnsData[(byte)CsTeam.Terrorist])
+            {
+                tSpawns.Add(new Position(position));
+            }
+
             Dictionary<byte, List<Position>> teamSpawns = new()
             {
-                { (byte)CsTeam.CounterTerrorist, spawnsData[(byte)CsTeam.CounterTerrorist].Select(position => new Position(position)).ToList() },
-                { (byte)CsTeam.Terrorist, spawnsData[(byte)CsTeam.Terrorist].Select(position => new Position(position)).ToList() }
+                { (byte)CsTeam.CounterTerrorist, ctSpawns },
+                { (byte)CsTeam.Terrorist, tSpawns }
             };
 
             Random random = new();
