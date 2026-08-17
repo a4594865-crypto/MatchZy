@@ -48,7 +48,7 @@ public partial class MatchZy
 
         if (tacPauseAutoUnpauseTimer != null)
         {
-            if (player != null) PrintToPlayerChat(player, $" 正處於 {ChatColors.Green}戰術暫停{ChatColors.Default}，無法啟用技術暫停");
+            if (player != null) PrintToPlayerChat(player, $"  正 處 於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 技 術 暫 停");
             return;
         }
 
@@ -124,7 +124,7 @@ public partial class MatchZy
         string maxTimeString = maxM > 0 ? $"{maxM}分{maxS:D2}秒" : $"{maxS}秒";
 
         PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 技 術 暫 停。剩 餘 次 數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次");
-        PrintToAllChat($" 暫 停 在 \u0004 {matchzy_tech_pause_duration}秒 \u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.unt\u0001 解 除");
+        PrintToAllChat($" 暫 停 在 \u0004 {matchzy_tech_pause_duration}秒 \u0001 自 動 解 除，或 雙 方 輸 入 \u0004.unt\u0001 解 除");
 
         techPauseElapsedTime = 0;
 
@@ -175,7 +175,7 @@ public partial class MatchZy
 
 
     // ==========================================
-    // 🛡️ 戰術暫停 (.P) 核心方法
+    // 戰術暫停 (.P) 核心方法
     // ==========================================
     public void TacPause(CCSPlayerController? player, CommandInfo? command)
     {
@@ -183,7 +183,7 @@ public partial class MatchZy
 
         if (techPauseAutoUnpauseTimer != null)
         {
-            if (player != null) PrintToPlayerChat(player, $" 正處於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無法啟用戰術暫停");
+            if (player != null) PrintToPlayerChat(player, $" 正處於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 戰 術 暫 停");
             return;
         }
 
@@ -195,7 +195,7 @@ public partial class MatchZy
 
         var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
         
-        // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 (購買階段)」才能發起暫停 ▼▼▼
+        // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 才能發起暫停 ▼▼▼
         if (gameRules != null && !gameRules.FreezePeriod)
         {
             if (player != null) 
@@ -250,7 +250,7 @@ public partial class MatchZy
         string maxTimeString = maxM > 0 ? $"{maxM}分{maxS:D2}秒" : $"{maxS}秒";
 
         PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{tacPausesLeft[teamKey]} {ChatColors.Default}次");
-        PrintToAllChat($" 暫 停 在 \u0004{matchzy_tac_pause_duration}秒\u0001 後 自 動 解 除，或 雙 方 輸 入 \u0004.unp\u0001 解 除");
+        PrintToAllChat($" 暫 停 在 \u0004{matchzy_tac_pause_duration}秒\u0001 自 動 解 除，或 雙 方 輸 入 \u0004.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
 
@@ -301,7 +301,7 @@ public partial class MatchZy
 
 
 // ==========================================
-    // 🚫 解除指令攔截與同意機制 (.unt 與 .unp)
+    // 解除指令攔截與同意機制 (.unt 與 .unp)
     // ==========================================
 
     /// <summary>
@@ -337,7 +337,7 @@ public partial class MatchZy
             else
             {
                 // 單方發起時，顯示要求對方確認的提示
-                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想解除技術暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default}請輸入 {ChatColors.Orange}.unt{ChatColors.Default} 來同意");
+                PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想解除暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default} 請輸入 {ChatColors.Orange}.unt{ChatColors.Default} 來同意");
             }
         }
     }
@@ -382,7 +382,7 @@ public partial class MatchZy
 
 
     // ==========================================
-    // 🧹 計時器銷毀與次數重置區
+    // 計時器銷毀與次數重置區
     // ==========================================
 
     public void KillTechPauseTimer()
