@@ -291,62 +291,59 @@ namespace MatchZy
             }
         }
 
-        // =========================================================================
-        // 終極修正版：伺服器完全 0 人時自動重置 (完美相容賽後結算面板)
+// =========================================================================
+        // 終極修正版：伺服器完全 0 人時自動重置 (Fail-Fast 優化版)
         // =========================================================================
         [GameEventHandler]
         public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
         {
-            // 防線一：等 3 秒讓伺服器同步人數
+            // 防線一：等 3 秒讓伺服器同步釋放剛離開的玩家實體
             AddTimer(3.0f, () => {
                 
-                // 1. 全域鎖防護：擋掉重複計時器
+                // 1. 全域鎖防護：如果倒數已經在進行中，直接結束，避免重複計時
                 if (isAutoResetTimerActive) return;
 
+                // 2. 統計目前真實玩家數量
                 int initialPlayerCount = 0;
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p != null && p.IsValid && !p.IsBot) initialPlayerCount++;
                 }
 
-                // 2. 如果場上完全沒人 (0人)
-                if (initialPlayerCount == 0)
-                {
-                    // 【核心修正】：讀取 MatchZy 的底層階段，如果在「結算計分板 (PostGame)」，直接放行不處置！
-                    // 這代表比賽已經打完在等換圖了，這時候大家退服是正常的！
-                    if (IsPostGamePhase()) return; 
+                // 3. 提早中斷：如果場上還有玩家，代表沒事，直接結束
+                if (initialPlayerCount > 0) return;
 
-                    // 如果是 JSON 賽事，也不自動處置
-                    if (isMatchSetup || mapReloadRequired) return;
+                // 4. 提早中斷：如果是「正常退服」的階段 (結算畫面、JSON賽事前置)，不需重置
+                if (IsPostGamePhase() || isMatchSetup || mapReloadRequired) return;
 
-                    // 3. 死局狀態判定 (此時排除掉結算畫面了，代表是真的打到一半出事)
-                    bool isGhostMatch = (!isWarmup && (isMatchLive || isKnifeRequired));
-                    bool isStuckInSideSelection = isSideSelectionPhase;
+                // 5. 判斷是否為「死局卡死狀態」 (正賽打到一半，或卡在選邊)
+                bool isGhostMatch = (!isWarmup && (isMatchLive || isKnifeRequired));
+                if (!isGhostMatch && !isSideSelectionPhase) return;
 
-                    if (isGhostMatch || isStuckInSideSelection)
+                // ==========================================
+                // 通過所有條件，確認為死局，點燃重置引信
+                // ==========================================
+                isAutoResetTimerActive = true; 
+                Log("[AutoReset] 偵測到比賽中途伺服器清空，啟動 120 秒自動重置倒數...");
+
+                AddTimer(120.0f, () => {
+                    
+                    isAutoResetTimerActive = false; // 解除全域鎖
+
+                    // 120 秒後進行雙重驗證，確認這 120 秒內是不是真的都沒人連回來
+                    int finalPlayerCount = 0;
+                    foreach (var p in Utilities.GetPlayers())
                     {
-                        // 點燃重置引信，鎖上全域鎖
-                        isAutoResetTimerActive = true; 
-
-                       AddTimer(120.0f, () => {
-                            
-                            isAutoResetTimerActive = false;
-
-                            int finalPlayerCount = 0;
-                            foreach (var p in Utilities.GetPlayers())
-                            {
-                                if (p != null && p.IsValid && !p.IsBot) finalPlayerCount++;
-                            }
-
-                            //  修正盲點：如果 120 秒後 0 人，且 (不是熱身 或是 卡在選邊)，且不是在結算畫面，才重開！
-                            if (finalPlayerCount == 0 && (!isWarmup || isSideSelectionPhase) && !IsPostGamePhase())
-                            {
-                                Server.ExecuteCommand("css_restart"); 
-                                Log("[AutoReset] 偵測到比賽中途（含刀局選邊）全體退服，已自動重開比賽。");
-                            }
-                        });
+                        if (p != null && p.IsValid && !p.IsBot) finalPlayerCount++;
                     }
-                }
+
+                    // 終極確認：如果依然是 0 人，且伺服器沒有自行推進到結算畫面，才大刀闊斧重啟！
+                    if (finalPlayerCount == 0 && !IsPostGamePhase())
+                    {
+                        Server.ExecuteCommand("css_restart"); 
+                        Log("[AutoReset] 120 秒內無人連線，已自動重開比賽清理殘局。");
+                    }
+                });
             });
 
             return HookResult.Continue;
