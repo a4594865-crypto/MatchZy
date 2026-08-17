@@ -241,7 +241,13 @@ return HookResult.Continue;
                         {
                             return $"{field} should be an Array!";
                         }
-                        if (!jsonData[field]!.Any())
+                        bool hasAnyMap = false;
+                        foreach (var _ in jsonData[field]!)
+                        {
+                            hasAnyMap = true;
+                            break;
+                        }
+                        if (!hasAnyMap)
                         {
                             return $"{field} should contain atleast 1 map!";
                         }
@@ -253,7 +259,25 @@ return HookResult.Continue;
                             return $"{field} should be an Array!";
                         }
                         string[] allowedValues = { "team1_ct", "team1_t", "team2_ct", "team2_t", "knife" };
-                        bool allElementsValid = jsonData[field]!.All(element => allowedValues.Contains(element.ToString()));
+                        bool allElementsValid = true;
+                        foreach (var element in jsonData[field]!)
+                        {
+                            string elementStr = element.ToString();
+                            bool isAllowed = false;
+                            foreach (string allowed in allowedValues)
+                            {
+                                if (allowed == elementStr)
+                                {
+                                    isAllowed = true;
+                                    break;
+                                }
+                            }
+                            if (!isAllowed)
+                            {
+                                allElementsValid = false;
+                                break;
+                            }
+                        }
 
                         if (!allElementsValid) {
                             return $"{field} should be \"team1_ct\", \"team1_t\", or \"knife\"!";
