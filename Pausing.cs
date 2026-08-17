@@ -58,7 +58,15 @@ public partial class MatchZy
             return;
         }
 
-        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        CCSGameRules? gameRules = null;
+        foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+        {
+            if (entity != null)
+            {
+                gameRules = entity.GameRules;
+                break;
+            }
+        }
         
         // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 (購買階段)」才能發起暫停 ▼▼▼
         if (gameRules != null && !gameRules.FreezePeriod)
@@ -193,7 +201,15 @@ public partial class MatchZy
             return;
         }
 
-        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+        CCSGameRules? gameRules = null;
+        foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+        {
+            if (entity != null)
+            {
+                gameRules = entity.GameRules;
+                break;
+            }
+        }
         
         // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 才能發起暫停 ▼▼▼
         if (gameRules != null && !gameRules.FreezePeriod)
@@ -300,7 +316,7 @@ public partial class MatchZy
     }
 
 
-// ==========================================
+    // ==========================================
     // 解除指令攔截與同意機制 (.unt 與 .unp)
     // ==========================================
 
