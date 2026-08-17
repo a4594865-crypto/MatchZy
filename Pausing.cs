@@ -67,12 +67,18 @@ public partial class MatchZy
                 break;
             }
         }
-        
+
         // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 (購買階段)」才能發起暫停 ▼▼▼
         if (gameRules != null && !gameRules.FreezePeriod)
         {
             if (player != null) 
+            {
+                // 原本的聊天室提示
                 PrintToPlayerChat(player, $" {ChatColors.Orange}回合已開始，指令無法使用");
+                
+                // ▼ 加上這行：專門顯示在該玩家螢幕正中央的 HUD 提示 ▼
+                player.PrintToCenter(" 回合已開始，指令無法使用 ");
+            }
             return;
         }
         // ▲▲▲ 防護結束 ▲▲▲
@@ -211,11 +217,17 @@ public partial class MatchZy
             }
         }
         
-        // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 才能發起暫停 ▼▼▼
+       // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 (購買階段)」才能發起暫停 ▼▼▼
         if (gameRules != null && !gameRules.FreezePeriod)
         {
             if (player != null) 
+            {
+                // 原本的聊天室提示
                 PrintToPlayerChat(player, $" {ChatColors.Orange}回合已開始，指令無法使用");
+                
+                // ▼ 該玩家螢幕正中央的 HUD 提示 ▼
+                player.PrintToCenter(" 回合已開始，指令無法使用 ");
+            }
             return;
         }
         // ▲▲▲ 防護結束 ▲▲▲
