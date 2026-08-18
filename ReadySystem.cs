@@ -126,13 +126,10 @@ namespace MatchZy
             string initialColor = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
             PrintToAllChat($"倒數：{initialColor}{countdownRemaining}");
             
-            foreach (var p in Utilities.GetPlayers())
+            foreach (var p in Utilities.GetPlayers().Where(p => p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3)))
             {
-                if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                {
-                    p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
-                    p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
-                }
+                p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
+                p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
             }
             
             // 印完第 7 秒後，立刻減 1，讓 1 秒後的計時器從 6 秒開始接手
@@ -150,14 +147,11 @@ namespace MatchZy
                         
                         PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                        foreach (var p in Utilities.GetPlayers())
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
-                            if (p.IsValid && !p.IsBot)
-                            {
-                                // 畫面置中純文字提示
-                                p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
-                                p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
-                            }
+                            // 畫面置中純文字提示
+                            p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
+                            p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                         }
                         
                         countdownRemaining--;
@@ -170,12 +164,9 @@ namespace MatchZy
                         isCountdownActive = false; 
 
                         // 【新增】：瞬間清除畫面上的「1 秒」殘影！避免視覺卡頓
-                        foreach (var p in Utilities.GetPlayers())
+                        foreach (var p in Utilities.GetPlayers().Where(p => p.IsValid && !p.IsBot))
                         {
-                            if (p.IsValid && !p.IsBot)
-                            {
-                                p.PrintToCenter(" "); 
-                            }
+                            p.PrintToCenter(" "); 
                         }
 
                         // 在這裡才把隨機洗牌的標記安全關閉
@@ -226,51 +217,34 @@ namespace MatchZy
                 else if (readyAvailable && !matchStarted)
                 {
                     // 找出還沒準備的玩家名單
-                    List<string> unreadyPlayers = new List<string>();
-                    foreach (var p in Utilities.GetPlayers())
-                    {
+                    var unreadyPlayers = Utilities.GetPlayers()
                         // 護甲 1：除了你原本寫的 IsValid，必須再加上 Handle 檢查，直接在第一步過濾掉斷線的鬼魂！
-                        if (p != null && p.IsValid && p.Handle != IntPtr.Zero)
-                        {
-                            if (!p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                            {
-                                if (p.UserId != null)
-                                {
-                                    // 1. 維持你原本精準的 UID 檢查
-                                    if (playerData.ContainsKey((int)p.UserId))
-                                    {
-                                        // 2. 維持你改對的 UID 查字典邏輯
-                                        bool isReady = false;
-                                        bool shouldAdd = true;
-                                        if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) 
-                                        {
-                                            if (isReady) shouldAdd = false;
-                                        }
-                                        
-                                        if (shouldAdd)
-                                        {
-                                            string name = string.Empty;
-                                            try 
-                                            {
-                                                // 2：雙重防禦，避免在撈名字的極限瞬間指針死掉
-                                                name = (p != null && p.IsValid && p.Handle != IntPtr.Zero) ? p.PlayerName : string.Empty;
-                                            } 
-                                            catch 
-                                            {
-                                                name = string.Empty;
-                                            }
+                        .Where(p => p != null && p.IsValid && p.Handle != IntPtr.Zero) 
+                        .Where(p => !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                        .Where(p => {
+                            if (p.UserId == null) return false;
 
-                                            // 過濾掉空字串
-                                            if (!string.IsNullOrEmpty(name))
-                                            {
-                                                unreadyPlayers.Add(name); //  3：強迫 LINQ 在 try 的保護範圍內「立刻執行」，徹底拆除延遲執行的炸彈！
-                                            }
-                                        }
-                                    }
-                                }
+                            // 1. 維持你原本精準的 UID 檢查
+                            if (!playerData.ContainsKey((int)p.UserId)) return false;
+
+                            // 2. 維持你改對的 UID 查字典邏輯
+                            bool isReady = false;
+                            if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) {
+                                return !isReady;
                             }
-                        }
-                    }
+                            
+                            return true; 
+                        })
+                        .Select(p => {
+                            try {
+                                // 2：雙重防禦，避免在撈名字的極限瞬間指針死掉
+                                return (p != null && p.IsValid && p.Handle != IntPtr.Zero) ? p.PlayerName : string.Empty;
+                            } catch {
+                                return string.Empty;
+                            }
+                        })
+                        .Where(name => !string.IsNullOrEmpty(name)) // 過濾掉空字串
+                        .ToList(); //  3：強迫 LINQ 在 try 的保護範圍內「立刻執行」，徹底拆除延遲執行的炸彈！
                     
                     string unreadyList = string.Join(", ", unreadyPlayers);
 
