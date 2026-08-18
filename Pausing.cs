@@ -187,14 +187,14 @@ public partial class MatchZy
 
                 // ▼▼▼ 完美合體區：如果有人想解除，就把字串加在秒數下方 ▼▼▼
                 string prompt = "";
-                if (untData["t"] && !untData["ct"]) prompt = "\n【 恐怖份子 想解除，請輸入 .unt 同意 】";
-                else if (!untData["t"] && untData["ct"]) prompt = "\n【 反恐小組 想解除，請輸入 .unt 同意 】";
+                if (untData["t"] && !untData["ct"]) prompt = "\n恐怖份子想解除，請輸入 .unt 同意";
+                else if (!untData["t"] && untData["ct"]) prompt = "\n反恐小組想解除，請輸入 .unt 同意";
 
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"{sideName} 技術暫停 {timeString} ( {currentPauseUsed} / {maxLimit} ){prompt}");
+                        p.PrintToCenter($"{sideName}技術暫停 {timeString} ( {currentPauseUsed} / {maxLimit} ){prompt}");
                     }
                 }
                 techPauseElapsedTime += 1;
@@ -356,7 +356,7 @@ public partial class MatchZy
     {
         if (tacPauseAutoUnpauseTimer != null)
         {
-            PrintToPlayerChat(player, $" 目 前 為 {ChatColors.Green}戰術暫停{ChatColors.Default}，請 雙 方 輸 入 {ChatColors.Green}.unp{ChatColors.Default} 來 解 除");
+            PrintToPlayerChat(player, $" 目 前 為 {ChatColors.Green}戰術暫停{ChatColors.Default}，請 雙 方 輸 入 {ChatColors.Orange}.unp{ChatColors.Default} 來 解 除");
             return;
         }
 
@@ -389,7 +389,7 @@ public partial class MatchZy
     {
         if (techPauseAutoUnpauseTimer != null)
         {
-            PrintToPlayerChat(player, $" 目 前 為 {ChatColors.Green}技術暫停{ChatColors.Default}，請 雙 方 輸 入 {ChatColors.Green}.unt{ChatColors.Default} 來 解 除");
+            PrintToPlayerChat(player, $" 目 前 為 {ChatColors.Green}技術暫停{ChatColors.Default}，請 雙 方 輸 入 {ChatColors.Orange}.unt{ChatColors.Default} 來 解 除");
             return;
         }
 
