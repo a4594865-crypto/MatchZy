@@ -1,5 +1,6 @@
 using System;                                       
 using System.Collections.Generic;                       
+using System.Collections.Frozen; // 【.NET 10 升級】：引入凍結集合以達到極致查詢效能
 // 【已移除 using System.Linq;】
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
@@ -48,7 +49,8 @@ namespace MatchZy
 
         // Pause Data
         public bool isPaused = false;
-        public Dictionary<string, object> unpauseData = new Dictionary<string, object> {
+        // 【.NET 10 升級】：使用 Target-typed new
+        public Dictionary<string, object> unpauseData = new() {
             { "ct", false },
             { "t", false },
             { "pauseTeam", "" }
@@ -62,11 +64,11 @@ namespace MatchZy
 
         // Players Data (including admins)
         public int connectedPlayers = 0;
-        private Dictionary<int, bool> playerReadyStatus = new Dictionary<int, bool>();
-        private Dictionary<int, CCSPlayerController> playerData = new Dictionary<int, CCSPlayerController>();
+        private Dictionary<int, bool> playerReadyStatus = new();
+        private Dictionary<int, CCSPlayerController> playerData = new();
 
         // Admin Data
-        private Dictionary<string, string> loadedAdmins = new Dictionary<string, string>();
+        private Dictionary<string, string> loadedAdmins = new();
 
         // Timers
         public CounterStrikeSharp.API.Modules.Timers.Timer? unreadyPlayerMessageTimer = null;
@@ -87,8 +89,8 @@ namespace MatchZy
 
         public bool playerHasTakenDamage = false;
 
-        // User command - action map
-        public Dictionary<string, Action<CCSPlayerController?, CommandInfo?>>? commandActions;
+        // 【.NET 10 升級】：轉換為 FrozenDictionary，讓指令查詢速度物理封頂
+        public FrozenDictionary<string, Action<CCSPlayerController?, CommandInfo?>>? commandActions;
 
         // SQLite/MySQL Database 
         private Database database = new();
@@ -111,6 +113,7 @@ namespace MatchZy
                 AutoStart();
             }
 
+            // 【.NET 10 升級】：字典初始化後呼叫 ToFrozenDictionary 永久鎖定效能
             commandActions = new Dictionary<string, Action<CCSPlayerController?, CommandInfo?>> {
                 { ".ready", OnPlayerReady },
                 { ".r", OnPlayerReady },
@@ -220,14 +223,15 @@ namespace MatchZy
                 { ".unshuffle", OnUnshuffleCommand },
                 { ".loadpos", OnLoadPosCommand},
                 { ".hp", OnHpCommand }
-            };
+            }.ToFrozenDictionary();
 
             // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
             RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
                 var player = @event.Userid;
 
                 // 只有開啟 .whitelist 指令時才檢查
-                if (isWhitelistRequired && player != null && player.IsValid && !player.IsBot) {
+                // 【.NET 10 升級】：現代化模式匹配
+                if (isWhitelistRequired && player is { IsValid: true, IsBot: false }) {
                     
                     // 管理員豁免
                     if (IsPlayerAdmin(player, "css_whitelist", "@css/chat")) {
@@ -242,10 +246,10 @@ namespace MatchZy
                         var lines = File.ReadAllLines(wlPath);
                         string playerSid = player.SteamID.ToString();
                         
-                        // 【優化替換 1】：移除 .Any()，改用高效能 foreach
+                        // 【優化替換 1】：移除 .Any()，改用高效能 foreach + Span 零分配比對
                         foreach (var line in lines)
                         {
-                            if (line.Trim() == playerSid)
+                            if (line.AsSpan().Trim().SequenceEqual(playerSid))
                             {
                                 isAllowed = true;
                                 break;
@@ -256,7 +260,7 @@ namespace MatchZy
                     if (!isAllowed) {
                         // 延遲踢除，確保訊息發送
                         AddTimer(1.5f, () => {
-                            if (player != null && player.IsValid) {
+                            if (player is { IsValid: true }) {
                                 Server.ExecuteCommand($"kickid {player.UserId} \"伺 服 器 白 名 單 已 開 啟，您 不 在 白 名 單 中。\"");
                                 Log($"[WHITELIST] 已踢出未授權玩家: {player.PlayerName}");
                             }
@@ -272,7 +276,7 @@ namespace MatchZy
                 var player = @event.Userid;
                 
                 //  1：排除空指標、無效實體與機器人 (Bot 離開不影響比賽，直接跳出)
-                if (player == null || !player.IsValid || player.IsBot) return HookResult.Continue;
+                if (player is not { IsValid: true, IsBot: false }) return HookResult.Continue;
                 
                 int userId = (int)(player.UserId ?? -1);
                 byte teamNum = player.TeamNum; 
@@ -327,7 +331,8 @@ namespace MatchZy
 // 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
 AddCommandListener("jointeam", (player, info) =>
 {
-    if (player == null || player.IsBot || isSleep) return HookResult.Continue;
+    // 【.NET 10 升級】：模式匹配
+    if (player is null or { IsBot: true } || isSleep) return HookResult.Continue;
 
     string targetTeam = info.ArgByIndex(1); 
     int userId = (int)(player.UserId ?? -1);
@@ -366,7 +371,7 @@ AddCommandListener("jointeam", (player, info) =>
         // 【關鍵差別點二：LIVE正賽期間（非刀局），保護補位機制，但鎖死場上選手】
         byte playerTeam = player.TeamNum;
 
-        // 情況 A：如果你目前是「觀戰者 (1)」或「剛連線未分配 (0)」
+        // 情況 A：如果你目前是「觀 spectator (1)」或「剛連線未分配 (0)」
         // 允許你自由選擇隊伍 (包含點選自動選擇 0、加入 T 2、加入 CT 3) 來補位！
         if (playerTeam == 0 || playerTeam == 1)
         {
@@ -532,8 +537,9 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
            RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
     // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
-    var originalMessage = @event.Text.Trim();
-    var message = originalMessage.ToLower();
+    // 【.NET 10 升級】：改用 ReadOnlySpan 進行零垃圾 (0 GC) 切片與比對，保留原本邏輯
+    ReadOnlySpan<char> originalMessageSpan = @event.Text.AsSpan().Trim();
+    var message = originalMessageSpan.ToString().ToLower();
     int currentEventUserId = @event.Userid; 
 
     // =========================================================================
@@ -607,7 +613,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     }
 
     // 2. 如果倒數已經在跑，擋掉所有一般發話（維持你原本完美的發話管理）
-    if (isCountdownActive && !originalMessage.Contains("倒數：")) {
+    if (isCountdownActive && !originalMessageSpan.ToString().Contains("倒數：")) {
         return HookResult.Handled;
     }
     // --- [第一步結束] ---
@@ -616,11 +622,18 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     int index = currentEventUserId + 1; // 這裡也同步改用安全變數
     var playerUserId = NativeAPI.GetUseridFromIndex(index);
 
-    var parts = originalMessage.Split(' ');
-    var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
-    
-    // 【優化替換 2】：移除 LINQ .Skip(1)，改用內建高效能陣列組合
-    var messageCommandArg = parts.Length > 1 ? string.Join(" ", parts, 1, parts.Length - 1) : string.Empty;
+    // 【優化替換 2】：移除 .Split 與 string.Join，改用內建 Span 高效能切片完美無損分割
+    int spaceIndex = originalMessageSpan.IndexOf(' ');
+    string messageCommand;
+    string messageCommandArg;
+
+    if (spaceIndex == -1) {
+        messageCommand = originalMessageSpan.ToString();
+        messageCommandArg = string.Empty;
+    } else {
+        messageCommand = originalMessageSpan[..spaceIndex].ToString();
+        messageCommandArg = originalMessageSpan[(spaceIndex + 1)..].ToString();
+    }
 
     CCSPlayerController? player = null;
     if (playerData.TryGetValue(playerUserId, out CCSPlayerController? value)) {
@@ -633,8 +646,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     }
 
     // Handling player commands
-    if (commandActions.ContainsKey(message)) {
-        commandActions[message](player, null);
+    if (commandActions != null && commandActions.TryGetValue(message, out var action)) {
+        action(player, null);
     }
 
     if (message.StartsWith(".map"))
@@ -797,15 +810,14 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         public int GetReadyPlayersCount()
         {
             int count = 0;
-            foreach (var entry in playerReadyStatus)
+            // 【.NET 10 升級】：字典解構，0二次查詢成本
+            foreach (var (key, value) in playerReadyStatus)
             {
-                if (entry.Value == true)
+                if (value == true)
                 {
-                    var player = Utilities.GetPlayerFromUserid(entry.Key);
+                    var player = Utilities.GetPlayerFromUserid(key);
                     // 超強防護網：必須「IsValid 且在線 (PlayerConnected) 且在 T/CT 隊上」才算人數
-                    if (player != null && 
-                        player.IsValid && 
-                        player.Connected == PlayerConnectedState.Connected && 
+                    if (player is { IsValid: true, Connected: PlayerConnectedState.Connected } && 
                         (player.TeamNum == 2 || player.TeamNum == 3))
                     {
                         count++;
@@ -826,7 +838,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 targetPlayer = Utilities.GetPlayerFromSlot(slot);
             }
 
-            if (targetPlayer == null || !targetPlayer.IsValid) return HookResult.Continue;
+            if (targetPlayer is not { IsValid: true }) return HookResult.Continue;
 
             // 1. 【新增防護】：如果是 BO1/BO3 正式比賽，無論如何全面禁止投票！
             if (isMatchSetup)
@@ -888,7 +900,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+            if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
             {
                 p.PrintToCenter("已 開 啟 隨 機 隊 伍 分 配");
             }
@@ -928,7 +940,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+            if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
             {
                 p.PrintToCenter("已 取 消 隨 機 隊 伍 分 配");
             }
@@ -952,17 +964,17 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         // =========================================================================
        public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
 {
-    int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
+    int savedUserId = (readyPlayer is { IsValid: true }) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
     lock (_shuffleLock)
     {
         if (!isShufflePending) return;
 
-        // 【優化替換 3】：移除 LINQ .Where().ToList()，改用高效能 foreach 手動收集
-        List<CCSPlayerController> activePlayers = new List<CCSPlayerController>();
+        // 【優化替換 3】：移除 LINQ .Where().ToList()，改用集合表達式 []
+        List<CCSPlayerController> activePlayers = [];
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+            if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
             {
                 activePlayers.Add(p);
             }
@@ -974,7 +986,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
             isShufflePending = false; 
             
             var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
-            if (originalPlayer != null && originalPlayer.IsValid) OnPlayerReady(originalPlayer, null);
+            if (originalPlayer is { IsValid: true }) OnPlayerReady(originalPlayer, null);
             return;
         }
 
@@ -993,7 +1005,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         for (int i = 0; i < activePlayers.Count; i++) 
         {
             var player = activePlayers[i];
-            if (player == null || !player.IsValid) continue;
+            if (player is not { IsValid: true }) continue;
 
             // 1. 直接宣告為標準的 CsTeam 列舉型態，絕不使用 int 混淆
             CsTeam targetTeam = (i < half) ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
@@ -1027,7 +1039,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command)
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         public void OnHpCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player != null && player.IsValid)
+            if (player is { IsValid: true })
             {
                 // 核心防護：如果是 BO1/BO3 正式比賽，直接安靜結束，不顯示任何訊息
                 if (isMatchSetup) return;
