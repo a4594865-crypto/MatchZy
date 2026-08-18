@@ -1078,7 +1078,7 @@ namespace MatchZy
             }
 
             // Respawing a bot where it was actually spawned during practice session
-            if (isPractice && player is { IsValid: true, IsBot: true, UserId.Value: var userId })
+            if (isPractice && player is { IsValid: true, IsBot: true, UserId: var userId })
             {
                 if (pracUsedBots.ContainsKey(userId))
                 {
