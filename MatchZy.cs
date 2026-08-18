@@ -1,7 +1,6 @@
 using System;                                       
 using System.Collections.Generic;                       
-using System.Collections.Frozen; // 【.NET 10 升級】：引入凍結集合以達到極致查詢效能
-// 【已移除 using System.Linq;】
+using System.Collections.Frozen;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
