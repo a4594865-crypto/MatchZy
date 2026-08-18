@@ -369,7 +369,7 @@ public partial class MatchZy
     /// <summary>
     /// 處理玩家輸入 .unt (解技術暫停)
     /// </summary>
-    public void HandleUntCommand(CCSPlayerController player)
+   public void HandleUntCommand(CCSPlayerController player)
     {
         if (tacPauseAutoUnpauseTimer != null)
         {
@@ -400,14 +400,22 @@ public partial class MatchZy
             {
                 // 單方發起時，顯示要求對方確認的提示
                 PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想解除暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default} 請輸入 {ChatColors.Orange}.unt{ChatColors.Default} 來同意");
+                
+                // ▼ 新增：發送給場上所有有效玩家的螢幕正中央 HUD 提示 ▼
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    {
+                        p.PrintToCenter($"{teamName} 解除暫停請輸入 .unt 同意");
+                    }
+                }
             }
         }
     }
-
     /// <summary>
     /// 處理玩家輸入 .unp (解戰術暫停)
     /// </summary>
-    public void HandleUnpCommand(CCSPlayerController player)
+   public void HandleUnpCommand(CCSPlayerController player)
     {
         if (techPauseAutoUnpauseTimer != null)
         {
@@ -438,10 +446,18 @@ public partial class MatchZy
             {
                 // 單方發起時，完美呈現你指定的互動格式
                 PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想解除暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default} 請輸入 {ChatColors.Orange}.unp{ChatColors.Default} 來同意");
+                
+                // ▼ 新增：發送給場上所有有效玩家的螢幕正中央 HUD 提示 ▼
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    {
+                        p.PrintToCenter($"{teamName} 解除暫停請輸入 .unp 同意");
+                    }
+                }
             }
         }
     }
-
 
     // ==========================================
     // 計時器銷毀與次數重置區
