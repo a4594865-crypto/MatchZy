@@ -63,8 +63,8 @@ namespace MatchZy
             Log($"[!ready command] Sent by: {player.UserId} readyAvailable: {readyAvailable} matchStarted: {matchStarted}");
             if (readyAvailable && !matchStarted)
             {
-                // 【.NET 10 升級】：模式匹配合併屬性檢查與取值
-                if (player.UserId is { Value: var userId })
+                // 【修正】：直接使用 is int 完成非空檢查與拆箱
+                if (player.UserId is int userId)
                 {
                     if (!playerReadyStatus.ContainsKey(userId))
                     {
@@ -93,8 +93,8 @@ namespace MatchZy
             Log($"[!unready command] {player.UserId}");
             if (readyAvailable && !matchStarted)
             {
-                // 【.NET 10 升級】：模式匹配合併屬性檢查與取值
-                if (player.UserId is { Value: var userId })
+                // 【修正】：直接使用 is int 完成非空檢查與拆箱
+                if (player.UserId is int userId)
                 {
                     if (!playerReadyStatus.ContainsKey(userId))
                     {
@@ -147,8 +147,8 @@ namespace MatchZy
         [ConsoleCommand("css_t", "Switches team to Terrorist")]
         public void OnTCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            // 【.NET 10 升級】：模式匹配確保安全取值
-            if (player?.UserId is not { Value: var userId }) return;
+            // 【修正】：直接使用 is not int 攔截 null 並賦值
+            if (player?.UserId is not int userId) return;
             
             if (isVeto) {
                 HandleSideChoice(CsTeam.Terrorist, userId);
@@ -170,8 +170,8 @@ namespace MatchZy
         [ConsoleCommand("css_ct", "Switches team to Counter-Terrorist")]
         public void OnCTCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            // 【.NET 10 升級】：模式匹配確保安全取值
-            if (player?.UserId is not { Value: var userId }) return;
+            // 【修正】：直接使用 is not int 攔截 null 並賦值
+            if (player?.UserId is not int userId) return;
             
             if (isVeto) {
                 HandleSideChoice(CsTeam.CounterTerrorist, userId);
@@ -196,7 +196,6 @@ namespace MatchZy
         {
             if (!isMatchLive) return;
 
-            // 【.NET 10 升級】：拔除 LINQ FirstOrDefault，0 記憶體垃圾
             CCSGameRules? gameRules = null;
             foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
             {
@@ -207,8 +206,6 @@ namespace MatchZy
                 }
             }
             
-            // 【.NET 10 升級】：巢狀屬性模式匹配
-            // 如果官方正處於戰術暫停中（T或CT正在倒數），或者外掛已經是技術暫停狀態，一律不准用！
             if ((gameRules is { TerroristTimeOutActive: true } or { CTTimeOutActive: true }) || isPaused || techPauseAutoUnpauseTimer is not null)
             {
                 if (player is not null)
@@ -218,7 +215,6 @@ namespace MatchZy
                 return; 
             }
 
-            // 核心防線 2：回合正式開始後攔截（維持你原本的寫法）
             if (player is not null && gameRules is { FreezePeriod: false, WarmupPeriod: false })
             {
                 PrintToPlayerChat(player, $" 回 合 已 開 始，無 法 使 用 {ChatColors.Default}技 術 暫 停");
@@ -250,14 +246,12 @@ namespace MatchZy
             {
                 Log($"[.tac command sent via chat] Sent by: {player.UserId}, connectedPlayers: {connectedPlayers}");
                 
-                // 正在技術暫停（isPaused）時打 .p 就會被攔截
                 if (isPaused)
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.cc.matchpaused"]);
                     return;
                 }
                 
-                // 【.NET 10 升級】：拔除 LINQ First，0 記憶體垃圾
                 CCSGameRules? gameRules = null;
                 foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
                 {
@@ -736,7 +730,6 @@ namespace MatchZy
         }
 
         public HookResult OnConsoleNoClip(CCSPlayerController? player, CommandInfo? cmd) {
-            // 【.NET 10 升級】：合併多屬性邏輯判斷
             if (player is not { PawnIsAlive: true } || player.Team is CsTeam.Spectator or CsTeam.None)
                 return HookResult.Stop;
                 
@@ -745,7 +738,6 @@ namespace MatchZy
                 return HookResult.Stop;
             }
 
-            // 【.NET 10 升級】：模式匹配解構與實體宣告，取代 Value!. 的重複調用
             if (player.PlayerPawn.Value is { } pawn) {
                 if (pawn.MoveType == MoveType_t.MOVETYPE_NOCLIP) {
                     pawn.MoveType = MoveType_t.MOVETYPE_WALK;
