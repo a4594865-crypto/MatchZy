@@ -332,8 +332,8 @@ public partial class MatchZy
 
                 // ▼▼▼ 完美合體區：如果有人想解除，就把字串加在秒數下方 ▼▼▼
                 string prompt = "";
-                if (unpData["t"] && !unpData["ct"]) prompt = "\n【 恐怖份子 想解除，請輸入 .unp 同意 】";
-                else if (!unpData["t"] && unpData["ct"]) prompt = "\n【 反恐小組 想解除，請輸入 .unp 同意 】";
+                if (unpData["t"] && !unpData["ct"]) prompt = "\n恐怖份子想解除，請輸入 .unp 同意";
+                else if (!unpData["t"] && unpData["ct"]) prompt = "\n反恐小組想解除，請輸入 .unp 同意";
 
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -374,7 +374,7 @@ public partial class MatchZy
             {
                 Server.ExecuteCommand("mp_unpause_match;");
                 isPaused = false;
-                PrintToAllChat($" {ChatColors.Orange}雙 方 皆 已 同 意， 解 除 技 術 暫 停");
+                PrintToAllChat($" {ChatColors.Orange}雙 方 皆 已 同 意，已 解 除 技 術 暫 停");
                 KillTechPauseTimer();
             }
             else
@@ -407,7 +407,7 @@ public partial class MatchZy
             {
                 Server.ExecuteCommand("mp_unpause_match;");
                 isPaused = false;
-                PrintToAllChat($" {ChatColors.Orange}雙 方 皆 已 同 意，解 除 戰 術 暫 停");
+                PrintToAllChat($" {ChatColors.Orange}雙 方 皆 已 同 意，已 解 除 戰 術 暫 停");
                 KillTacPauseTimer();
             }
             else
