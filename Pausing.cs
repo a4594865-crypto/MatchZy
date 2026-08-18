@@ -17,11 +17,9 @@ public partial class MatchZy
     {
         try 
         {
-            // 優先從伺服器記憶體抓取
             var cvar = ConVar.Find(cvarName);
             if (cvar != null) return cvar.GetPrimitiveValue<int>();
 
-            // 如果伺服器沒註冊，直接去 config.cfg 檔案裡扒出最新數值
             string cfgPath = Path.Join(Server.GameDirectory + "/csgo/cfg/MatchZy/config.cfg");
             if (File.Exists(cfgPath))
             {
@@ -41,7 +39,6 @@ public partial class MatchZy
     // ==========================================
     // ▼ 暫停次數與計時器全域變數區 ▼
     // ==========================================
-    // 捨棄原本寫死的「剩餘次數」，改為追蹤「已使用次數 (Used)」從 0 開始，完美適應任何動態設定！
     public Dictionary<string, int> techPausesUsed = new() { { "matchzyTeam1", 0 }, { "matchzyTeam2", 0 } };
     public Dictionary<string, int> tacPausesUsed = new() { { "matchzyTeam1", 0 }, { "matchzyTeam2", 0 } };
 
@@ -90,20 +87,15 @@ public partial class MatchZy
             }
         }
 
-        // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 (購買階段)」才能發起暫停 ▼▼▼
         if (gameRules != null && !gameRules.FreezePeriod)
         {
             if (player != null) 
             {
-                // 原本的聊天室提示
                 PrintToPlayerChat(player, $" {ChatColors.Orange}回合已開始，指令無法使用");
-                
-                // ▼ 加上這行：專門顯示在該玩家螢幕正中央的 HUD 提示 ▼
                 player.PrintToCenter(" 回合已開始，指令無法使用 ");
             }
             return;
         }
-        // ▲▲▲ 防護結束 ▲▲▲
 
         bool isOfficialTacActive = gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
 
@@ -119,17 +111,8 @@ public partial class MatchZy
             return;
         }
 
-        if (IsHalfTimePhase())
-        {
-            ReplyToUserCommand(player, Localizer["matchzy.pause.duringhalftime"]);
-            return;
-        }
-        if (IsPostGamePhase())
-        {
-            ReplyToUserCommand(player, Localizer["matchzy.pause.matchended"]);
-            return;
-        }
-
+        if (IsHalfTimePhase()) return;
+        if (IsPostGamePhase()) return;
         if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
 
         Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
@@ -137,7 +120,6 @@ public partial class MatchZy
         if (string.IsNullOrEmpty(teamKey)) return;
 
         string currentTeamName = playerMatchTeam.teamName;
-
         int maxLimit = MaxTechPauses;
         int durationLimit = TechPauseDuration;
 
@@ -186,7 +168,7 @@ public partial class MatchZy
                 isPaused = false;
                 untData["ct"] = false;
                 untData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004{durationLimit}秒 \u0001上 限，系 統 自 自 動 解 除 暫 停");
+                PrintToAllChat($" 技 術 暫 停 已達\u0004{durationLimit}秒 \u0001上 限，系 統 自 動 解 除 暫 停");
                 
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -203,11 +185,16 @@ public partial class MatchZy
                 int s = remaining % 60;
                 string timeString = m > 0 ? $"{m}分{s:D2}秒" : $"{s}秒";
 
+                // ▼▼▼ 完美合體區：如果有人想解除，就把字串加在秒數下方 ▼▼▼
+                string prompt = "";
+                if (untData["t"] && !untData["ct"]) prompt = "\n【 恐怖份子 想解除，請輸入 .unt 同意 】";
+                else if (!untData["t"] && untData["ct"]) prompt = "\n【 反恐小組 想解除，請輸入 .unt 同意 】";
+
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"{sideName} 技術暫停 {timeString} ( {currentPauseUsed} / {maxLimit} )");
+                        p.PrintToCenter($"{sideName} 技術暫停 {timeString} ( {currentPauseUsed} / {maxLimit} ){prompt}");
                     }
                 }
                 techPauseElapsedTime += 1;
@@ -245,20 +232,15 @@ public partial class MatchZy
             }
         }
         
-       // ▼▼▼ 修補原版漏洞：必須在「回合凍結時間 (購買階段)」才能發起暫停 ▼▼▼
         if (gameRules != null && !gameRules.FreezePeriod)
         {
             if (player != null) 
             {
-                // 原本的聊天室提示
                 PrintToPlayerChat(player, $" {ChatColors.Orange}回合已開始，指令無法使用");
-                
-                // ▼ 該玩家螢幕正中央的 HUD 提示 ▼
                 player.PrintToCenter(" 回合已開始，指令無法使用 ");
             }
             return;
         }
-        // ▲▲▲ 防護結束 ▲▲▲
 
         bool isOfficialTacActive = gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
 
@@ -283,7 +265,6 @@ public partial class MatchZy
         if (string.IsNullOrEmpty(teamKey)) return;
 
         string currentTeamName = playerMatchTeam.teamName;
-
         int maxLimit = MaxTacPauses;
         int durationLimit = TacPauseDuration;
 
@@ -349,11 +330,16 @@ public partial class MatchZy
                 int s = remaining % 60;
                 string timeString = m > 0 ? $"{m}分{s:D2}秒" : $"{s}秒";
 
+                // ▼▼▼ 完美合體區：如果有人想解除，就把字串加在秒數下方 ▼▼▼
+                string prompt = "";
+                if (unpData["t"] && !unpData["ct"]) prompt = "\n【 恐怖份子 想解除，請輸入 .unp 同意 】";
+                else if (!unpData["t"] && unpData["ct"]) prompt = "\n【 反恐小組 想解除，請輸入 .unp 同意 】";
+
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"{sideName} 暫停 {timeString} ( {currentPauseUsed} / {maxLimit} )");
+                        p.PrintToCenter($"{sideName} 暫停 {timeString} ( {currentPauseUsed} / {maxLimit} ){prompt}");
                     }
                 }
                 tacPauseElapsedTime += 1;
@@ -366,10 +352,7 @@ public partial class MatchZy
     // 解除指令攔截與同意機制 (.unt 與 .unp)
     // ==========================================
 
-    /// <summary>
-    /// 處理玩家輸入 .unt (解技術暫停)
-    /// </summary>
-   public void HandleUntCommand(CCSPlayerController player)
+    public void HandleUntCommand(CCSPlayerController player)
     {
         if (tacPauseAutoUnpauseTimer != null)
         {
@@ -381,14 +364,12 @@ public partial class MatchZy
 
         string team = player.TeamNum == 2 ? "t" : "ct";
         string teamName = player.TeamNum == 2 ? "恐怖份子" : "反恐小組";
-        // 自動判斷對手陣營名稱
         string opponentTeamName = player.TeamNum == 2 ? "反恐小組" : "恐怖份子"; 
 
         if (!untData[team])
         {
             untData[team] = true;
             
-            // 判斷是否雙方都已同意
             if (untData["t"] && untData["ct"])
             {
                 Server.ExecuteCommand("mp_unpause_match;");
@@ -398,24 +379,13 @@ public partial class MatchZy
             }
             else
             {
-                // 單方發起時，顯示要求對方確認的提示
+                // 因為計時器會自動印出 HUD，這裡只需保留聊天室通知即可，不需再發送 PrintToCenter 避免打架
                 PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想解除暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default} 請輸入 {ChatColors.Orange}.unt{ChatColors.Default} 來同意");
-                
-                // ▼ 新增：發送給場上所有有效玩家的螢幕正中央 HUD 提示 ▼
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                    {
-                        p.PrintToCenter($"{teamName} 解除暫停請輸入 .unt 同意");
-                    }
-                }
             }
         }
     }
-    /// <summary>
-    /// 處理玩家輸入 .unp (解戰術暫停)
-    /// </summary>
-   public void HandleUnpCommand(CCSPlayerController player)
+
+    public void HandleUnpCommand(CCSPlayerController player)
     {
         if (techPauseAutoUnpauseTimer != null)
         {
@@ -427,14 +397,12 @@ public partial class MatchZy
 
         string team = player.TeamNum == 2 ? "t" : "ct";
         string teamName = player.TeamNum == 2 ? "恐怖份子" : "反恐小組";
-        // 自動判斷對手陣營名稱
         string opponentTeamName = player.TeamNum == 2 ? "反恐小組" : "恐怖份子"; 
 
         if (!unpData[team])
         {
             unpData[team] = true;
             
-            // 判斷是否雙方都已同意
             if (unpData["t"] && unpData["ct"])
             {
                 Server.ExecuteCommand("mp_unpause_match;");
@@ -444,17 +412,8 @@ public partial class MatchZy
             }
             else
             {
-                // 單方發起時，完美呈現你指定的互動格式
+                // 因為計時器會自動印出 HUD，這裡只需保留聊天室通知即可，不需再發送 PrintToCenter 避免打架
                 PrintToAllChat($" {ChatColors.Green}{teamName}{ChatColors.Default} 想解除暫停 {ChatColors.Green}{opponentTeamName}{ChatColors.Default} 請輸入 {ChatColors.Orange}.unp{ChatColors.Default} 來同意");
-                
-                // ▼ 新增：發送給場上所有有效玩家的螢幕正中央 HUD 提示 ▼
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-                    {
-                        p.PrintToCenter($"{teamName} 解除暫停請輸入 .unp 同意");
-                    }
-                }
             }
         }
     }
