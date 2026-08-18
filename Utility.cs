@@ -1973,10 +1973,7 @@ namespace MatchZy
                     return;
                 }
 
-                using FileStream fileStream = File.OpenRead(filePath);
-
-                byte[] fileContent = new byte[fileStream.Length];
-                await fileStream.ReadAsync(fileContent, 0, (int)fileStream.Length);
+                byte[] fileContent = await File.ReadAllBytesAsync(filePath);
 
                 using ByteArrayContent content = new(fileContent);
                 content.Headers.Add("Content-Type", "application/octet-stream");
