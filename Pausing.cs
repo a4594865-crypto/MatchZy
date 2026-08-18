@@ -1,27 +1,49 @@
+using System.IO;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Timers;
+using CounterStrikeSharp.API.Modules.Cvars;
 
 namespace MatchZy;
 
 public partial class MatchZy
 {
     // ==========================================
-    // ▼ 設定檔變數區 (配合 MatchZy 設定檔動態修改) ▼
+    // ▼ 動態設定檔讀取區 (完美連動 config.cfg) ▼
     // ==========================================
-    public int matchzy_tech_pause_duration = 300; 
-    public int matchzy_max_tech_pauses_allowed = 2; 
+    private int GetPauseConfig(string cvarName, int defaultValue)
+    {
+        try 
+        {
+            // 優先從伺服器記憶體抓取
+            var cvar = ConVar.Find(cvarName);
+            if (cvar != null) return cvar.GetPrimitiveValue<int>();
 
-    public int matchzy_tac_pause_duration = 90; 
-    public int matchzy_max_tac_pauses_allowed = 3; 
+            // 如果伺服器沒註冊，直接去 config.cfg 檔案裡扒出最新數值
+            string cfgPath = Path.Join(Server.GameDirectory + "/csgo/cfg/MatchZy/config.cfg");
+            if (File.Exists(cfgPath))
+            {
+                string? val = GetConvarValueFromCFGFile(cfgPath, cvarName);
+                if (val != null && int.TryParse(val, out int res)) return res;
+            }
+        } 
+        catch { }
+        return defaultValue;
+    }
+
+    public int TechPauseDuration => GetPauseConfig("matchzy_tech_pause_duration", 300);
+    public int MaxTechPauses => GetPauseConfig("matchzy_max_tech_pauses_allowed", 1);
+    public int TacPauseDuration => GetPauseConfig("matchzy_tac_pause_duration", 90);
+    public int MaxTacPauses => GetPauseConfig("matchzy_max_tac_pauses_allowed", 3);
 
     // ==========================================
     // ▼ 暫停次數與計時器全域變數區 ▼
     // ==========================================
-    public Dictionary<string, int> techPausesLeft = new() { { "matchzyTeam1", 1 }, { "matchzyTeam2", 1 } };
-    public Dictionary<string, int> tacPausesLeft = new() { { "matchzyTeam1", 3 }, { "matchzyTeam2", 3 } };
+    // 捨棄原本寫死的「剩餘次數」，改為追蹤「已使用次數 (Used)」從 0 開始，完美適應任何動態設定！
+    public Dictionary<string, int> techPausesUsed = new() { { "matchzyTeam1", 0 }, { "matchzyTeam2", 0 } };
+    public Dictionary<string, int> tacPausesUsed = new() { { "matchzyTeam1", 0 }, { "matchzyTeam2", 0 } };
 
     public CounterStrikeSharp.API.Modules.Timers.Timer? techPauseAutoUnpauseTimer = null;
     public CounterStrikeSharp.API.Modules.Timers.Timer? tacPauseAutoUnpauseTimer = null;
@@ -116,16 +138,22 @@ public partial class MatchZy
 
         string currentTeamName = playerMatchTeam.teamName;
 
-        if (techPausesLeft[teamKey] <= 0)
+        int maxLimit = MaxTechPauses;
+        int durationLimit = TechPauseDuration;
+
+        if (!techPausesUsed.ContainsKey(teamKey)) techPausesUsed[teamKey] = 0;
+
+        if (techPausesUsed[teamKey] >= maxLimit)
         {
             PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 您 的 {ChatColors.Green}技 術 暫 停 {ChatColors.Default}次 數 已 用 完");
             return;
         }
 
         string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反恐小組" : "恐怖份子";
-        techPausesLeft[teamKey]--;
         
-        int currentPauseUsed = matchzy_max_tech_pauses_allowed - techPausesLeft[teamKey]; 
+        techPausesUsed[teamKey]++;
+        int remainingCount = maxLimit - techPausesUsed[teamKey];
+        int currentPauseUsed = techPausesUsed[teamKey]; 
 
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
@@ -133,12 +161,12 @@ public partial class MatchZy
         untData["t"] = false;
         untData["ct"] = false;
 
-        int maxM = matchzy_tech_pause_duration / 60;
-        int maxS = matchzy_tech_pause_duration % 60;
+        int maxM = durationLimit / 60;
+        int maxS = durationLimit % 60;
         string maxTimeString = maxM > 0 ? $"{maxM}分{maxS:D2}秒" : $"{maxS}秒";
 
-        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 技 術 暫 停。剩 餘 次 數：{ChatColors.Green}{techPausesLeft[teamKey]} {ChatColors.Default}次");
-        PrintToAllChat($" 暫 停 在 \u0004 {matchzy_tech_pause_duration}秒 \u0001 自 動 解 除，或 雙 方 輸 入 \u0004.unt\u0001 解 除");
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 技 術 暫 停。剩 餘 次 數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
+        PrintToAllChat($" 暫 停 在 \u0004 {durationLimit}秒 \u0001 自 動 解 除，或 雙 方 輸 入 \u0004.unt\u0001 解 除");
 
         techPauseElapsedTime = 0;
 
@@ -150,15 +178,15 @@ public partial class MatchZy
                 return;
             }
 
-            int remaining = matchzy_tech_pause_duration - techPauseElapsedTime;
+            int remaining = durationLimit - techPauseElapsedTime;
 
-            if (techPauseElapsedTime >= matchzy_tech_pause_duration)
+            if (techPauseElapsedTime >= durationLimit)
             {
                 Server.ExecuteCommand("mp_unpause_match;");
                 isPaused = false;
                 untData["ct"] = false;
                 untData["t"] = false;
-                PrintToAllChat($" 技 術 暫 停 已達\u0004{matchzy_tech_pause_duration}秒 \u0001上 限，系 統 自 自 動 解 除 暫 停");
+                PrintToAllChat($" 技 術 暫 停 已達\u0004{durationLimit}秒 \u0001上 限，系 統 自 自 動 解 除 暫 停");
                 
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -179,7 +207,7 @@ public partial class MatchZy
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"{sideName} 技術暫停 {timeString} ( {currentPauseUsed} / {matchzy_max_tech_pauses_allowed} )");
+                        p.PrintToCenter($"{sideName} 技術暫停 {timeString} ( {currentPauseUsed} / {maxLimit} )");
                     }
                 }
                 techPauseElapsedTime += 1;
@@ -256,16 +284,22 @@ public partial class MatchZy
 
         string currentTeamName = playerMatchTeam.teamName;
 
-        if (tacPausesLeft[teamKey] <= 0)
+        int maxLimit = MaxTacPauses;
+        int durationLimit = TacPauseDuration;
+
+        if (!tacPausesUsed.ContainsKey(teamKey)) tacPausesUsed[teamKey] = 0;
+
+        if (tacPausesUsed[teamKey] >= maxLimit)
         {
             PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 您 的 {ChatColors.Green}戰 術 暫 停 {ChatColors.Default}次 數 已 用 完");
             return;
         }
 
         string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反恐小組" : "恐怖份子";
-        tacPausesLeft[teamKey]--;
         
-        int currentPauseUsed = matchzy_max_tac_pauses_allowed - tacPausesLeft[teamKey]; 
+        tacPausesUsed[teamKey]++;
+        int remainingCount = maxLimit - tacPausesUsed[teamKey];
+        int currentPauseUsed = tacPausesUsed[teamKey]; 
 
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
@@ -273,12 +307,12 @@ public partial class MatchZy
         unpData["t"] = false;
         unpData["ct"] = false;
 
-        int maxM = matchzy_tac_pause_duration / 60;
-        int maxS = matchzy_tac_pause_duration % 60;
+        int maxM = durationLimit / 60;
+        int maxS = durationLimit % 60;
         string maxTimeString = maxM > 0 ? $"{maxM}分{maxS:D2}秒" : $"{maxS}秒";
 
-        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{tacPausesLeft[teamKey]} {ChatColors.Default}次");
-        PrintToAllChat($" 暫 停 在 \u0004{matchzy_tac_pause_duration}秒\u0001 自 動 解 除，或 雙 方 輸 入 \u0004.unp\u0001 解 除");
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
+        PrintToAllChat($" 暫 停 在 \u0004{durationLimit}秒\u0001 自 動 解 除，或 雙 方 輸 入 \u0004.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
 
@@ -290,15 +324,15 @@ public partial class MatchZy
                 return;
             }
 
-            int remaining = matchzy_tac_pause_duration - tacPauseElapsedTime;
+            int remaining = durationLimit - tacPauseElapsedTime;
 
-            if (tacPauseElapsedTime >= matchzy_tac_pause_duration)
+            if (tacPauseElapsedTime >= durationLimit)
             {
                 Server.ExecuteCommand("mp_unpause_match;");
                 isPaused = false;
                 unpData["ct"] = false;
                 unpData["t"] = false;
-                PrintToAllChat($" 戰 術 暫 停 已達\u0004 {matchzy_tac_pause_duration}秒 \u0001上 限，系 統 自 動 解 除 暫 停");
+                PrintToAllChat($" 戰 術 暫 停 已達\u0004 {durationLimit}秒 \u0001上 限，系 統 自 動 解 除 暫 停");
                 
                 foreach (var p in Utilities.GetPlayers())
                 {
@@ -319,7 +353,7 @@ public partial class MatchZy
                 {
                     if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                     {
-                        p.PrintToCenter($"{sideName} 暫停 {timeString} ( {currentPauseUsed} / {matchzy_max_tac_pauses_allowed} )");
+                        p.PrintToCenter($"{sideName} 暫停 {timeString} ( {currentPauseUsed} / {maxLimit} )");
                     }
                 }
                 tacPauseElapsedTime += 1;
@@ -439,15 +473,15 @@ public partial class MatchZy
 
     public void ResetTechPauseCount()
     {
-        techPausesLeft["matchzyTeam1"] = matchzy_max_tech_pauses_allowed;
-        techPausesLeft["matchzyTeam2"] = matchzy_max_tech_pauses_allowed;
+        techPausesUsed["matchzyTeam1"] = 0;
+        techPausesUsed["matchzyTeam2"] = 0;
         KillTechPauseTimer();
     }
 
     public void ResetTacPauseCount()
     {
-        tacPausesLeft["matchzyTeam1"] = matchzy_max_tac_pauses_allowed;
-        tacPausesLeft["matchzyTeam2"] = matchzy_max_tac_pauses_allowed;
+        tacPausesUsed["matchzyTeam1"] = 0;
+        tacPausesUsed["matchzyTeam2"] = 0;
         KillTacPauseTimer();
     }
 }
