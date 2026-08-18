@@ -1541,16 +1541,15 @@ namespace MatchZy
         }
 
         [ConsoleCommand("css_lastindex", "Returns index of the last thrown grenade")]
-        public void OnLastIndexCommand(CCSPlayerController? player, CommandInfo? command)
-        {
-            if (!isPractice || !IsPlayerValid(player) || player?.UserId is not int userId) return;
-            
-            if (IsValidPositionForLastGrenade(player, 1))
-            {
-                PrintToPlayerChat(player, Localizer["matchzy.pm.indexlastgrenade", $"{lastGrenadesData[userId].Count}"]);
-            } 
-        }
-
+public void OnLastIndexCommand(CCSPlayerController? player, CommandInfo? command)
+{
+    if (!isPractice || player is not { IsValid: true }) return;
+    
+    if (IsValidPositionForLastGrenade(player, 1))
+    {
+        PrintToPlayerChat(player, Localizer["matchzy.pm.indexlastgrenade", $"{lastGrenadesData[player.UserId].Count}"]);
+    } 
+}
         [ConsoleCommand("css_delay", "Adds a delay to the last thrown grenade. Usage: !delay <delay_in_seconds>")]
         public void OnDelayCommand(CCSPlayerController? player, CommandInfo command)
         {
