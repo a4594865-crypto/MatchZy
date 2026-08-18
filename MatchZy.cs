@@ -863,7 +863,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         // 這邊結束
 [ConsoleCommand("css_shuffle", "預約隨機分隊")]
 [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
-public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
+public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) {
     if (player != null && !IsPlayerAdmin(player)) {
         return;
     }
@@ -913,7 +913,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
 
 [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
 [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
-public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command) {
+public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command) {
     if (player != null && !IsPlayerAdmin(player)) {
         return;
     }
