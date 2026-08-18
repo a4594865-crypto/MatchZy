@@ -13,11 +13,12 @@ namespace MatchZy
         // ==========================================
         // 核心數據區 (極致輕量，純整數儲存)
         // ==========================================
-        public Dictionary<int, Dictionary<int, int>> playerDamageInfo = new Dictionary<int, Dictionary<int, int>>();
-        public Dictionary<int, int> playerKillers = new Dictionary<int, int>();
-        public Dictionary<int, int> playerLastHealth = new Dictionary<int, int>();
+        // 【.NET 10 升級】：採用 Target-typed new，自動推斷型別
+        public Dictionary<int, Dictionary<int, int>> playerDamageInfo = new();
+        public Dictionary<int, int> playerKillers = new();
+        public Dictionary<int, int> playerLastHealth = new();
         
-        public Dictionary<int, Dictionary<int, int>> playerHitInfo = new Dictionary<int, Dictionary<int, int>>();
+        public Dictionary<int, Dictionary<int, int>> playerHitInfo = new();
 
         // 【新增】回合狀態追蹤，精準阻斷回合結算畫面後的無效記錄
         private bool _isRoundLive = false;
@@ -69,7 +70,8 @@ namespace MatchZy
 
             if (!IsPlayerValidDamage(attacker) || !IsPlayerValidDamage(victim)) return HookResult.Continue;
             
-            if (attacker!.UserId == null || victim!.UserId == null) return HookResult.Continue;
+            // 【.NET 10 升級】：現代化 is null 檢查
+            if (attacker!.UserId is null || victim!.UserId is null) return HookResult.Continue;
             
             if (attacker.UserId == victim.UserId) return HookResult.Continue;
             if (attacker.TeamNum == victim.TeamNum) return HookResult.Continue;
@@ -87,21 +89,20 @@ namespace MatchZy
             if (!_isRoundLive || isWarmup || isKnifeRound) return;
 
             CCSPlayerController? attacker = @event.Attacker;
-            if (attacker == null) return;
-            
-            if (attacker.UserId == null) return;
+            // 【.NET 10 升級】：模式匹配，一行過濾 Null 與 UserId Null
+            if (attacker is not { UserId: not null }) return;
             
             int attackerId = (int)attacker.UserId;
 
             if (!playerDamageInfo.TryGetValue(attackerId, out var attackerInfo))
             {
-                attackerInfo = new Dictionary<int, int>();
+                attackerInfo = new();
                 playerDamageInfo[attackerId] = attackerInfo;
             }
 
             if (!playerHitInfo.TryGetValue(attackerId, out var hitInfo))
             {
-                hitInfo = new Dictionary<int, int>();
+                hitInfo = new();
                 playerHitInfo[attackerId] = hitInfo;
             }
 
@@ -134,7 +135,8 @@ namespace MatchZy
             // 【核心阻斷】：加上暖身與刀戰的雙重保險防呆
             if (!_isRoundLive || isWarmup || isKnifeRound) return;
 
-            if (player.UserId == null) return;
+            // 【.NET 10 升級】：現代化 is null 檢查
+            if (player.UserId is null) return;
             
             int callerId = (int)player.UserId;
 
@@ -142,8 +144,8 @@ namespace MatchZy
 
             CCSPlayerController? killerController = Utilities.GetPlayerFromUserid(killerId);
             
-            if (killerController == null || !killerController.IsValid) return;
-            if (killerController.PawnIsAlive == false) return; 
+            // 【.NET 10 升級】：合併多行檢查為單次模式匹配
+            if (killerController is not { IsValid: true, PawnIsAlive: true }) return; 
 
             if (killerController.TeamNum == player.TeamNum) return;
 
@@ -175,7 +177,8 @@ namespace MatchZy
 
             foreach (var teammate in Utilities.GetPlayers())
             {
-                if (teammate != null && teammate.IsValid && !teammate.IsBot && teammate.TeamNum == player.TeamNum)
+                // 【.NET 10 升級】：合併多層屬性安全判定
+                if (teammate is { IsValid: true, IsBot: false } && teammate.TeamNum == player.TeamNum)
                 {
                     teammate.PrintToChat(damageMessage);
                 }
@@ -190,7 +193,8 @@ namespace MatchZy
         // ==========================================
         private bool IsPlayerValidDamage(CCSPlayerController? player)
         {
-            return player != null && player.IsValid && player.PlayerPawn != null && player.PlayerPawn.IsValid && !player.IsBot;
+            // 【.NET 10 升級】：多層次巢狀屬性模式匹配 (取代 player != null && player.IsValid && player.PlayerPawn != null && ...)
+            return player is { IsValid: true, IsBot: false, PlayerPawn: { IsValid: true } };
         }
     }
 }
