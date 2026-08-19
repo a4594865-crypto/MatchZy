@@ -82,6 +82,7 @@ public partial class MatchZy
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
         if (IsWingmanMode() || coaches.Count == 0) return;
         
+        // 改為純迴圈零垃圾檢查
         bool anySpawnsEmpty = false;
         foreach (var list in spawnsData.Values)
         {
@@ -102,7 +103,7 @@ public partial class MatchZy
             return;
         }
 
-        // 安全讀取 ConVar
+        //  安全讀取 ConVar
         var cvarFreezeTime = ConVar.Find("mp_freezetime");
         int freezeTime = cvarFreezeTime is not null ? cvarFreezeTime.GetPrimitiveValue<int>() : 2;
         freezeTime = freezeTime > 2 ? freezeTime : 2;
@@ -292,16 +293,17 @@ public partial class MatchZy
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
         if (IsWingmanMode() || coaches.Count == 0) return;
         
-        // 嚴格防護 ConVar 空值
+        // 嚴格防護 ConVar 空值與 API 字串回傳值
         var cvarPenalty = ConVar.Find("mp_suicide_penalty");
         var cvarFreezeTime = ConVar.Find("spec_freeze_time");
         var cvarFreezeLock = ConVar.Find("spec_freeze_time_lock");
         var cvarFreezeAnim = ConVar.Find("spec_freeze_deathanim_time");
 
-        string suicidePenalty = cvarPenalty is not null ? GetConvarStringValue(cvarPenalty) : "0";
-        string specFreezeTime = cvarFreezeTime is not null ? GetConvarStringValue(cvarFreezeTime) : "2";
-        string specFreezeTimeLock = cvarFreezeLock is not null ? GetConvarStringValue(cvarFreezeLock) : "2";
-        string specFreezeDeathanim = cvarFreezeAnim is not null ? GetConvarStringValue(cvarFreezeAnim) : "0";
+        // 加入 ?? 確保無論如何都不會把 Null 塞給不可為空的 string
+        string suicidePenalty = cvarPenalty is not null ? (GetConvarStringValue(cvarPenalty) ?? "0") : "0";
+        string specFreezeTime = cvarFreezeTime is not null ? (GetConvarStringValue(cvarFreezeTime) ?? "2") : "2";
+        string specFreezeTimeLock = cvarFreezeLock is not null ? (GetConvarStringValue(cvarFreezeLock) ?? "2") : "2";
+        string specFreezeDeathanim = cvarFreezeAnim is not null ? (GetConvarStringValue(cvarFreezeAnim) ?? "0") : "0";
 
         Server.ExecuteCommand("mp_suicide_penalty 0;spec_freeze_time 0; spec_freeze_time_lock 0; spec_freeze_deathanim_time 0;");
 
@@ -309,12 +311,13 @@ public partial class MatchZy
         {
             if (!IsPlayerValid(coach) || isPaused || IsTacticalTimeoutActive()) continue;
 
-            // 徹底解決深層實體解構時的 NullReference 崩潰
-            if (coach.PlayerPawn.Value?.CBodyComponent?.SceneNode is { AbsOrigin: not null, AbsRotation: not null } sceneNode)
+            // 徹底解決深層實體解構時的 NullReference 崩潰警告
+            // 利用 is { } pawn 先把實體抓出來，確保接下來呼叫 Teleport() 跟 CommitSuicide() 時絕對安全
+            if (coach.PlayerPawn.Value is { } pawn && pawn.CBodyComponent?.SceneNode is { AbsOrigin: not null, AbsRotation: not null } sceneNode)
             {
                 Position coachPosition = new(sceneNode.AbsOrigin, sceneNode.AbsRotation);
-                coach.PlayerPawn.Value.Teleport(new(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new(0, 0, 0));
-                coach.PlayerPawn.Value.CommitSuicide(explode: false, force: true);
+                pawn.Teleport(new(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new(0, 0, 0));
+                pawn.CommitSuicide(explode: false, force: true);
             }
         }
         Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
