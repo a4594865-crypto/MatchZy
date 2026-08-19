@@ -124,7 +124,7 @@ public partial class MatchZy
             {
                 // coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
                 HandleCoachWeapons(coach);
-                coach!.PlayerPawn.Value.Teleport(newPosition.PlayerPosition, newPosition.PlayerAngle, new Vector(0, 0, 0));
+                coach!.PlayerPawn.Value!.Teleport(newPosition.PlayerPosition, newPosition.PlayerAngle, new Vector(0, 0, 0));
             });
 
         }
@@ -170,7 +170,7 @@ public partial class MatchZy
                 occupiedSpawns.Add(position);
                 AddTimer(0.1f, () =>
                 {
-                    player!.PlayerPawn.Value.Teleport(position.PlayerPosition, position.PlayerAngle, new Vector(0, 0, 0));
+                    player!.PlayerPawn.Value!.Teleport(position.PlayerPosition, position.PlayerAngle, new Vector(0, 0, 0));
                 });
                 break;
             }
