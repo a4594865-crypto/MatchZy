@@ -80,12 +80,13 @@ namespace MatchZy
                             {
                                 AllowTrailingCommas = true,
                             };
-                            loadedAdmins = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? new Dictionary<string, string>();
+                            // 【.NET 10 升級】：集合表達式
+                            loadedAdmins = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? [];
                         }
                         else
                         {
                             // Handle the case where the JSON content is empty or null
-                            loadedAdmins = new Dictionary<string, string>();
+                            loadedAdmins = [];
                         }
                     }
                     
@@ -116,7 +117,7 @@ namespace MatchZy
                     };
                     string defaultJson = JsonSerializer.Serialize(defaultAdmins, options);
                     string? directoryPath = Path.GetDirectoryName(filePath);
-                    if (directoryPath != null)
+                    if (directoryPath is not null)
                     {
                         if (!Directory.Exists(directoryPath))
                         {
@@ -159,6 +160,7 @@ namespace MatchZy
         private void SendUnreadyPlayersMessage()
         {
             if (!isWarmup || matchStarted) return;
+            
             // 【.NET 10 升級】：集合表達式
             List<string> unreadyPlayers = [];
 
@@ -227,26 +229,28 @@ namespace MatchZy
         {
             if (isPaused && matchStarted)
             {
-                var pauseTeamName = unpauseData["pauseTeam"];
-                if ((string)pauseTeamName == "Admin")
+                if (unpauseData.TryGetValue("pauseTeam", out var ptObj) && ptObj is string pauseTeamName)
                 {
-                    PrintToAllChat(Localizer["matchzy.pause.adminpausedthematch"]);
-                }
-                else if ((string)pauseTeamName == "RoundRestore" && !(bool)unpauseData["t"] && !(bool)unpauseData["ct"])
-                {
-                    PrintToAllChat(Localizer["matchzy.pause.pausedbecauserestore"]);
-                }
-                else if ((bool)unpauseData["t"] && !(bool)unpauseData["ct"])
-                {
-                    PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", reverseTeamSides["TERRORIST"].teamName, reverseTeamSides["CT"].teamName]);
-                }
-                else if (!(bool)unpauseData["t"] && (bool)unpauseData["ct"])
-                {
-                    PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", reverseTeamSides["CT"].teamName, reverseTeamSides["TERRORIST"].teamName]);
-                }
-                else if (!(bool)unpauseData["t"] && !(bool)unpauseData["ct"])
-                {
-                    PrintToAllChat(Localizer["matchzy.pause.pausedthematch", pauseTeamName]);
+                    if (pauseTeamName == "Admin")
+                    {
+                        PrintToAllChat(Localizer["matchzy.pause.adminpausedthematch"]);
+                    }
+                    else if (pauseTeamName == "RoundRestore" && unpauseData.TryGetValue("t", out var tObj) && tObj is bool tRest && !tRest && unpauseData.TryGetValue("ct", out var ctObj) && ctObj is bool ctRest && !ctRest)
+                    {
+                        PrintToAllChat(Localizer["matchzy.pause.pausedbecauserestore"]);
+                    }
+                    else if (unpauseData.TryGetValue("t", out var tVal) && tVal is bool tBool && tBool && unpauseData.TryGetValue("ct", out var ctVal) && ctVal is bool ctBool && !ctBool)
+                    {
+                        PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", reverseTeamSides["TERRORIST"].teamName, reverseTeamSides["CT"].teamName]);
+                    }
+                    else if (unpauseData.TryGetValue("t", out var tVal2) && tVal2 is bool tBool2 && !tBool2 && unpauseData.TryGetValue("ct", out var ctVal2) && ctVal2 is bool ctBool2 && ctBool2)
+                    {
+                        PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", reverseTeamSides["CT"].teamName, reverseTeamSides["TERRORIST"].teamName]);
+                    }
+                    else if (unpauseData.TryGetValue("t", out var tVal3) && tVal3 is bool tBool3 && !tBool3 && unpauseData.TryGetValue("ct", out var ctVal3) && ctVal3 is bool ctBool3 && !ctBool3)
+                    {
+                        PrintToAllChat(Localizer["matchzy.pause.pausedthematch", pauseTeamName]);
+                    }
                 }
             }
         }
@@ -279,7 +283,7 @@ namespace MatchZy
         private void StartKnifeRound()
         {
             // 1. 先殺掉準備提示計時器 (與原邏輯一致)
-            if (unreadyPlayerMessageTimer != null)
+            if (unreadyPlayerMessageTimer is not null)
             {
                 unreadyPlayerMessageTimer.Kill();
                 unreadyPlayerMessageTimer = null;
@@ -323,7 +327,6 @@ namespace MatchZy
         {
             if (!isSideSelectionPhase) return;
             PrintToAllChat(Localizer["matchzy.knife.sidedecisionpending", knifeWinnerName]);
-            // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{knifeWinnerName}{ChatColors.Default} Won the knife. Waiting for them to type {ChatColors.Green}.stay{ChatColors.Default} or {ChatColors.Green}.switch{ChatColors.Default}");
         }
 
       private void StartAfterKnifeWarmup()
@@ -343,7 +346,6 @@ namespace MatchZy
             // 把清洗後且在名字後面加了「 隊伍」的乾淨名稱送進翻譯檔案
             PrintToAllChat(Localizer["matchzy.knife.sidedecisionpending", cleanKnifeWinnerName]);
             
-            // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{knifeWinnerName}{ChatColors.Default} Won the knife. Waiting for them to type {ChatColors.Green}.stay{ChatColors.Default} or {ChatColors.Green}.switch{ChatColors.Default}");
             sideSelectionMessageTimer ??= AddTimer(chatTimerDelay, SendSideSelectionMessage, TimerFlags.REPEAT);
         }
         
@@ -412,16 +414,16 @@ namespace MatchZy
             int count = 0;
             int totalHealth = 0;
             
-            // 【.NET 10 升級】：字典解構
+            // 【.NET 10 升級】：字典解構，屬性模式提取防空值
             foreach (var (key, player) in playerData)
             {
                 if (team == 2 && reverseTeamSides["TERRORIST"].coach.Contains(player)) continue;
                 if (team == 3 && reverseTeamSides["CT"].coach.Contains(player)) continue;
                 if (!IsPlayerValid(player)) continue;
-                if (player.TeamNum == team)
+                if (player.TeamNum == team && player.PlayerPawn.Value is { } pawn)
                 {
-                    if (player.PlayerPawn.Value!.Health > 0) count++;
-                    totalHealth += player.PlayerPawn.Value!.Health;
+                    if (pawn.Health > 0) count++;
+                    totalHealth += pawn.Health;
                 }
             }
             return (count, totalHealth);
@@ -460,7 +462,6 @@ namespace MatchZy
                 playerHasTakenDamage = false;
 
                 // Unready all players
-                // 【.NET 10 升級】：字典解構，0分配更新
                 foreach (var (key, _) in playerReadyStatus)
                 {
                     playerReadyStatus[key] = false;
@@ -488,10 +489,10 @@ namespace MatchZy
                 stopData["t"] = false;
 
                 // Reset owned bots data
-                pracUsedBots = new Dictionary<int, Dictionary<string, object>>();
+                pracUsedBots = [];
                 noFlashList = [];
-                lastGrenadesData = new();
-                nadeSpecificLastGrenadeData = new();
+                lastGrenadesData = [];
+                nadeSpecificLastGrenadeData = [];
                 UnpauseMatch();
 
                 matchzyTeam1.teamName = "COUNTER-TERRORISTS";
@@ -525,7 +526,6 @@ namespace MatchZy
                 reverseTeamSides["CT"] = matchzyTeam1;
                 reverseTeamSides["TERRORIST"] = matchzyTeam2;
 
-                // Keeping the log URLs to avoid their reset on match start.
                 matchConfig = new()
                 {
                     RemoteLogURL = matchConfig.RemoteLogURL,
@@ -541,7 +541,6 @@ namespace MatchZy
                 }
                 else
                 {
-                    // Since we should be already in warmup phase by this point, we are just setting up the SendUnreadyPlayersMessage timer
                     unreadyPlayerMessageTimer?.Kill();
                     unreadyPlayerMessageTimer = null;
                     unreadyPlayerMessageTimer ??= AddTimer(chatTimerDelay, SendUnreadyPlayersMessage, TimerFlags.REPEAT);
@@ -567,7 +566,7 @@ namespace MatchZy
                 connectedPlayers = 0;
 
                 // Clear the playerData dictionary by creating a new instance to add fresh data.
-                playerData = new Dictionary<int, CCSPlayerController>();
+                playerData = [];
                 foreach (var player in playerEntities)
                 {
                     if (player is null) continue;
@@ -583,17 +582,12 @@ namespace MatchZy
                         }
                     }
 
-                    // A player controller still exists after a player disconnects
-                    // Hence checking whether the player is actually in the server or not
                     if (player.Connected != PlayerConnectedState.Connected) continue;
 
                     if (player.UserId.HasValue)
                     {
-
-                        // Updating playerData and playerReadyStatus
                         playerData[player.UserId.Value] = player;
 
-                        // Adding missing player in playerReadyStatus
                         if (!playerReadyStatus.ContainsKey(player.UserId.Value))
                         {
                             playerReadyStatus[player.UserId.Value] = false;
@@ -603,7 +597,6 @@ namespace MatchZy
                 }
 
                 // Removing disconnected players from playerReadyStatus
-                // 【優化替換】：拔除 LINQ .ToList() 陣列配置，改用集合表達式 0 分配
                 List<int> keysToRemove = [];
                 foreach (var (key, _) in playerReadyStatus)
                 {
@@ -626,7 +619,6 @@ namespace MatchZy
 
         public void DetermineKnifeWinner()
         {
-            // Knife Round code referred from Get5, thanks to the Get5 team for their amazing job!
             (int tAlive, int tHealth) = GetAlivePlayers(2);
             (int ctAlive, int ctHealth) = GetAlivePlayers(3);
             Log($"[KNIFE OVER] CT Alive: {ctAlive} with Total Health: {ctHealth}, T Alive: {tAlive} with Total Health: {tHealth}");
@@ -648,7 +640,6 @@ namespace MatchZy
             }
             else
             {
-                // Choosing a winner randomly
                 Random random = new();
                 knifeWinner = random.Next(2, 4);
             }
@@ -657,17 +648,9 @@ namespace MatchZy
         private void HandleKnifeWinner(EventCsWinPanelRound @event)
         {
             DetermineKnifeWinner();
-            // Below code is working partially (Winner audio plays correctly for knife winner team, but may display round winner incorrectly)
-            // Hence we restart the game with StartAfterKnifeWarmup and allow the winning team to choose side
 
             @event.FunfactToken = "";
 
-            // Commenting these assignments as they were crashing the server.
-            // long empty = 0;
-            // @event.FunfactPlayer = null;
-            // @event.FunfactData1 = empty;
-            // @event.FunfactData2 = empty;
-            // @event.FunfactData3 = empty;
             int finalEvent = 10;
             if (knifeWinner == 3)
             {
@@ -691,7 +674,6 @@ namespace MatchZy
 
             if (matchStarted)
             {
-                // ReplyToUserCommand(player, $"Map cannot be changed once the match is started!");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.matchstarted"]);
                 return;
             }
@@ -702,7 +684,7 @@ namespace MatchZy
             }
 
             if (long.TryParse(mapName, out _))
-            { // Check if mapName is a long for workshop map ids
+            { 
                 Server.ExecuteCommand($"bot_kick");
                 Server.ExecuteCommand($"host_workshop_map \"{mapName}\"");
             }
@@ -731,20 +713,17 @@ namespace MatchZy
                 {
                     minimumReadyRequired = readyRequired;
                     string minimumReadyRequiredFormatted = (player is null) ? $"{minimumReadyRequired}" : $"{ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}";
-                    // ReplyToUserCommand(player, $"Minimum ready players required to start the match are now set to: {minimumReadyRequiredFormatted}");
                     ReplyToUserCommand(player, Localizer["matchzy.utility.minreadyplayers", minimumReadyRequiredFormatted]);
                     CheckLiveRequired();
                 }
                 else
                 {
-                    // ReplyToUserCommand(player, $"Invalid value for readyrequired. Please specify a valid non-negative number. Usage: !readyrequired <number_of_ready_players_required>");
                     ReplyToUserCommand(player, Localizer["matchzy.utility.rrinvalidvalue"]);
                 }
             }
             else
             {
                 string minimumReadyRequiredFormatted = (player is null) ? $"{minimumReadyRequired}" : $"{ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}";
-                // ReplyToUserCommand(player, $"Current Ready Required: {minimumReadyRequiredFormatted} .Usage: !readyrequired <number_of_ready_players_required>");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.currentreadyrequired", minimumReadyRequiredFormatted]);
             }
         }
@@ -753,7 +732,7 @@ namespace MatchZy
         {
             // 關鍵修正：如果已經在倒數中 (matchStartCountdownTimer != null)，
             // 或者比賽已經開始，就直接跳出，避免重複觸發 StartMatchCountdown
-            if (!readyAvailable || matchStarted || matchStartCountdownTimer != null) return;
+            if (!readyAvailable || matchStarted || matchStartCountdownTimer is not null) return;
 
             // 【優化替換】：拔除 LINQ .Count()
             int countOfReadyPlayers = 0;
@@ -785,7 +764,6 @@ namespace MatchZy
 
             if (liveRequired)
             {
-                // 進入 ReadySystem.cs 定義的優化版倒數邏輯
                 StartMatchCountdown();
             }
         }
@@ -801,13 +779,10 @@ namespace MatchZy
                 pendingRestoreFileName = "";
                 return;
             }
-            // If default names, we pick a player and use their name as their team name
             if (matchzyTeam1.teamName == "COUNTER-TERRORISTS")
             {
-                // matchzyTeam1.teamName = teamName;
                 teamSides[matchzyTeam1] = "CT";
                 reverseTeamSides["CT"] = matchzyTeam1;
-                // 【.NET 10 升級】：字典解構
                 foreach (var (key, player) in playerData)
                 {
                     if (player.TeamNum == 3)
@@ -819,15 +794,12 @@ namespace MatchZy
                         break;
                     }
                 }
-                // Server.ExecuteCommand($"mp_teamname_1 {matchzyTeam1.teamName}");
             }
 
             if (matchzyTeam2.teamName == "TERRORISTS")
             {
-                // matchzyTeam2.teamName = teamName;
                 teamSides[matchzyTeam2] = "TERRORIST";
                 reverseTeamSides["TERRORIST"] = matchzyTeam2;
-                // 【.NET 10 升級】：字典解構
                 foreach (var (key, player) in playerData)
                 {
                     if (player.TeamNum == 2)
@@ -839,7 +811,6 @@ namespace MatchZy
                         break;
                     }
                 }
-                // Server.ExecuteCommand($"mp_teamname_2 {matchzyTeam2.teamName}");
             }
 
             Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
@@ -870,7 +841,7 @@ namespace MatchZy
             {
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}MatchZy{ChatColors.Default} Plugin by {ChatColors.Green}WD-{ChatColors.Default}");
             }
-            if (matchStartMessage.Value.Trim() != "" && matchStartMessage.Value.Trim() != "\"\"")
+            if (matchStartMessage.Value.Trim() is not "" and not "\"\"")
             {
                 List<string> matchStartMessages = [.. matchStartMessage.Value.Split("$$$")];
                 foreach (string message in matchStartMessages)
@@ -882,42 +853,7 @@ namespace MatchZy
 
         public void HandleClanTags()
         {
-            // Currently it is not possible to keep updating player tags while in warmup without restarting the match
-            // Hence returning from here until we find a proper solution
             return;
-
-            if (readyAvailable && !matchStarted)
-            {
-                // 【.NET 10 升級】：字典解構
-                foreach (var (key, player) in playerData)
-                {
-                    if (playerReadyStatus[key])
-                    {
-                        player.Clan = "[Ready]";
-                    }
-                    else
-                    {
-                        player.Clan = "[Unready]";
-                    }
-                    Server.PrintToChatAll($"PlayerName: {player.PlayerName} Clan: {player.Clan}");
-                }
-            }
-            else if (matchStarted)
-            {
-                // 【.NET 10 升級】：字典解構
-                foreach (var (key, player) in playerData)
-                {
-                    if (player.TeamNum == 2)
-                    {
-                        player.Clan = reverseTeamSides["TERRORIST"].teamTag;
-                    }
-                    else if (player.TeamNum == 3)
-                    {
-                        player.Clan = reverseTeamSides["CT"].teamTag;
-                    }
-                    Server.PrintToChatAll($"PlayerName: {player.PlayerName} Clan: {player.Clan}");
-                }
-            }
         }
 
         private void HandleMatchEnd()
@@ -927,16 +863,17 @@ namespace MatchZy
             // --- [ T W ] 1. 鎖定賽後延遲為 55 秒 ---
             int restartDelay = 55; 
             int requiredDelay = 55; 
-            int tvFlushDelay = requiredDelay;
 
             // 更新伺服器 Cvar，讓玩家 UI 顯示 55 秒倒數
-            ConVar.Find("mp_match_restart_delay")!.SetValue(requiredDelay);
+            if (ConVar.Find("mp_match_restart_delay") is { } cvDelay)
+            {
+                cvDelay.SetValue(requiredDelay);
+            }
             Log($"[HandleMatchEnd] [ T W ] 已將延遲鎖定為 {requiredDelay}s，準備在 3s 後停止錄影。");
 
             int currentMapNumber = matchConfig.CurrentMapNumber;
 
             // --- [ T W ] 2. 核心修改：結算面板出來後 3 秒就停止錄影 ---
-            // 這樣可以確保錄到結算畫面，且完全避開第 51 秒換圖時的效能高峰，消滅 12.2% 紅字
             StopDemoRecording(3.0f, activeDemoFile, liveMatchId, currentMapNumber); 
 
             // --- 以下維持官方邏輯 ---
@@ -952,8 +889,8 @@ namespace MatchZy
                 MatchId = liveMatchId,
                 MapNumber = currentMapNumber,
                 Winner = new Winner(t1score > t2score && reverseTeamSides["CT"] == matchzyTeam1 ? "3" : "2", t1score > t2score ? "team1" : "team2"),
-                StatsTeam1 = new MatchZyStatsTeam(matchzyTeam1.id, matchzyTeam1.teamName, team1SeriesScore, t1score, 0, 0, new List<StatsPlayer>()),
-                StatsTeam2 = new MatchZyStatsTeam(matchzyTeam2.id, matchzyTeam2.teamName, team2SeriesScore, t2score, 0, 0, new List<StatsPlayer>())
+                StatsTeam1 = new MatchZyStatsTeam(matchzyTeam1.id, matchzyTeam1.teamName, team1SeriesScore, t1score, 0, 0, []),
+                StatsTeam2 = new MatchZyStatsTeam(matchzyTeam2.id, matchzyTeam2.teamName, team2SeriesScore, t2score, 0, 0, [])
             };
 
             Task.Run(async () =>
@@ -1118,7 +1055,6 @@ namespace MatchZy
                     (int t1score, int t2score) = GetTeamsScore();
 
                     // 小局：在這裡自動洗掉雙方隊伍開頭的 "Team_"
-                    // 小局：不分大小寫（Team_、team_、TEAM_）全部強制洗掉
                     string cleanRoundTeam1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
                     string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
 
@@ -1196,16 +1132,15 @@ namespace MatchZy
 
         public bool IsTeamSwapRequired()
         {
-            // 【優化替換】：拔除 LINQ .First()
             var gameRules = GetGameRules();
             if (gameRules is null) return false;
             
             int roundsPlayed = gameRules.TotalRoundsPlayed;
 
-            int roundsPerHalf = ConVar.Find("mp_maxrounds")!.GetPrimitiveValue<int>() / 2;
-            int roundsPerOTHalf = ConVar.Find("mp_overtime_maxrounds")!.GetPrimitiveValue<int>() / 2;
+            int roundsPerHalf = ConVar.Find("mp_maxrounds") is { } cvMax ? cvMax.GetPrimitiveValue<int>() / 2 : 12;
+            int roundsPerOTHalf = ConVar.Find("mp_overtime_maxrounds") is { } cvOT ? cvOT.GetPrimitiveValue<int>() / 2 : 3;
 
-            bool halftimeEnabled = ConVar.Find("mp_halftime")!.GetPrimitiveValue<bool>();
+            bool halftimeEnabled = ConVar.Find("mp_halftime") is { } cvHalf && cvHalf.GetPrimitiveValue<bool>();
 
             if (halftimeEnabled)
             {
@@ -1231,34 +1166,30 @@ namespace MatchZy
         {
             if (isMatchLive && isPaused)
             {
-                // ReplyToUserCommand(player, "Match is already paused!");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.paused"]);
                 return;
             }
             if (IsHalfTimePhase())
             {
-                // ReplyToUserCommand(player, "You cannot use this command during halftime.");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.duringhalftime"]);
                 return;
             }
             if (IsPostGamePhase())
             {
-                // ReplyToUserCommand(player, "You cannot use this command after the game has ended.");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.matchended"]);
                 return;
             }
             if (IsTacticalTimeoutActive())
             {
-                // ReplyToUserCommand(player, "You cannot use this command when tactical timeout is active.");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.tacticaltimeout"]);
                 return;
             }
-            if (!techPauseEnabled.Value && player != null)
+            if (!techPauseEnabled.Value && player is null == false)
             {
                 PrintToPlayerChat(player, Localizer["matchzy.pause.techpausenotenabled"]);
                 return;
             }
-            if(!string.IsNullOrEmpty(techPausePermission.Value) && techPausePermission.Value != "\"\"")
+            if(techPausePermission.Value is not "" and not "\"\"")
             {
                 if (!IsPlayerAdmin(player, "css_pause", techPausePermission.Value))
                 {
@@ -1273,7 +1204,6 @@ namespace MatchZy
                 unpauseData["pauseTeam"] = "Admin";
                 if (player?.TeamNum == 2)
                 {
-
                     pauseTeamName = reverseTeamSides["TERRORIST"].teamName;
                     unpauseData["pauseTeam"] = reverseTeamSides["TERRORIST"].teamName;
                 }
@@ -1287,8 +1217,6 @@ namespace MatchZy
                     return;
                 }
                 PrintToAllChat(Localizer["matchzy.pause.pausedthematch", pauseTeamName]);
-                // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{pauseTeamName}{ChatColors.Default} has paused the match. Type .unpause to unpause the match");
-
                 SetMatchPausedFlags();
             }
         }
@@ -1303,31 +1231,26 @@ namespace MatchZy
             }
             if (isMatchLive && isPaused)
             {
-                // ReplyToUserCommand(player, "Match is already paused!");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.paused"]);
                 return;
             }
             if (IsHalfTimePhase())
             {
-                // ReplyToUserCommand(player, "You cannot use this command during halftime.");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.duringhalftime"]);
                 return;
             }
             if (IsPostGamePhase())
             {
-                // ReplyToUserCommand(player, "You cannot use this command after the game has ended.");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.matchended"]);
                 return;
             }
             if (IsTacticalTimeoutActive())
             {
-                // ReplyToUserCommand(player, "You cannot use this command when tactical timeout is active.");
                 ReplyToUserCommand(player, Localizer["matchzy.utility.tacticaltimeout"]);
                 return;
             }
             unpauseData["pauseTeam"] = "Admin";
             PrintToAllChat(Localizer["matchzy.pause.adminpausedthematch"]);
-            // Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}Admin{ChatColors.Default} has paused the match.");
             if (player is null)
             {
                 Server.PrintToConsole($"[MatchZy] {Localizer["matchzy.pause.adminpausedthematch"]}");
@@ -1360,7 +1283,7 @@ namespace MatchZy
             isPaused = false;
             unpauseData["ct"] = false;
             unpauseData["t"] = false;
-            if (!isPaused && pausedStateTimer != null)
+            if (!isPaused && pausedStateTimer is not null)
             {
                 pausedStateTimer.Kill();
                 pausedStateTimer = null;
@@ -1400,7 +1323,6 @@ namespace MatchZy
                 cfgPath = liveWingmanCfgPath;
             }
 
-            // We try to find the CFG in the cfg folder, if it is not there then we execute the default CFG.
             if (File.Exists(absolutePath))
             {
                 Log($"[StartLive] Starting Live! Executing Live CFG from {cfgPath}");
@@ -1425,14 +1347,11 @@ namespace MatchZy
 
         private void SendPlayerNotAdminMessage(CCSPlayerController? player)
         {
-            // ReplyToUserCommand(player, "You do not have permission to use this command!");
             ReplyToUserCommand(player, Localizer["matchzy.utility.dontpermission"]);
         }
 
         private string GetColorTreatedString(string message)
         {
-            // Adding extra space before args if message starts with a color name
-            // This is because colors cannot be applied from 1st character, hence we make first character as an empty space
             if (message.StartsWith('{')) message = " " + message;
 
             foreach (var field in typeof(ChatColors).GetFields())
@@ -1442,7 +1361,6 @@ namespace MatchZy
 
                 if (replacement is null) return message;
 
-                // Create a case-insensitive regular expression pattern for the color name
                 string patternIgnoreCase = Regex.Escape(pattern);
                 message = Regex.Replace(message, patternIgnoreCase, replacement, RegexOptions.IgnoreCase);
             }
@@ -1490,7 +1408,7 @@ namespace MatchZy
             string namesFileName = "Match_" + liveMatchId.ToString() + ".ini";
             string namesFilePath = Server.GameDirectory + "/csgo/MatchZyPlayerNames/" + namesFileName;
             string? directoryPath = Path.GetDirectoryName(namesFilePath);
-            if (directoryPath != null)
+            if (directoryPath is not null)
             {
                 if (!Directory.Exists(directoryPath))
                 {
@@ -1498,7 +1416,7 @@ namespace MatchZy
                 }
             }
 
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             sb.AppendLine("\"Names\"");
             sb.AppendLine("{");
 
@@ -1513,15 +1431,19 @@ namespace MatchZy
 
         public void WriteClientNamesInFile(StringBuilder sb, JToken? players)
         {
-            if (players == null) return;
-            foreach (JProperty player in players.Cast<JProperty>())
+            // 【.NET 10 升級】改用 0分配模式匹配
+            if (players is null) return;
+            foreach (var token in players)
             {
-                string steamId = player.Name;
-                string escapedName = player.Value.ToString().Replace("\"", "\\\"").Trim();
+                if (token is JProperty player)
+                {
+                    string steamId = player.Name;
+                    string escapedName = player.Value.ToString().Replace("\"", "\\\"").Trim();
 
-                if (string.IsNullOrEmpty(escapedName)) continue;
+                    if (string.IsNullOrEmpty(escapedName)) continue;
 
-                sb.AppendLine($"\t\"{steamId}\"\t\t\"{escapedName}\"");
+                    sb.AppendLine($"\t\"{steamId}\"\t\t\"{escapedName}\"");
+                }
             }
         }
 
@@ -1529,7 +1451,7 @@ namespace MatchZy
         {
             if (Uri.TryCreate(url, UriKind.Absolute, out Uri? result))
             {
-                return result != null && (result.Scheme == Uri.UriSchemeHttp || result.Scheme == Uri.UriSchemeHttps);
+                return result is not null && (result.Scheme == Uri.UriSchemeHttp || result.Scheme == Uri.UriSchemeHttps);
             }
             return false;
         }
@@ -1566,7 +1488,6 @@ namespace MatchZy
         {
             if (cvar is null) return;
             
-            // 【.NET 10 升級】：0 GC switch pattern matching，移除動態 Dictionary 配置效能炸彈
             try
             {
                 switch (cvar.Type)
@@ -1609,7 +1530,6 @@ namespace MatchZy
 
         public void ExecuteChangedConvars()
         {
-            // 【.NET 10 升級】：字典解構
             foreach (var (key, value) in matchConfig.ChangedCvars)
             {
                 Log($"[ExecuteChangedConvars] Execing: {key} \"{value}\"");
@@ -1619,7 +1539,6 @@ namespace MatchZy
 
         public void ResetChangedConvars()
         {
-            // 【.NET 10 升級】：字典解構
             foreach (var (key, value) in matchConfig.OriginalCvars)
             {
                 Log($"[ResetChangedConvars] Execing: {key} \"{value}\"");
@@ -1647,7 +1566,7 @@ namespace MatchZy
         public void UpdateHostname()
         {
             string hostname = hostnameFormat.Value.Trim();
-            if (hostname == "" || hostname == "\"\"") return;
+            if (hostname is "" or "\"\"") return;
             string formattedHostname = FormatCvarValue(hostname);
             Log($"UPDATING HOSTNAME TO: {formattedHostname}");
             Server.ExecuteCommand($"hostname {formattedHostname}");
@@ -1655,10 +1574,10 @@ namespace MatchZy
 
         public CCSGameRules GetGameRules()
         {
-            // 【優化替換】：拔除 LINQ .First()
+            // 拔除 LINQ .First()
             foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
             {
-                if (entity.GameRules != null) return entity.GameRules;
+                if (entity.GameRules is { } rules) return rules;
             }
             return null!;
         }
@@ -1698,32 +1617,34 @@ namespace MatchZy
 
         public bool IsTacticalTimeoutActive()
         {
-            // 【優化替換】：拔除 LINQ .First()，改用共用函數
-            var gameRules = GetGameRules();
-
-            return (gameRules.CTTimeOutActive || gameRules.TerroristTimeOutActive) && gameRules.FreezePeriod;
+            // 【優化替換】：拔除 LINQ .First()，改用安全屬性匹配
+            if (GetGameRules() is { } gameRules)
+            {
+                return (gameRules.CTTimeOutActive || gameRules.TerroristTimeOutActive) && gameRules.FreezePeriod;
+            }
+            return false;
         }
 
         public (Dictionary<ulong, Dictionary<string, object>>, List<StatsPlayer>, List<StatsPlayer>) GetPlayerStatsDict()
         {
-            Dictionary<ulong, Dictionary<string, object>> playerStatsDictionary = new Dictionary<ulong, Dictionary<string, object>>();
-            List<StatsPlayer> playerStatsListTeam1 = new();
-            List<StatsPlayer> playerStatsListTeam2 = new();
-            // 【優化替換】：拔除 LINQ .First()，改用共用函數
+            Dictionary<ulong, Dictionary<string, object>> playerStatsDictionary = [];
+            List<StatsPlayer> playerStatsListTeam1 = [];
+            List<StatsPlayer> playerStatsListTeam2 = [];
+            
             var gameRules = GetGameRules();
+            if (gameRules is null) return (playerStatsDictionary, playerStatsListTeam1, playerStatsListTeam2);
+            
             int roundsPlayed = gameRules.TotalRoundsPlayed;
             try
             {
-                // 【.NET 10 升級】：字典解構
                 foreach (var (key, player) in playerData)
                 {
-                    if (!player.IsValid || player.ActionTrackingServices == null) continue;
+                    if (!player.IsValid || player.ActionTrackingServices is null) continue;
 
                     var playerStats = player.ActionTrackingServices.MatchStats;
                     ulong steamid64 = player.SteamID;
 
-                    // Create a nested dictionary to store individual stats for the player
-                    Dictionary<string, object> stats = new Dictionary<string, object>
+                    Dictionary<string, object> stats = new()
                     {
                         { "PlayerName", player.PlayerName },
                         { "Kills", playerStats.Kills },
@@ -1773,8 +1694,6 @@ namespace MatchZy
 
                     playerStatsDictionary.Add(steamid64, stats);
 
-                    // Populate PlayerStats instance
-                    // Todo: Implement stats which are marked as 0 for now
                     PlayerStats playerStatsInstance = new()
                     {
                         Kills = playerStats.Kills,
@@ -1874,28 +1793,26 @@ namespace MatchZy
 
         public int GetGameMode()
         {
-            var convar = ConVar.Find("game_mode");
-            if (convar != null)
+            if (ConVar.Find("game_mode") is { } cvMode)
             {
-                return convar.GetPrimitiveValue<int>();
+                return cvMode.GetPrimitiveValue<int>();
             }
             return -1;
         }
 
         public int GetGameType()
         {
-            var convar = ConVar.Find("game_type");
-            if (convar != null)
+            if (ConVar.Find("game_type") is { } cvType)
             {
-                return convar.GetPrimitiveValue<int>();
+                return cvType.GetPrimitiveValue<int>();
             }
             return -1;
         }
 
         public void SetCorrectGameMode()
         {
-            ConVar.Find("game_mode")!.SetValue(matchConfig.Wingman ? 2 : 1);
-            ConVar.Find("game_type")!.SetValue(0); // Classic GameType
+            if (ConVar.Find("game_mode") is { } cvMode) cvMode.SetValue(matchConfig.Wingman ? 2 : 1);
+            if (ConVar.Find("game_type") is { } cvType) cvType.SetValue(0); // Classic GameType
         }
 
         public bool IsMapReloadRequiredForGameMode(bool wingman)
@@ -1924,7 +1841,6 @@ namespace MatchZy
 
         public bool IsPlayerValid(CCSPlayerController? player)
         {
-            // 【.NET 10 升級】：現代化模式匹配 (等價替換)
             return player is { IsValid: true, PlayerPawn: { IsValid: true, Value: not null } };
         }
 
@@ -1956,7 +1872,7 @@ namespace MatchZy
 
         public async Task UploadFileAsync(string? filePath, string fileUploadURL, string headerKey, string headerValue, long matchId, int mapNumber, int roundNumber)
         {
-            if (filePath == null || fileUploadURL == "")
+            if (filePath is null || fileUploadURL is "")
             {
                 Log($"[UploadFileAsync] Not able to upload the file, either filePath or fileUploadURL is not set. filePath: {filePath} fileUploadURL: {fileUploadURL}");
                 return;
@@ -1976,7 +1892,9 @@ namespace MatchZy
                 using FileStream fileStream = File.OpenRead(filePath);
 
                 byte[] fileContent = new byte[fileStream.Length];
-                await fileStream.ReadAsync(fileContent, 0, (int)fileStream.Length);
+                
+                // 精確讀取，保證 Dem 檔不會殘缺損毀！
+                await fileStream.ReadExactlyAsync(fileContent, 0, (int)fileStream.Length);
 
                 using ByteArrayContent content = new(fileContent);
                 content.Headers.Add("Content-Type", "application/octet-stream");
@@ -2020,20 +1938,22 @@ namespace MatchZy
             string whitelistfileName = "MatchZy/whitelist.cfg";
             string whitelistPath = Path.Join(Server.GameDirectory + "/csgo/cfg", whitelistfileName);
             string? directoryPath = Path.GetDirectoryName(whitelistPath);
-            if (directoryPath != null)
+            if (directoryPath is not null)
             {
                 if (!Directory.Exists(directoryPath))
                 {
                     Directory.CreateDirectory(directoryPath);
                 }
             }
-            if (!File.Exists(whitelistPath)) File.WriteAllLines(whitelistPath, new[] { "Steamid1", "Steamid2" });
+            
+            // 【.NET 10 升級】：0 分配集合表達式
+            if (!File.Exists(whitelistPath)) File.WriteAllLines(whitelistPath, ["Steamid1", "Steamid2"]);
 
             var whiteList = File.ReadAllLines(whitelistPath);
 
             if (isWhitelistRequired == true)
             {
-                // 【優化替換】：拔除 LINQ .Contains()，改用高效能 Span 比對
+                // 【優化替換】改用高速 Span 比對
                 bool isWhitelisted = false;
                 foreach (var line in whiteList)
                 {
@@ -2069,8 +1989,7 @@ namespace MatchZy
                 else
                 {
                     player.SwitchTeam(team);
-                    var gameRules = GetGameRules();
-                    if (gameRules.WarmupPeriod)
+                    if (GetGameRules() is { } gameRules && gameRules.WarmupPeriod)
                     {
                         player.Respawn();
                     }
@@ -2081,35 +2000,32 @@ namespace MatchZy
         public void SetPlayerInvisible(CCSPlayerController player, bool setWeaponsInvisible)
         {
             if (!IsPlayerValid(player)) return;
-            var playerPawnValue = player.PlayerPawn.Value;
 
-            if (playerPawnValue != null && playerPawnValue.IsValid)
+            // 【.NET 10 升級】：屬性提取，消除多重驚嘆號崩潰風險
+            if (player.PlayerPawn.Value is { IsValid: true } pawn)
             {
-                playerPawnValue.Render = Color.FromArgb(0, 0, 0, 0);
-                Utilities.SetStateChanged(playerPawnValue, "CBaseModelEntity", "m_clrRender");
-            }
+                pawn.Render = Color.FromArgb(0, 0, 0, 0);
+                Utilities.SetStateChanged(pawn, "CBaseModelEntity", "m_clrRender");
 
-            if (!setWeaponsInvisible) return;
+                if (!setWeaponsInvisible) return;
 
-            var activeWeapon = playerPawnValue!.WeaponServices?.ActiveWeapon.Value;
-            if (activeWeapon != null && activeWeapon.IsValid)
-            {
-                activeWeapon.Render = Color.FromArgb(0, 0, 0, 0);
-                activeWeapon.ShadowStrength = 0.0f;
-                Utilities.SetStateChanged(activeWeapon, "CBaseModelEntity", "m_clrRender");
-            }
-
-            var myWeapons = playerPawnValue.WeaponServices?.MyWeapons;
-            if (myWeapons != null)
-            {
-                foreach (var gun in myWeapons)
+                if (pawn.WeaponServices?.ActiveWeapon.Value is { IsValid: true } activeWeapon)
                 {
-                    var weapon = gun.Value;
-                    if (weapon != null)
+                    activeWeapon.Render = Color.FromArgb(0, 0, 0, 0);
+                    activeWeapon.ShadowStrength = 0.0f;
+                    Utilities.SetStateChanged(activeWeapon, "CBaseModelEntity", "m_clrRender");
+                }
+
+                if (pawn.WeaponServices?.MyWeapons is { } myWeapons)
+                {
+                    foreach (var gun in myWeapons)
                     {
-                        weapon.Render = Color.FromArgb(0, 0, 0, 0);
-                        weapon.ShadowStrength = 0.0f;
-                        Utilities.SetStateChanged(weapon, "CBaseModelEntity", "m_clrRender");
+                        if (gun.Value is { } weapon)
+                        {
+                            weapon.Render = Color.FromArgb(0, 0, 0, 0);
+                            weapon.ShadowStrength = 0.0f;
+                            Utilities.SetStateChanged(weapon, "CBaseModelEntity", "m_clrRender");
+                        }
                     }
                 }
             }
@@ -2119,26 +2035,25 @@ namespace MatchZy
         {
             if (!IsPlayerValid(player)) return;
 
-            var playerPawnValue = player.PlayerPawn.Value;
-            if (playerPawnValue == null)
-                return;
-
-            playerPawnValue.Render = Color.FromArgb(255, 255, 255, 255);
-            Utilities.SetStateChanged(playerPawnValue, "CBaseModelEntity", "m_clrRender");
+            if (player.PlayerPawn.Value is { } pawn)
+            {
+                pawn.Render = Color.FromArgb(255, 255, 255, 255);
+                Utilities.SetStateChanged(pawn, "CBaseModelEntity", "m_clrRender");
+            }
         }
 
         public void DropWeaponByDesignerName(CCSPlayerController player, string weaponName)
         {
-            if (!IsPlayerValid(player) || player.PlayerPawn.Value!.WeaponServices is null) return;
+            if (!IsPlayerValid(player) || player.PlayerPawn.Value?.WeaponServices is not { } weaponServices) return;
             
-            // 【優化替換】：拔除 LINQ .Where().FirstOrDefault()，改用高速 foreach
-            foreach (var weaponHandle in player.PlayerPawn.Value!.WeaponServices!.MyWeapons)
+            // 【優化替換】改用高速 foreach
+            foreach (var weaponHandle in weaponServices.MyWeapons)
             {
-                if (weaponHandle.Value != null && weaponHandle.Value.DesignerName == weaponName)
+                if (weaponHandle.Value is { } weapon && weapon.DesignerName == weaponName)
                 {
                     if (weaponHandle.IsValid)
                     {
-                        player.PlayerPawn.Value.WeaponServices.ActiveWeapon.Raw = weaponHandle.Raw;
+                        weaponServices.ActiveWeapon.Raw = weaponHandle.Raw;
                         player.DropActiveWeapon();
                     }
                     break;
@@ -2150,7 +2065,7 @@ namespace MatchZy
         {
             List<CCSPlayerController> players = Utilities.GetPlayers();
 
-            // 【優化替換】：拔除 LINQ .Select().ToList()，改用集合表達式與 foreach
+            // 【優化替換】改用集合表達式與 foreach
             Dictionary<byte, List<Position>> teamSpawns = new()
             {
                 { (byte)CsTeam.CounterTerrorist, [] },
