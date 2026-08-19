@@ -21,7 +21,7 @@ public partial class MatchZy
 
     public void HandleCoachCommand(CCSPlayerController? player, string side)
     {
-        if (!IsPlayerValid(player) || player is null) return;
+        if (player is null || !IsPlayerValid(player)) return;
         if (isPractice)
         {
             ReplyToUserCommand(player, "Coach command can only be used in match mode!");
@@ -61,11 +61,6 @@ public partial class MatchZy
         {
             return;
         }
-
-        // if (matchZyCoachTeam.coach != null) {
-        //     ReplyToUserCommand(player, "Coach slot for this team has been already taken!");
-        //     return;
-        // }
 
         matchZyCoachTeam.coach.Add(player);
         player.Clan = $"[{matchZyCoachTeam.teamName} COACH]";
@@ -108,7 +103,7 @@ public partial class MatchZy
         Random random = new();
         foreach (CCSPlayerController coach in coaches)
         {
-            if (!IsPlayerValid(coach) || coach is null) continue;
+            if (coach is null || !IsPlayerValid(coach)) continue;
             Team coachTeam = matchzyTeam1.coach.Contains(coach) ? matchzyTeam1 : matchzyTeam2;
             int coachTeamNum = teamSides[coachTeam] == "CT" ? 3 : 2;
             if (coach.InGameMoneyServices is not null) coach.InGameMoneyServices.Account = 0;
@@ -138,7 +133,6 @@ public partial class MatchZy
                     // Elevating coach before dropping the C4 to prevent it going inside the ground.
                     AddTimer(0.05f, () =>
                     {
-                        // coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
                         HandleCoachWeapons(coach);
                         if (coach.PlayerPawn.Value is { } validPawn)
                         {
@@ -153,12 +147,9 @@ public partial class MatchZy
         HashSet<Position> occupiedSpawns = [];
         HashSet<CCSPlayerController> incorrectSpawnedPlayers = [];
 
-        // We will loop on the players 2 times, first loop is to get all the players who are on a non-competitive spawn, and to get all the non-occupied competitive spawn.
-        // In the next loop, we will teleport the non-competitive spawned players to an available competitive spawn.
-
         foreach (CCSPlayerController player in players)
         {
-            if (!IsPlayerValid(player) || player is null || coaches.Contains(player)) continue;
+            if (player is null || !IsPlayerValid(player) || coaches.Contains(player)) continue;
 
             if (!spawnsData.TryGetValue(player.TeamNum, out var teamPositions) || teamPositions.Count == 0) continue;
             
@@ -179,13 +170,12 @@ public partial class MatchZy
             }
             if (isCompetitiveSpawn) continue;
 
-            // The player is not on a competitive spawn, we will put them on one in the next loop.
             incorrectSpawnedPlayers.Add(player);
         }
 
         foreach (CCSPlayerController player in incorrectSpawnedPlayers)
         {
-            if (!IsPlayerValid(player) || player is null || coaches.Contains(player)) continue;
+            if (player is null || !IsPlayerValid(player) || coaches.Contains(player)) continue;
 
             if (!spawnsData.TryGetValue(player.TeamNum, out var teamPositions)) continue;
             
@@ -207,7 +197,7 @@ public partial class MatchZy
 
     private void HandleCoachWeapons(CCSPlayerController coach)
     {
-        if (!IsPlayerValid(coach) || coach is null) return;
+        if (coach is null || !IsPlayerValid(coach)) return;
         coach.RemoveWeapons();
     }
 
@@ -220,28 +210,29 @@ public partial class MatchZy
         // find bomb and new target
         if (coach.PlayerPawn.Value?.WeaponServices?.MyWeapons is not { } weapons) return;
 
-        CHandle<CBasePlayerWeapon> bombHandle = default;
-        bool foundBomb = false;
+        // 🏆 修正 Line 223 警告：宣告為明確的可空實體，不再依賴危險的 CHandle
+        CBasePlayerWeapon? bomb = null;
         
         // 拔除 LINQ FirstOrDefault，改為 0 GC 效能迴圈
         foreach (var weapon in weapons)
         {
-            if (weapon.Value is { IsValid: true, DesignerName: "weapon_c4" })
+            if (weapon.Value is { IsValid: true, DesignerName: "weapon_c4" } c4)
             {
-                bombHandle = weapon;
-                foundBomb = true;
+                // 🏆 直接把提取出的炸彈實體 (c4) 存起來
+                bomb = c4;
                 break;
             }
         }
 
-        if (!foundBomb || bombHandle.Value is not { } bomb) return; // should never trigger
+        // 🏆 修正 Line 237 警告：現在 bomb 已經是乾淨的實體，直接判斷 null 即可，徹底消除 CS8602 警告
+        if (bomb is null) return; // should never trigger
 
         CCSPlayerController? target = null;
         
         // 拔除第二個 LINQ FirstOrDefault，改為 0 GC 效能迴圈
         foreach (var p in Utilities.GetPlayers())
         {
-            if (IsPlayerValid(p) && p is null == false &&
+            if (p is not null && IsPlayerValid(p) &&
                 !reverseTeamSides["TERRORIST"].coach.Contains(p) && 
                 p.TeamNum == (byte)CsTeam.Terrorist && 
                 p.PawnIsAlive)
@@ -251,7 +242,6 @@ public partial class MatchZy
             }
         }
 
-        // --- 解決建置與發行第 231 行警告的核心修改位置 ---
         if (target is null) return; // should never trigger
 
         // transfer bomb
@@ -291,7 +281,6 @@ public partial class MatchZy
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
         if (IsWingmanMode() || coaches.Count == 0) return;
         
-        // --- 解決建置與發行第 218 行警告的核心修改位置 ---
         string suicidePenalty = ConVar.Find("mp_suicide_penalty") is { } cvPenalty ? (GetConvarStringValue(cvPenalty) ?? "0") : "0";
         string specFreezeTime = ConVar.Find("spec_freeze_time") is { } cvFreeze ? (GetConvarStringValue(cvFreeze) ?? "2") : "2";
         string specFreezeTimeLock = ConVar.Find("spec_freeze_time_lock") is { } cvLock ? (GetConvarStringValue(cvLock) ?? "2") : "2";
@@ -301,7 +290,7 @@ public partial class MatchZy
 
         foreach (var coach in coaches)
         {
-            if (!IsPlayerValid(coach) || coach is null) continue;
+            if (coach is null || !IsPlayerValid(coach)) continue;
             if (isPaused || IsTacticalTimeoutActive()) continue;
 
             // 徹底防止舊版空參考去參照警告
