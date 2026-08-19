@@ -139,7 +139,7 @@ namespace MatchZy
         {
             if (everyoneIsAdmin.Value) return true; // Everyone is treated as admin if matchzy_everyone_is_admin is true.
             
-            // 【.NET 10 升級】：集合表達式，避免 Concat 與 ToArray() 造成的額外開銷
+            // 集合表達式，避免 Concat 與 ToArray() 造成的額外開銷
             string[] updatedPermissions = [.. permissions, "@css/root"];
             
             RequiresPermissionsOr attr = new(updatedPermissions)
@@ -161,10 +161,10 @@ namespace MatchZy
         {
             if (!isWarmup || matchStarted) return;
             
-            // 【.NET 10 升級】：集合表達式
+            // 集合表達式
             List<string> unreadyPlayers = [];
 
-            // 【.NET 10 升級】：字典解構
+            // 字典解構
             foreach (var (key, isReady) in playerReadyStatus)
             {
                 // --- 核心修正處 ---
@@ -207,7 +207,7 @@ namespace MatchZy
             }
             else
             {
-                // 【優化替換】：拔除 LINQ .Count()，改用迴圈 0 分配計數
+                // 改用迴圈 0 分配計數
                 int countOfReadyPlayers = 0;
                 foreach (var (key, isReady) in playerReadyStatus)
                 {
@@ -414,7 +414,7 @@ namespace MatchZy
             int count = 0;
             int totalHealth = 0;
             
-            // 【.NET 10 升級】：字典解構，屬性模式提取防空值
+            // 字典解構，屬性模式提取防空值
             foreach (var (key, player) in playerData)
             {
                 if (team == 2 && reverseTeamSides["TERRORIST"].coach.Contains(player)) continue;
@@ -558,7 +558,7 @@ namespace MatchZy
             {
                 var playerEntities = Utilities.FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller");
                 
-                // 【優化替換】：拔除 LINQ .Count()，手動計數
+                // 手動計數
                 int entityCount = 0;
                 foreach (var _ in playerEntities) entityCount++;
                 
@@ -734,7 +734,7 @@ namespace MatchZy
             // 或者比賽已經開始，就直接跳出，避免重複觸發 StartMatchCountdown
             if (!readyAvailable || matchStarted || matchStartCountdownTimer is not null) return;
 
-            // 【優化替換】：拔除 LINQ .Count()
+            // 拔除 LINQ .Count()
             int countOfReadyPlayers = 0;
             foreach (var (key, isReady) in playerReadyStatus)
             {
