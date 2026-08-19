@@ -248,7 +248,7 @@ public partial class MatchZy
         if (playerController.InGameMoneyServices != null) playerController.InGameMoneyServices.Account = 0;
     }
 
-    private void KillCoaches()
+ private void KillCoaches()
     {
         if (isPaused || IsTacticalTimeoutActive()) return;
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
@@ -264,9 +264,10 @@ public partial class MatchZy
             if (!IsPlayerValid(coach)) continue;
             if (isPaused || IsTacticalTimeoutActive()) continue;
 
-            Position coachPosition = new(coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
+            // ✅ 這裡我幫你在所有的 coach 以及 Value 後面都補上了驚嘆號 "!"，確保編譯器不會該該叫
+            Position coachPosition = new(coach!.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, coach!.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
             coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
-            coach.PlayerPawn.Value!.CommitSuicide(explode: false, force: true);
+            coach!.PlayerPawn.Value!.CommitSuicide(explode: false, force: true);
         }
         Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
     }
