@@ -114,7 +114,7 @@ public partial class MatchZy
             coach.PlayerPawn.Value!.ActualMoveType = MoveType_t.MOVETYPE_NONE;
 
             List<Position> coachTeamSpawns = coachSpawns[coach.TeamNum];
-            Position coachPosition = new(coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
+            Position coachPosition = new(coach!.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, coach!.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
 
             // Picking a random position for the coach (from coachSpawns) to teleport them.
             Position newPosition = coachTeamSpawns[random.Next(0, coachTeamSpawns.Count)];
