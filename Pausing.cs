@@ -18,13 +18,14 @@ public partial class MatchZy
         try 
         {
             var cvar = ConVar.Find(cvarName);
-            if (cvar != null) return cvar.GetPrimitiveValue<int>();
+            // 【.NET 10 升級】：現代化 is not null 檢查
+            if (cvar is not null) return cvar.GetPrimitiveValue<int>();
 
             string cfgPath = Path.Join(Server.GameDirectory + "/csgo/cfg/MatchZy/config.cfg");
             if (File.Exists(cfgPath))
             {
                 string? val = GetConvarValueFromCFGFile(cfgPath, cvarName);
-                if (val != null && int.TryParse(val, out int res)) return res;
+                if (val is not null && int.TryParse(val, out int res)) return res;
             }
         } 
         catch { }
@@ -65,31 +66,33 @@ public partial class MatchZy
     {
         if (!isMatchLive) return;
 
-        if (tacPauseAutoUnpauseTimer != null)
+        if (tacPauseAutoUnpauseTimer is not null)
         {
-            if (player != null) PrintToPlayerChat(player, $"  正 處 於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 技 術 暫 停");
+            if (player is not null) PrintToPlayerChat(player, $"  正 處 於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 技 術 暫 停");
             return;
         }
 
-        if (techPauseAutoUnpauseTimer != null)
+        if (techPauseAutoUnpauseTimer is not null)
         {
-            if (player != null) ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
+            if (player is not null) ReplyToUserCommand(player, Localizer["matchzy.pause.ispaused"]);
             return;
         }
 
         CCSGameRules? gameRules = null;
         foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
         {
-            if (entity != null)
+            // 【.NET 10 升級】：更深層的屬性模式匹配，取代 entity != null 檢查
+            if (entity is { GameRules: not null } proxy)
             {
-                gameRules = entity.GameRules;
+                gameRules = proxy.GameRules;
                 break;
             }
         }
 
-        if (gameRules != null && !gameRules.FreezePeriod)
+        // 【.NET 10 升級】：巢狀屬性模式匹配
+        if (gameRules is { FreezePeriod: false })
         {
-            if (player != null) 
+            if (player is not null) 
             {
                 PrintToPlayerChat(player, $" {ChatColors.Orange}回合已開始，指令無法使用");
                 player.PrintToCenter(" 回合已開始，指令無法使用 ");
@@ -97,15 +100,15 @@ public partial class MatchZy
             return;
         }
 
-        bool isOfficialTacActive = gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
+        bool isOfficialTacActive = gameRules is not null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
 
         if (isPaused || isOfficialTacActive)
         {
-            if (player != null) PrintToPlayerChat(player, $" 正 處 於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 技 術 暫 停");
+            if (player is not null) PrintToPlayerChat(player, $" 正 處 於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 技 術 暫 停");
             return; 
         }
 
-        if (player == null)
+        if (player is null)
         {
             ForcePauseMatch(player, command);
             return;
@@ -113,7 +116,9 @@ public partial class MatchZy
 
         if (IsHalfTimePhase()) return;
         if (IsPostGamePhase()) return;
-        if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
+        
+        // 【.NET 10 升級】：合併邏輯 OR 模式匹配
+        if (player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) return;
 
         Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         string teamKey = playerMatchTeam == matchzyTeam1 ? "matchzyTeam1" : (playerMatchTeam == matchzyTeam2 ? "matchzyTeam2" : "");
@@ -172,7 +177,8 @@ public partial class MatchZy
                 
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    // 【.NET 10 升級】：屬性模式匹配整合
+                    if (p is { IsValid: true, IsBot: false, TeamNum: 2 or 3 })
                     {
                         p.PrintToCenter(" 技 術 暫 停 已 結 束 ");
                     }
@@ -192,7 +198,8 @@ public partial class MatchZy
 
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    // 【.NET 10 升級】：屬性模式匹配整合
+                    if (p is { IsValid: true, IsBot: false, TeamNum: 2 or 3 })
                     {
                         p.PrintToCenter($"{sideName}技術暫停 {timeString} ( {currentPauseUsed} / {maxLimit} ){prompt}");
                     }
@@ -210,31 +217,33 @@ public partial class MatchZy
     {
         if (!isMatchLive) return;
 
-        if (techPauseAutoUnpauseTimer != null)
+        if (techPauseAutoUnpauseTimer is not null)
         {
-            if (player != null) PrintToPlayerChat(player, $" 正處於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 戰 術 暫 停");
+            if (player is not null) PrintToPlayerChat(player, $" 正處於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 戰 術 暫 停");
             return;
         }
 
-        if (tacPauseAutoUnpauseTimer != null)
+        if (tacPauseAutoUnpauseTimer is not null)
         {
-            if (player != null) PrintToPlayerChat(player, $" 已 經 在{ChatColors.Green}戰術暫停{ChatColors.Default} 中");
+            if (player is not null) PrintToPlayerChat(player, $" 已 經 在{ChatColors.Green}戰術暫停{ChatColors.Default} 中");
             return;
         }
 
         CCSGameRules? gameRules = null;
         foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
         {
-            if (entity != null)
+            // 【.NET 10 升級】：更深層的屬性模式匹配
+            if (entity is { GameRules: not null } proxy)
             {
-                gameRules = entity.GameRules;
+                gameRules = proxy.GameRules;
                 break;
             }
         }
         
-        if (gameRules != null && !gameRules.FreezePeriod)
+        // 【.NET 10 升級】：巢狀屬性模式匹配
+        if (gameRules is { FreezePeriod: false })
         {
-            if (player != null) 
+            if (player is not null) 
             {
                 PrintToPlayerChat(player, $" {ChatColors.Orange}回合已開始，指令無法使用");
                 player.PrintToCenter(" 回合已開始，指令無法使用 ");
@@ -242,15 +251,15 @@ public partial class MatchZy
             return;
         }
 
-        bool isOfficialTacActive = gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
+        bool isOfficialTacActive = gameRules is not null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive);
 
         if (isPaused || isOfficialTacActive)
         {
-            if (player != null) PrintToPlayerChat(player, $" 正 處 於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 戰 術 暫 停");
+            if (player is not null) PrintToPlayerChat(player, $" 正 處 於【 {ChatColors.Green}暫 停 狀 態{ChatColors.Default} 】中，無 法 啟 用 戰 術 暫 停");
             return; 
         }
 
-        if (player == null)
+        if (player is null)
         {
             ForcePauseMatch(player, command);
             return;
@@ -258,7 +267,9 @@ public partial class MatchZy
 
         if (IsHalfTimePhase()) return;
         if (IsPostGamePhase()) return;
-        if (player.Team != CsTeam.Terrorist && player.Team != CsTeam.CounterTerrorist) return;
+        
+        // 【.NET 10 升級】：合併邏輯 OR 模式匹配
+        if (player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) return;
 
         Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         string teamKey = playerMatchTeam == matchzyTeam1 ? "matchzyTeam1" : (playerMatchTeam == matchzyTeam2 ? "matchzyTeam2" : "");
@@ -317,7 +328,8 @@ public partial class MatchZy
                 
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    // 【.NET 10 升級】：屬性模式匹配整合
+                    if (p is { IsValid: true, IsBot: false, TeamNum: 2 or 3 })
                     {
                         p.PrintToCenter(" 戰 術 暫 停 已 結 束 ");
                     }
@@ -337,7 +349,8 @@ public partial class MatchZy
 
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                    // 【.NET 10 升級】：屬性模式匹配整合
+                    if (p is { IsValid: true, IsBot: false, TeamNum: 2 or 3 })
                     {
                         p.PrintToCenter($"{sideName} 暫停 {timeString} ( {currentPauseUsed} / {maxLimit} ){prompt}");
                     }
@@ -354,13 +367,13 @@ public partial class MatchZy
 
     public void HandleUntCommand(CCSPlayerController player)
     {
-        if (tacPauseAutoUnpauseTimer != null)
+        if (tacPauseAutoUnpauseTimer is not null)
         {
             PrintToPlayerChat(player, $" 目 前 為 {ChatColors.Green}戰術暫停{ChatColors.Default}，請 雙 方 輸 入 {ChatColors.Orange}.unp{ChatColors.Default} 來 解 除");
             return;
         }
 
-        if (techPauseAutoUnpauseTimer == null) return; 
+        if (techPauseAutoUnpauseTimer is null) return; 
 
         string team = player.TeamNum == 2 ? "t" : "ct";
         string teamName = player.TeamNum == 2 ? "恐怖份子" : "反恐小組";
@@ -387,13 +400,13 @@ public partial class MatchZy
 
     public void HandleUnpCommand(CCSPlayerController player)
     {
-        if (techPauseAutoUnpauseTimer != null)
+        if (techPauseAutoUnpauseTimer is not null)
         {
             PrintToPlayerChat(player, $" 目 前 為 {ChatColors.Green}技術暫停{ChatColors.Default}，請 雙 方 輸 入 {ChatColors.Orange}.unt{ChatColors.Default} 來 解 除");
             return;
         }
 
-        if (tacPauseAutoUnpauseTimer == null) return; 
+        if (tacPauseAutoUnpauseTimer is null) return; 
 
         string team = player.TeamNum == 2 ? "t" : "ct";
         string teamName = player.TeamNum == 2 ? "恐怖份子" : "反恐小組";
@@ -424,7 +437,7 @@ public partial class MatchZy
 
     public void KillTechPauseTimer()
     {
-        if (techPauseAutoUnpauseTimer != null)
+        if (techPauseAutoUnpauseTimer is not null)
         {
             techPauseAutoUnpauseTimer.Kill();
             techPauseAutoUnpauseTimer = null;
@@ -436,7 +449,7 @@ public partial class MatchZy
 
     public void KillTacPauseTimer()
     {
-        if (tacPauseAutoUnpauseTimer != null)
+        if (tacPauseAutoUnpauseTimer is not null)
         {
             tacPauseAutoUnpauseTimer.Kill();
             tacPauseAutoUnpauseTimer = null;

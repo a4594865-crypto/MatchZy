@@ -63,10 +63,10 @@ namespace MatchZy
         {
             int playerCount = 0;
             int readyCount = 0;
-            foreach (var key in playerData.Keys)
+            foreach (var (key, pData) in playerData)
             {
-                if (!playerData[key].IsValid) continue;
-                if (playerData[key].TeamNum == team) {
+                if (!pData.IsValid) continue;
+                if (pData.TeamNum == team) {
                     playerCount++;
                     if (playerReadyStatus[key] == true) readyCount++;
                 }
@@ -92,12 +92,12 @@ namespace MatchZy
                 return;
             }
 
-            foreach (var key in playerData.Keys)
+            foreach (var (key, pData) in playerData)
             {
-                if (!playerData[key].IsValid) continue;
-                if (playerData[key].TeamNum == player.TeamNum) {
+                if (!pData.IsValid) continue;
+                if (pData.TeamNum == player.TeamNum) {
                     playerReadyStatus[key] = true;
-                    ReplyToUserCommand(playerData[key], Localizer["matchzy.rs.forcereadiedby", player.PlayerName]);
+                    ReplyToUserCommand(pData, Localizer["matchzy.rs.forcereadiedby", player.PlayerName]);
                 }
             }
 
@@ -113,7 +113,7 @@ namespace MatchZy
             // 倒數第 1 秒立刻全體回巢重生 (雙重重生就在這裡發生，但無傷大雅)
             foreach (var p in Utilities.GetPlayers())
             {
-                if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
                 {
                     p.Respawn(); 
                 }
@@ -128,7 +128,7 @@ namespace MatchZy
             
             foreach (var p in Utilities.GetPlayers())
             {
-                if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
                 {
                     p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
                     p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
@@ -152,7 +152,7 @@ namespace MatchZy
 
                         foreach (var p in Utilities.GetPlayers())
                         {
-                            if (p.IsValid && !p.IsBot)
+                            if (p is { IsValid: true, IsBot: false })
                             {
                                 // 畫面置中純文字提示
                                 p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
@@ -172,7 +172,7 @@ namespace MatchZy
                         // 【新增】：瞬間清除畫面上的「1 秒」殘影！避免視覺卡頓
                         foreach (var p in Utilities.GetPlayers())
                         {
-                            if (p.IsValid && !p.IsBot)
+                            if (p is { IsValid: true, IsBot: false })
                             {
                                 p.PrintToCenter(" "); 
                             }
@@ -226,11 +226,11 @@ namespace MatchZy
                 else if (readyAvailable && !matchStarted)
                 {
                     // 找出還沒準備的玩家名單
-                    List<string> unreadyPlayers = new List<string>();
+                    List<string> unreadyPlayers = [];
                     foreach (var p in Utilities.GetPlayers())
                     {
                         // 護甲 1：除了你原本寫的 IsValid，必須再加上 Handle 檢查，直接在第一步過濾掉斷線的鬼魂！
-                        if (p != null && p.IsValid && p.Handle != IntPtr.Zero)
+                        if (p is { IsValid: true } && p.Handle != IntPtr.Zero)
                         {
                             if (!p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
                             {
@@ -253,7 +253,7 @@ namespace MatchZy
                                             try 
                                             {
                                                 // 2：雙重防禦，避免在撈名字的極限瞬間指針死掉
-                                                name = (p != null && p.IsValid && p.Handle != IntPtr.Zero) ? p.PlayerName : string.Empty;
+                                                name = (p is { IsValid: true } && p.Handle != IntPtr.Zero) ? p.PlayerName : string.Empty;
                                             } 
                                             catch 
                                             {
@@ -305,7 +305,7 @@ namespace MatchZy
                 int initialPlayerCount = 0;
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p != null && p.IsValid && !p.IsBot) initialPlayerCount++;
+                    if (p is { IsValid: true, IsBot: false }) initialPlayerCount++;
                 }
 
                 // 2. 如果場上完全沒人 (0人)
@@ -334,7 +334,7 @@ namespace MatchZy
                             int finalPlayerCount = 0;
                             foreach (var p in Utilities.GetPlayers())
                             {
-                                if (p != null && p.IsValid && !p.IsBot) finalPlayerCount++;
+                                if (p is { IsValid: true, IsBot: false }) finalPlayerCount++;
                             }
 
                             //  修正盲點：如果 120 秒後 0 人，且 (不是熱身 或是 卡在選邊)，且不是在結算畫面，才重開！
