@@ -225,10 +225,20 @@ namespace MatchZy
             }
         }
         
-        private void SendPausedStateMessage()
+       private void SendPausedStateMessage()
         {
             if (isPaused && matchStarted)
             {
+                // ▼▼▼ 透過暫停計時器持續刷新 HUD，達到一直顯示的效果，直到解除暫停為止 ▼▼▼
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p is { IsValid: true, IsBot: false, TeamNum: 2 or 3 })
+                    {
+                        p.PrintToCenter("比賽已被管理員暫停");
+                    }
+                }
+                // ▲▲▲ ▲▲▲ ▲▲▲
+
                 if (unpauseData.TryGetValue("pauseTeam", out var ptObj) && ptObj is string pauseTeamName)
                 {
                     if (pauseTeamName == "Admin")
@@ -1255,9 +1265,19 @@ namespace MatchZy
             {
                 Server.PrintToConsole($"[MatchZy] {Localizer["matchzy.pause.adminpausedthematch"]}");
             }
+
+            // ▼▼▼ 立即顯示一次 HUD 提示 ▼▼▼
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p is { IsValid: true, IsBot: false, TeamNum: 2 or 3 })
+                {
+                    p.PrintToCenter("比賽已被管理員暫停");
+                }
+            }
+            // ▲▲▲ ▲▲▲ ▲▲▲
+
             SetMatchPausedFlags();
         }
-
         private void ForceUnpauseMatch(CCSPlayerController? player, CommandInfo? command)
         {
             if (matchStarted && isPaused)
