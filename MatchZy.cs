@@ -331,7 +331,7 @@ namespace MatchZy
 AddCommandListener("jointeam", (player, info) =>
 {
     // 【.NET 10 升級】：模式匹配
-    if (player is null or { IsBot: true } || isSleep) return HookResult.Continue;
+    if (player is not { IsValid: true } || player.IsBot || isSleep) return HookResult.Continue;
 
     string targetTeam = info.ArgByIndex(1); 
     int userId = (int)(player.UserId ?? -1);
