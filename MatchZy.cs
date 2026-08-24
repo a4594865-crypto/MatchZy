@@ -249,7 +249,7 @@ namespace MatchZy
                     if (isAdName)
                     {
                         Log($"[廣告防禦] 偵測到違規名稱，進場秒 Ban: {player.PlayerName} (SteamID: {player.SteamID})");
-                        Server.ExecuteCommand($"css_addban {player.SteamID} 0"); // 呼叫 CS2-SimpleAdmin 永久封鎖
+                        Server.ExecuteCommand($"css_addban {player.SteamID} 0 機器人封鎖"); // 呼叫 CS2-SimpleAdmin 永久封鎖
                         Server.ExecuteCommand($"kickid {player.UserId} \"Ban_Ads\""); // 雙重保險：瞬間斷開連線
                         return HookResult.Continue;
                     }
