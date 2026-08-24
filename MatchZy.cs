@@ -233,7 +233,7 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
                 var player = @event.Userid;
 
-                // ▼▼▼ 新增：廣告防禦門神 (進場名稱秒踢) ▼▼▼
+                // ▼▼▼ 新增：廣告防禦門神 (進場名稱秒踢與永久封鎖) ▼▼▼
                 if (player is { IsValid: true, IsBot: false } && !string.IsNullOrEmpty(player.PlayerName) && adBlacklist.Length > 0)
                 {
                     bool isAdName = false;
@@ -248,8 +248,9 @@ namespace MatchZy
 
                     if (isAdName)
                     {
-                        Log($"[廣告防禦] 偵測到違規名稱，進場秒踢: {player.PlayerName}");
-                        Server.ExecuteCommand($"kickid {player.UserId} \"Ban_Ads\"");
+                        Log($"[廣告防禦] 偵測到違規名稱，進場秒 Ban: {player.PlayerName} (SteamID: {player.SteamID})");
+                        Server.ExecuteCommand($"css_addban {player.SteamID} 0"); // 呼叫 CS2-SimpleAdmin 永久封鎖
+                        Server.ExecuteCommand($"kickid {player.UserId} \"Ban_Ads\""); // 雙重保險：瞬間斷開連線
                         return HookResult.Continue;
                     }
                 }
@@ -568,7 +569,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     var message = originalMessageSpan.ToString().ToLower();
     int currentEventUserId = @event.Userid; 
 
-    // ▼▼▼ 新增：廣告防禦門神 (文字黑洞吞噬) ▼▼▼
+    // ▼▼▼ 新增：廣告防禦門神 (文字黑洞吞噬與永久封鎖) ▼▼▼
     if (adBlacklist.Length > 0)
     {
         bool isSpam = false;
@@ -586,7 +587,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             Log($"[廣告防禦] 攔截到洗頻訊息並直接吞掉: {@event.Text}");
             var badPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
             if (badPlayer is { IsValid: true }) {
-                Server.ExecuteCommand($"kickid {badPlayer.UserId} \"Ban_Ads\"");
+                Server.ExecuteCommand($"css_addban {badPlayer.SteamID} 0"); // 呼叫 CS2-SimpleAdmin 永久封鎖
+                Server.ExecuteCommand($"kickid {badPlayer.UserId} \"Ban_Ads\""); // 雙重保險：瞬間斷開連線
             }
             return HookResult.Handled; 
         }
@@ -986,7 +988,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
         // 1. 聊天室廣播給大家聽
-        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Orange}已 取 取 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Orange}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
