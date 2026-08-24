@@ -587,7 +587,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             Log($"[廣告防禦] 攔截到洗頻訊息並直接吞掉: {@event.Text}");
             var badPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
             if (badPlayer is { IsValid: true }) {
-                Server.ExecuteCommand($"css_ban #{player.UserId} 0 \"廣告機器人封鎖\"");
+                Server.ExecuteCommand($"css_ban #{badPlayer.UserId} 0 \"廣告洗頻\"");
                 Server.ExecuteCommand($"kickid {badPlayer.UserId} \"Ban_Ads\""); // 雙重保險：瞬間斷開連線
             }
             return HookResult.Handled; 
