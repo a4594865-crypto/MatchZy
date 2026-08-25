@@ -622,7 +622,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 Log($"[廣告防禦] 攔截到洗頻或廣告名稱，直接吞掉: {playerName} 說了 {message}");
                 
                 // 3. 【絕對擊殺】：直接使用 SteamID 進行封鎖，避免 UserId 解析失敗
-                Server.ExecuteCommand($"css_ban #{badplayer.UserId} 0 \"廣告洗頻\"");
+                Server.ExecuteCommand($"css_ban #{badPlayer.UserId} 0 \"廣告洗頻\"");
                 
                 // 補上一腳原生踢除，雙重保險確保牠瞬間消失
                 Server.ExecuteCommand($"kickid {badPlayer.UserId} \"Ban_Ads\"");
