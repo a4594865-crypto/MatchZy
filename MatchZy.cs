@@ -249,7 +249,7 @@ namespace MatchZy
                     if (isAdName)
                     {
                         Log($"[廣告防禦] 偵測到違規名稱，進場秒 Ban: {player.PlayerName} (SteamID: {player.SteamID})");
-                        Server.ExecuteCommand($"css_ban #{player.UserId} 0 \"廣告機器人\"");
+                        Server.ExecuteCommand($"css_addban {player.SteamID} 0 \"廣告機器人\"");
                         Server.ExecuteCommand($"kickid {player.UserId} \"Ban_Ads\""); // 雙重保險：瞬間斷開連線
                         return HookResult.Continue;
                     }
@@ -318,7 +318,7 @@ namespace MatchZy
                     {
                         Log($"[廣告防禦] 偵測到違規改名，瞬間 Ban 掉: {newName} (SteamID: {changedPlayer.SteamID})");
                         // 使用 changedPlayer 取得 UserId，觸發線上踢除套餐
-                        Server.ExecuteCommand($"css_ban #{changedPlayer.UserId} 0 \"廣告機器人\"");
+                        Server.ExecuteCommand($"css_addban {changedPlayer.SteamID} 0 \"廣告機器人\"");
                     }
                 }
                 return HookResult.Continue;
@@ -622,7 +622,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 Log($"[廣告防禦] 攔截到洗頻或廣告名稱，直接吞掉: {playerName} 說了 {message}");
                 
                 // 3. 【絕對擊殺】：直接使用 SteamID 進行封鎖，避免 UserId 解析失敗
-                Server.ExecuteCommand($"css_ban #{badplayer.UserId} 0 \"廣告洗頻\"");
+                Server.ExecuteCommand($"css_addban {badplayer.SteamID} 0 \"廣告洗頻\"");
                 
                 // 補上一腳原生踢除，雙重保險確保牠瞬間消失
                 Server.ExecuteCommand($"kickid {badPlayer.UserId} \"Ban_Ads\"");
