@@ -796,7 +796,7 @@ private void HandleMatchStart()
             // ==========================================
             // CT 陣營自動抓名 (加上防護罩)
             // ==========================================
-            if (matchzyTeam1.teamName == "COUNTER-TERRORISTS")
+            if (matchzyTeam1.teamName == "COUNTER-TERRORISTS" || matchzyTeam1.teamName == "反恐小組")
             {
                 teamSides[matchzyTeam1] = "CT";
                 reverseTeamSides["CT"] = matchzyTeam1;
@@ -816,7 +816,7 @@ private void HandleMatchStart()
                 // 極端防護：整隊都是符號哥
                 if (string.IsNullOrWhiteSpace(foundName)) foundName = "CTs";
                 
-                matchzyTeam1.teamName = "Team " + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
+                matchzyTeam1.teamName = "隊伍 " + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
                 foreach (var coach in matchzyTeam1.coach) {
                     coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
@@ -826,7 +826,7 @@ private void HandleMatchStart()
             // ==========================================
             // T 陣營自動抓名 (加上防護罩)
             // ==========================================
-            if (matchzyTeam2.teamName == "TERRORISTS")
+            if (matchzyTeam2.teamName == "TERRORISTS" || matchzyTeam2.teamName == "恐怖份子")
             {
                 teamSides[matchzyTeam2] = "TERRORIST";
                 reverseTeamSides["TERRORIST"] = matchzyTeam2;
@@ -845,7 +845,7 @@ private void HandleMatchStart()
                 
                 if (string.IsNullOrWhiteSpace(foundName)) foundName = "TERRORISTS";
                 
-                matchzyTeam2.teamName = "Team " + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
+                matchzyTeam2.teamName = "隊伍 " + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
                 foreach (var coach in matchzyTeam2.coach) {
                     coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
