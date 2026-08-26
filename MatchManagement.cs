@@ -450,94 +450,12 @@ namespace MatchZy
             SetTeamNames();
         }
 
-     public void SetTeamNames()
+        public void SetTeamNames()
         {
-            // 取得目前暫存的隊伍名稱
-            string ctName = reverseTeamSides["CT"].teamName;
-            string tName = reverseTeamSides["TERRORIST"].teamName;
-
-            // ==========================================
-            // 1. 檢查 CT 陣營 (team1)
-            // ==========================================
-            // 使用 AsSpan() 進行 0 GC 的高效能字元驗證
-            if (string.IsNullOrWhiteSpace(ctName) || ctName == "team_" || !HasValidChar(ctName.AsSpan()))
-            {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    // .NET 現代化屬性模式匹配：一氣呵成檢查所有狀態
-                    if (p is { IsValid: true, IsBot: false, TeamNum: 3 } && !string.IsNullOrWhiteSpace(p.PlayerName))
-                    {
-                        if (HasValidChar(p.PlayerName.AsSpan()))
-                        {
-                            ctName = $"Team {p.PlayerName}"; // 字串插值自動優化
-                            break;
-                        }
-                    }
-                }
-                
-                // 極端防護：萬一整隊都是符號哥
-                if (string.IsNullOrWhiteSpace(ctName) || ctName == "team_" || !HasValidChar(ctName.AsSpan()))
-                {
-                    ctName = "CTs";
-                }
-                
-                reverseTeamSides["CT"].teamName = ctName; 
-            }
-
-            // ==========================================
-            // 2. 檢查 T 陣營 (team2)
-            // ==========================================
-            if (string.IsNullOrWhiteSpace(tName) || tName == "team_" || !HasValidChar(tName.AsSpan()))
-            {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p is { IsValid: true, IsBot: false, TeamNum: 2 } && !string.IsNullOrWhiteSpace(p.PlayerName))
-                    {
-                        if (HasValidChar(p.PlayerName.AsSpan()))
-                        {
-                            tName = $"Team {p.PlayerName}";
-                            break;
-                        }
-                    }
-                }
-                
-                if (string.IsNullOrWhiteSpace(tName) || tName == "team_" || !HasValidChar(tName.AsSpan()))
-                {
-                    tName = "TERRORISTS";
-                }
-                
-                reverseTeamSides["TERRORIST"].teamName = tName;
-            }
-
-            // ==========================================
-            // 3. 執行指令 (加上終極雙引號過濾！)
-            // ==========================================
-            // 確保玩家名字裡的雙引號被清空，防止 CS2 控制台語法錯亂
-            ctName = ctName.Replace("\"", "");
-            tName = tName.Replace("\"", "");
-            
-            Server.ExecuteCommand($"mp_teamname_1 \"{ctName}\"");
-            Server.ExecuteCommand($"mp_teamname_2 \"{tName}\"");
-
-            // ==========================================
-            // 【內嵌區域函數】0 GC 記憶體分配的字元驗證器
-            // ==========================================
-            bool HasValidChar(ReadOnlySpan<char> nameSpan)
-            {
-                if (nameSpan.IsEmpty) return false;
-                
-                // 直接遍歷 Span，完全不產生任何 Array 或 String 的垃圾回收
-                foreach (char c in nameSpan)
-                {
-                    // C# 高效邏輯模式匹配：判斷 ASCII 英數 或 繁簡中文字元區間
-                    if (char.IsAsciiLetterOrDigit(c) || c is >= '\u4E00' and <= '\u9FA5')
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            }
+            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
+            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
         }
+
         public void GetCvarValues(JObject jsonDataObject)
         {
             try
