@@ -18,7 +18,7 @@ namespace MatchZy
             {
                 isWhitelistRequired = !isWhitelistRequired;
                 string WLStatus = isWhitelistRequired ? Localizer["matchzy.cc.enabled"] : Localizer["matchzy.cc.disabled"];
-                if (player == null)
+                if (player is null)
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.cc.wl", WLStatus]);
                 }
@@ -41,7 +41,7 @@ namespace MatchZy
             {
                 isSaveNadesAsGlobalEnabled = !isSaveNadesAsGlobalEnabled;
                 string GlobalNadesStatus = isSaveNadesAsGlobalEnabled ? Localizer["matchzy.cc.enabled"] : Localizer["matchzy.cc.disabled"];
-                if (player == null)
+                if (player is null)
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.cc.globalnades", GlobalNadesStatus]);
                 }
@@ -59,23 +59,24 @@ namespace MatchZy
         [ConsoleCommand("css_ready", "Marks the player ready")]
         public void OnPlayerReady(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player == null) return;
+            if (player is null) return;
             Log($"[!ready command] Sent by: {player.UserId} readyAvailable: {readyAvailable} matchStarted: {matchStarted}");
             if (readyAvailable && !matchStarted)
             {
-                if (player.UserId.HasValue)
+                // 【修正】：直接使用 is int 完成非空檢查與拆箱
+                if (player.UserId is int userId)
                 {
-                    if (!playerReadyStatus.ContainsKey(player.UserId.Value))
+                    if (!playerReadyStatus.ContainsKey(userId))
                     {
-                        playerReadyStatus[player.UserId.Value] = false;
+                        playerReadyStatus[userId] = false;
                     }
-                    if (playerReadyStatus[player.UserId.Value])
+                    if (playerReadyStatus[userId])
                     {
                         PrintToPlayerChat(player, Localizer["matchzy.ready.markedready"]);
                     }
                     else
                     {
-                        playerReadyStatus[player.UserId.Value] = true;
+                        playerReadyStatus[userId] = true;
                         PrintToPlayerChat(player, Localizer["matchzy.ready.markedready"]);
                     }
                     CheckLiveRequired();
@@ -88,23 +89,24 @@ namespace MatchZy
         [ConsoleCommand("css_notready", "Marks the player unready")]
         public void OnPlayerUnReady(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player == null) return;
+            if (player is null) return;
             Log($"[!unready command] {player.UserId}");
             if (readyAvailable && !matchStarted)
             {
-                if (player.UserId.HasValue)
+                // 【修正】：直接使用 is int 完成非空檢查與拆箱
+                if (player.UserId is int userId)
                 {
-                    if (!playerReadyStatus.ContainsKey(player.UserId.Value))
+                    if (!playerReadyStatus.ContainsKey(userId))
                     {
-                        playerReadyStatus[player.UserId.Value] = false;
+                        playerReadyStatus[userId] = false;
                     }
-                    if (!playerReadyStatus[player.UserId.Value])
+                    if (!playerReadyStatus[userId])
                     {
                         PrintToPlayerChat(player, Localizer["matchzy.ready.markedunready"]);
                     }
                     else
                     {
-                        playerReadyStatus[player.UserId.Value] = false;
+                        playerReadyStatus[userId] = false;
                         PrintToPlayerChat(player, Localizer["matchzy.ready.markedunready"]);
                     }
                     HandleClanTags();
@@ -115,7 +117,7 @@ namespace MatchZy
         [ConsoleCommand("css_stay", "Stays after knife round")]
         public void OnTeamStay(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player == null || !isSideSelectionPhase) return;
+            if (player is null || !isSideSelectionPhase) return;
 
             Log($"[!stay command] {player.UserId}, TeamNum: {player.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
             if (player.TeamNum == knifeWinner)
@@ -129,7 +131,7 @@ namespace MatchZy
         [ConsoleCommand("css_swap", "Switch after knife round")]
         public void OnTeamSwitch(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player == null || !isSideSelectionPhase) return;
+            if (player is null || !isSideSelectionPhase) return;
 
             Log($"[!switch command] {player.UserId}, TeamNum: {player.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
 
@@ -145,9 +147,11 @@ namespace MatchZy
         [ConsoleCommand("css_t", "Switches team to Terrorist")]
         public void OnTCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player == null || player.UserId == null) return;
+            // 【修正】：直接使用 is not int 攔截 null 並賦值
+            if (player?.UserId is not int userId) return;
+            
             if (isVeto) {
-                HandleSideChoice(CsTeam.Terrorist, player.UserId.Value);
+                HandleSideChoice(CsTeam.Terrorist, userId);
                 return;
             }
 
@@ -166,9 +170,11 @@ namespace MatchZy
         [ConsoleCommand("css_ct", "Switches team to Counter-Terrorist")]
         public void OnCTCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player == null || player.UserId == null) return;
+            // 【修正】：直接使用 is not int 攔截 null 並賦值
+            if (player?.UserId is not int userId) return;
+            
             if (isVeto) {
-                HandleSideChoice(CsTeam.CounterTerrorist, player.UserId.Value);
+                HandleSideChoice(CsTeam.CounterTerrorist, userId);
                 return;
             }
 
@@ -186,34 +192,37 @@ namespace MatchZy
         }
 
         [ConsoleCommand("css_tech", "Pause the match")]
-public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
-{
-    if (!isMatchLive) return;
-
-    var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
-    
-    // 如果官方正處於戰術暫停中（T或CT正在倒數），或者外掛已經是技術暫停狀態，一律不准用！
-    if ((gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive)) || isPaused || techPauseAutoUnpauseTimer != null)
-    {
-        if (player != null)
+        public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 使 用 {ChatColors.Default}技 術 暫 停");
-        }
-        return; // 
-    }
+            if (!isMatchLive) return;
 
-    // 核心防線 2：回合正式開始後攔截（維持你原本的寫法）
-    if (player != null && gameRules != null)
-    {
-        if (!gameRules.FreezePeriod && !gameRules.WarmupPeriod)
-        {
-            PrintToPlayerChat(player, $" 回 合 已 開 始，無 法 使 用 {ChatColors.Default}技 術 暫 停");
-            return; 
-        }
-    }
+            CCSGameRules? gameRules = null;
+            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+            {
+                if (entity is { GameRules: not null } proxy)
+                {
+                    gameRules = proxy.GameRules;
+                    break;
+                }
+            }
+            
+            if ((gameRules is { TerroristTimeOutActive: true } or { CTTimeOutActive: true }) || isPaused || techPauseAutoUnpauseTimer is not null)
+            {
+                if (player is not null)
+                {
+                    PrintToPlayerChat(player, $" 已 處 於 暫 停 狀 態，無 法 使 用 {ChatColors.Default}技 術 暫 停");
+                }
+                return; 
+            }
 
-    TechPause(player, command); 
-}
+            if (player is not null && gameRules is { FreezePeriod: false, WarmupPeriod: false })
+            {
+                PrintToPlayerChat(player, $" 回 合 已 開 始，無 法 使 用 {ChatColors.Default}技 術 暫 停");
+                return; 
+            }
+
+            TechPause(player, command); 
+        }
 
         [ConsoleCommand("css_pause", "Pause the match")]
         public void OnPauseCommand(CCSPlayerController? player, CommandInfo? command)
@@ -229,46 +238,56 @@ public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         }
 
         [ConsoleCommand("css_tac", "Starts a tactical timeout for the requested team")]
-public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
-{
-    if (player == null) return;
+        public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (player is null) return;
 
-    if (matchStarted && isMatchLive)
-    {
-        Log($"[.tac command sent via chat] Sent by: {player.UserId}, connectedPlayers: {connectedPlayers}");
-        
-        // 正在技術暫停（isPaused）時打 .p 就會被攔截
-        if (isPaused)
-        {
-            ReplyToUserCommand(player, Localizer["matchzy.cc.matchpaused"]);
-            return;
+            if (matchStarted && isMatchLive)
+            {
+                Log($"[.tac command sent via chat] Sent by: {player.UserId}, connectedPlayers: {connectedPlayers}");
+                
+                if (isPaused)
+                {
+                    ReplyToUserCommand(player, Localizer["matchzy.cc.matchpaused"]);
+                    return;
+                }
+                
+                CCSGameRules? gameRules = null;
+                foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+                {
+                    if (entity is { GameRules: not null } proxy)
+                    {
+                        gameRules = proxy.GameRules;
+                        break;
+                    }
+                }
+
+                if (gameRules is null) return;
+
+                if (player.TeamNum == 2)
+                {
+                    if (gameRules.TerroristTimeOuts > 0)
+                    {
+                        Server.ExecuteCommand("timeout_terrorist_start");
+                    }
+                    else
+                    {
+                        ReplyToUserCommand(player, Localizer["matchzy.cc.nomorepauses"]);
+                    }
+                }
+                else if (player.TeamNum == 3)
+                {
+                    if (gameRules.CTTimeOuts > 0)
+                    {
+                        Server.ExecuteCommand("timeout_ct_start");
+                    }
+                    else
+                    {
+                        ReplyToUserCommand(player, Localizer["matchzy.cc.nomorepauses"]);
+                    }
+                }
+            }
         }
-        
-        var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
-        if (player.TeamNum == 2)
-        {
-            if (gameRules.TerroristTimeOuts > 0)
-            {
-                Server.ExecuteCommand("timeout_terrorist_start");
-            }
-            else
-            {
-                ReplyToUserCommand(player, Localizer["matchzy.cc.nomorepauses"]);
-            }
-        }
-        else if (player.TeamNum == 3)
-        {
-            if (gameRules.CTTimeOuts > 0)
-            {
-                Server.ExecuteCommand("timeout_ct_start");
-            }
-            else
-            {
-                ReplyToUserCommand(player, Localizer["matchzy.cc.nomorepauses"]);
-            }
-        }
-    }
-}
 
         [ConsoleCommand("css_fp", "Pause the match an admin")]
         [ConsoleCommand("css_forcepause", "Pause the match as an admin")]
@@ -294,7 +313,7 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
             if (isMatchLive && isPaused)
             {
                 var pauseTeamName = unpauseData["pauseTeam"];
-                if ((string)pauseTeamName == "Admin" && player != null)
+                if ((string)pauseTeamName == "Admin" && player is not null)
                 {
                     PrintToPlayerChat(player, Localizer["matchzy.pause.onlyadmincanunpause"]);
                     return;
@@ -350,7 +369,7 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
                 {
                     PrintToAllChat(Localizer["matchzy.pause.teamwantstounpause", unpauseTeamName, remainingUnpauseTeam]);
                 }
-                if (!isPaused && pausedStateTimer != null)
+                if (!isPaused && pausedStateTimer is not null)
                 {
                     pausedStateTimer.Kill();
                     pausedStateTimer = null;
@@ -366,7 +385,7 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
             {
                 if (matchStarted)
                 {
-                    if (player == null)
+                    if (player is null)
                     {
                         ReplyToUserCommand(player, Localizer["matchzy.cc.skipvetomatchstarted"]);
                     }
@@ -378,7 +397,7 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
                 else
                 {
                     SkipVeto();
-                    if (player == null)
+                    if (player is null)
                     {
                         ReplyToUserCommand(player, Localizer["matchzy.cc.skipveto"]);
                     }
@@ -402,7 +421,7 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
             {
                 isKnifeRequired = !isKnifeRequired;
                 string knifeStatus = isKnifeRequired ? Localizer["matchzy.cc.enabled"] : Localizer["matchzy.cc.disabled"];
-                if (player == null)
+                if (player is null)
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.cc.roundknife", knifeStatus]);
                 }
@@ -429,7 +448,7 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
                 }
                 else
                 {
-                    string minimumReadyRequiredFormatted = (player == null) ? $"{minimumReadyRequired}" : $"{ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}";
+                    string minimumReadyRequiredFormatted = (player is null) ? $"{minimumReadyRequired}" : $"{ChatColors.Green}{minimumReadyRequired}{ChatColors.Default}";
                     ReplyToUserCommand(player, Localizer["matchzy.cc.minreadyrequired", minimumReadyRequiredFormatted]);
                 }
             }
@@ -442,7 +461,7 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
         [ConsoleCommand("css_settings", "Shows the current match configuration/settings")]
         public void OnMatchSettingsCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player == null) return;
+            if (player is null) return;
 
             if (IsPlayerAdmin(player, "css_settings", "@css/config"))
             {
@@ -579,8 +598,8 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
         [ConsoleCommand("css_asay", "Say as an admin")]
         public void OnAdminSay(CCSPlayerController? player, CommandInfo? command)
         {
-            if (command == null) return;
-            if (player == null)
+            if (command is null) return;
+            if (player is null)
             {
                 Server.PrintToChatAll($"{adminChatPrefix} {command.ArgString}");
                 return;
@@ -673,7 +692,7 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
             {
                 isPlayOutEnabled = !isPlayOutEnabled;
                 string playoutStatus = isPlayOutEnabled ? Localizer["matchzy.cc.enabled"] : Localizer["matchzy.cc.disabled"];
-                if (player == null)
+                if (player is null)
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.cc.playout", playoutStatus]);
                 }
@@ -693,7 +712,7 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
         [ConsoleCommand("version", "Returns server version")]
         public void OnVersionCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (command == null) return;
+            if (command is null) return;
             string steamInfFilePath = Path.Combine(Server.GameDirectory, "csgo", "steam.inf");
 
             if (!File.Exists(steamInfFilePath))
@@ -707,25 +726,28 @@ public void OnTacCommand(CCSPlayerController? player, CommandInfo? command)
 
             string? serverVersion = match.Success ? match.Groups[1].Value : null;
 
-            command.ReplyToCommand((serverVersion != null) ? $"Protocol version {serverVersion} [{serverVersion}/{serverVersion}]" : "Unable to get server version");
+            command.ReplyToCommand((serverVersion is not null) ? $"Protocol version {serverVersion} [{serverVersion}/{serverVersion}]" : "Unable to get server version");
         }
 
         public HookResult OnConsoleNoClip(CCSPlayerController? player, CommandInfo? cmd) {
-            if (player == null || !player.PawnIsAlive || player.Team == CsTeam.Spectator || player.Team == CsTeam.None)
+            if (player is not { PawnIsAlive: true } || player.Team is CsTeam.Spectator or CsTeam.None)
                 return HookResult.Stop;
+                
             bool cheatsEnabled = ConVar.Find("sv_cheats")!.GetPrimitiveValue<bool>();
             if (!cheatsEnabled) {
                 return HookResult.Stop;
             }
 
-            if (player.PlayerPawn.Value!.MoveType == MoveType_t.MOVETYPE_NOCLIP) {
-                player.PlayerPawn.Value.MoveType = MoveType_t.MOVETYPE_WALK;
-                player.PlayerPawn.Value.ActualMoveType = MoveType_t.MOVETYPE_WALK;
-                Utilities.SetStateChanged(player.PlayerPawn.Value, "CBaseEntity", "m_MoveType");
-            } else {
-                player.PlayerPawn.Value.MoveType = MoveType_t.MOVETYPE_NOCLIP;
-                player.PlayerPawn.Value.ActualMoveType = MoveType_t.MOVETYPE_OBSERVER;
-                Utilities.SetStateChanged(player.PlayerPawn.Value, "CBaseEntity", "m_MoveType");
+            if (player.PlayerPawn.Value is { } pawn) {
+                if (pawn.MoveType == MoveType_t.MOVETYPE_NOCLIP) {
+                    pawn.MoveType = MoveType_t.MOVETYPE_WALK;
+                    pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
+                    Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
+                } else {
+                    pawn.MoveType = MoveType_t.MOVETYPE_NOCLIP;
+                    pawn.ActualMoveType = MoveType_t.MOVETYPE_OBSERVER;
+                    Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
+                }
             }
 
             return HookResult.Stop;
