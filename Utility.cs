@@ -495,8 +495,8 @@ namespace MatchZy
                 nadeSpecificLastGrenadeData = [];
                 UnpauseMatch();
 
-                matchzyTeam1.teamName = "COUNTER-TERRORISTS";
-                matchzyTeam2.teamName = "TERRORISTS";
+                matchzyTeam1.teamName = "反恐小組";
+                matchzyTeam2.teamName = "恐怖份子";
 
                 matchzyTeam1.teamPlayers = null;
                 matchzyTeam2.teamPlayers = null;
@@ -781,7 +781,7 @@ private void HandleMatchStart()
             }
 
             // ==========================================
-            // 🛡️ 內嵌過濾雷達 🛡️
+            // 內嵌過濾
             // ==========================================
             bool HasValidChar(ReadOnlySpan<char> nameSpan)
             {
@@ -794,7 +794,7 @@ private void HandleMatchStart()
             }
 
             // ==========================================
-            // CT 陣營自動抓名 (加上防護罩)
+            // CT 陣營自動抓名
             // ==========================================
             if (matchzyTeam1.teamName == "COUNTER-TERRORISTS" || matchzyTeam1.teamName == "反恐小組")
             {
@@ -816,7 +816,7 @@ private void HandleMatchStart()
                 // 極端防護：整隊都是符號哥
                 if (string.IsNullOrWhiteSpace(foundName)) foundName = "CTs";
                 
-                matchzyTeam1.teamName = "隊伍 " + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
+                matchzyTeam1.teamName = "隊伍\u00A0\u00A0" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
                 foreach (var coach in matchzyTeam1.coach) {
                     coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
@@ -824,7 +824,7 @@ private void HandleMatchStart()
             }
 
             // ==========================================
-            // T 陣營自動抓名 (加上防護罩)
+            // T 陣營自動抓名
             // ==========================================
             if (matchzyTeam2.teamName == "TERRORISTS" || matchzyTeam2.teamName == "恐怖份子")
             {
@@ -845,7 +845,7 @@ private void HandleMatchStart()
                 
                 if (string.IsNullOrWhiteSpace(foundName)) foundName = "TERRORISTS";
                 
-                matchzyTeam2.teamName = "隊伍 " + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
+                matchzyTeam2.teamName = "隊伍\u00A0\u00A0" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
                 foreach (var coach in matchzyTeam2.coach) {
                     coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
