@@ -584,8 +584,7 @@ namespace MatchZy
                 }
                 else
                 {
-                    PrintToAllChat(Localizer["matchzy.cc.gamestarted"]);
-                    HandleMatchStart();
+                    StartMatchCountdown();
                     ResetTechPauseCount(); 
                 }
             }
