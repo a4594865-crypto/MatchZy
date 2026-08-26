@@ -1,5 +1,6 @@
 using System;                                       
 using System.Collections.Generic;                       
+using System.Linq;                                      
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -34,8 +35,8 @@ namespace MatchZy
         public bool readyAvailable = false;
         public bool matchStarted = false;
         public bool isWarmup = false;
-        public bool isCountdownActive = false; 
-        public bool isShufflePending = false; 
+        public bool isCountdownActive = false; // 加入這一行，宣告全域開關
+        public bool isShufflePending = false; // 預約隨機分隊標記
         public bool isAutoResetTimerActive = false;
         public bool isKnifeRound = false;
         public bool isSideSelectionPhase = false;
@@ -120,21 +121,11 @@ namespace MatchZy
                 { ".stay", OnTeamStay },
                 { ".switch", OnTeamSwitch },
                 { ".swap", OnTeamSwitch },
-                
-                // ▼▼▼ 雙軌暫停系統專屬指令註冊 ▼▼▼
-                { ".tech", (player, command) => TechPause(player, command) },
-                { ".p", (player, command) => TacPause(player, command) },
-                { ".pause", (player, command) => TacPause(player, command) },
-                
-                // 註冊新的專屬解除指令
-                { ".unt", (player, command) => { if (player != null) HandleUntCommand(player); } },
-                { ".unp", (player, command) => { if (player != null) HandleUnpCommand(player); } },
-                
-                // 完美封殺舊指令！只要打 .up 或 .unpause，直接跳出中文防呆提示，不觸發任何暫停解除
-                { ".up", (player, command) => { if (player != null) player.PrintToChat($"{chatPrefix} {ChatColors.Default}請確認目前暫停類型，並輸入 {ChatColors.Green}.unt{ChatColors.Default} (技術) 或 {ChatColors.Green}.unp{ChatColors.Default} (戰術) 來解除！"); } },
-                { ".unpause", (player, command) => { if (player != null) player.PrintToChat($"{chatPrefix} {ChatColors.Default}請確認目前暫停類型，並輸入 {ChatColors.Green}.unt{ChatColors.Default} (技術) 或 {ChatColors.Green}.unp{ChatColors.Default} (戰術) 來解除！"); } },
-                // ▲▲▲ 雙軌暫停系統註冊結束 ▲▲▲
-
+                { ".tech", OnTechCommand },
+                { ".p", OnPauseCommand },
+                { ".pause", OnPauseCommand },
+                { ".unpause", OnUnpauseCommand },
+                { ".up", OnUnpauseCommand },
                 { ".forcepause", OnForcePauseCommand },
                 { ".fp", OnForcePauseCommand },
                 { ".forceunpause", OnForceUnpauseCommand },
@@ -221,7 +212,7 @@ namespace MatchZy
                 { ".hp", OnHpCommand }
             };
 
-            // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
+    // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
             RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
                 var player = @event.Userid;
 
@@ -240,16 +231,7 @@ namespace MatchZy
                     if (File.Exists(wlPath)) {
                         var lines = File.ReadAllLines(wlPath);
                         string playerSid = player.SteamID.ToString();
-                        
-                        // 【優化替換 1】：移除 .Any()，改用高效能 foreach
-                        foreach (var line in lines)
-                        {
-                            if (line.Trim() == playerSid)
-                            {
-                                isAllowed = true;
-                                break;
-                            }
-                        }
+                        isAllowed = lines.Any(line => line.Trim() == playerSid);
                     }
 
                     if (!isAllowed) {
@@ -398,21 +380,19 @@ AddCommandListener("jointeam", (player, info) =>
             // 徹底禁用 ESC 投票系統
             AddCommandListener("callvote", (player, info) =>
             {
-                // 完美防禦：正賽與刀局也全面禁用 ESC 換圖
-                if (player != null && (isMatchSetup || isCountdownActive || isSideSelectionPhase || isKnifeRound || matchStarted)) 
+                // 如果是正式賽程，或者「正在選邊階段」，全面禁用原生投票
+                if (player != null && (isMatchSetup || isSideSelectionPhase)) 
                 {
-                    player.PrintToChat($"{chatPrefix} 比 賽 進 行 中 ，內 建 投 票 功 能 已 被 禁 用");
+                    player.PrintToChat($"{chatPrefix} 正 式 比 賽 或 選 邊 期 間，內 建 投 票 功 能 已 被 禁 用");
                     return HookResult.Stop; 
                 }
                 return HookResult.Continue; 
             });
             AddCommandListener("noclip", OnConsoleNoClip);
 
-            // 徹底封死控制台發起的跨外掛投票指令 (加入 css_slayer_vote_internal 防護)
+            //  徹底封死控制台發起的跨外掛投票指令
             AddCommandListener("css_rtv", BlockVoteInCriticalPhases);
-            AddCommandListener("css_vshuffle", BlockVoteInCriticalPhases);
-            AddCommandListener("css_vunshuffle", BlockVoteInCriticalPhases);
-            AddCommandListener("css_slayer_vote_internal", BlockVoteInCriticalPhases);
+            AddCommandListener("css_vote", BlockVoteInCriticalPhases);
             // 這邊結束 
 
             RegisterEventHandler<EventRoundEnd>((@event, info) =>
@@ -457,6 +437,11 @@ AddCommandListener("jointeam", (player, info) =>
 
             }, HookMode.Post);
 
+            // RegisterEventHandler<EventMapShutdown>((@event, info) => {
+            //     Log($"[EventMapShutdown] Resetting match!");
+            //     ResetMatch();
+            //     return HookResult.Continue;
+            // });
 
 RegisterListener<Listeners.OnMapStart>(mapName => {
     AddTimer(1.0f, () => {
@@ -472,7 +457,10 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         }
     });
 });
-
+            // RegisterListener<Listeners.OnMapEnd>(() => {
+            //     Log($"[Listeners.OnMapEnd] Resetting match!");
+            //     ResetMatch();
+            // });
 
             RegisterEventHandler<EventPlayerDeath>((@event, info) => {
                 var victim = @event.Userid;
@@ -540,18 +528,13 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     //  =========================================================================
     if (message.StartsWith(".rtv") || message.StartsWith(".vote")) {
         
-        // 完美防禦：加入 isKnifeRound 與 matchStarted，徹底禁止正賽呼叫投票面板！
-        if (isMatchSetup || isCountdownActive || isSideSelectionPhase || isKnifeRound || matchStarted) {
+        // 倒數中「或者卡在選邊時」，絕對禁止呼叫投票面板！
+        if (isCountdownActive || isSideSelectionPhase) {
             
             var chatPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
             if (chatPlayer != null && chatPlayer.IsValid) {
-                if (isMatchSetup) {
-                    chatPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 何 投 票");
-                    chatPlayer.PrintToCenter("正 式 比 賽 期 間 ， 禁 止 發 起 投 票");
-                } else {
-                    chatPlayer.PrintToChat($"{chatPrefix} 比 賽 進 行 中 ，禁 止 發 起 任 何 投 票");
-                    chatPlayer.PrintToCenter("比 賽 進 行 中 ， 禁 止 發 起 投 票");
-                }
+                // 給玩家一個明確的警告，讓他知道為什麼不能投
+                chatPlayer.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
             }
             // 回傳 Handled 直接把這句話吃掉，投票外掛根本收不到這個指令
             return HookResult.Handled; 
@@ -617,9 +600,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
     var parts = originalMessage.Split(' ');
     var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
-    
-    // 【優化替換 2】：移除 LINQ .Skip(1)，改用內建高效能陣列組合
-    var messageCommandArg = parts.Length > 1 ? string.Join(" ", parts, 1, parts.Length - 1) : string.Empty;
+    var messageCommandArg = parts.Length > 1 ? string.Join(' ', parts.Skip(1)) : string.Empty;
 
     CCSPlayerController? player = null;
     if (playerData.TryGetValue(playerUserId, out CCSPlayerController? value)) {
@@ -641,7 +622,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         // 把 isSideSelectionPhase 一併加入鎖定條件
         if (isMatchSetup || isSideSelectionPhase)
         {
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}正 式 比 賽 或 選 邊 期 間{ChatColors.Default}，禁止更換！");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.LightRed}{player.PlayerName}{ChatColors.Default} 嘗試更換地圖。{ChatColors.LightRed}正 式 比 賽 或 選 邊 期 間{ChatColors.Default}，禁止更換！");
             return HookResult.Continue;
         }
         HandleMapChangeCommand(player, messageCommandArg);
@@ -813,44 +794,20 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             }
             return count;
         }
-
         // 專門用來擋控制台跨外掛投票的共用函數
         private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
         {
-            CCSPlayerController? targetPlayer = player;
-            
-            // 如果是伺服器代理轉發的指令 (player 會是 null)，我們從第一個隱藏參數把玩家 Slot 抓出來
-            if (targetPlayer == null && int.TryParse(info.GetArg(1), out int slot))
+            if (player != null && (isCountdownActive || isSideSelectionPhase))
             {
-                targetPlayer = Utilities.GetPlayerFromSlot(slot);
+                player.PrintToChat($"{chatPrefix} 倒 數 或 選 邊 期 間，禁 止 發 起 任 何 投 票");
+                return HookResult.Stop; // 直接擋下控制台指令
             }
-
-            if (targetPlayer == null || !targetPlayer.IsValid) return HookResult.Continue;
-
-            // 1. 【新增防護】：如果是 BO1/BO3 正式比賽，無論如何全面禁止投票！
-            if (isMatchSetup)
-            {
-                targetPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 何 投 票");
-                targetPlayer.PrintToCenter("正 式 比 賽 期 間 ， 禁 止 發 起 投 票");
-                return HookResult.Stop; 
-            }
-
-            // 2. 【原有防護】：一般路人局的「倒數/選邊/刀局/正賽」期間，禁止干擾
-            // 完美防禦：加入刀局與正賽鎖定
-            if (isCountdownActive || isSideSelectionPhase || isKnifeRound || matchStarted)
-            {
-                targetPlayer.PrintToChat($"{chatPrefix} 比 賽 進 行 中，禁 止 發 起 任 何 投 票");
-                targetPlayer.PrintToCenter("比 賽 進 行 中 ， 禁 止 發 起 投 票");
-                return HookResult.Stop; 
-            }
-
             return HookResult.Continue;
         }
-
         // 這邊結束
 [ConsoleCommand("css_shuffle", "預約隨機分隊")]
 [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
-public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) {
+public void OnShuffleCommand(CCSPlayerController? player, CommandInfo command) {
     if (player != null && !IsPlayerAdmin(player)) {
         return;
     }
@@ -900,7 +857,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) 
 
 [ConsoleCommand("css_unshuffle", "取消隨機分隊")]
 [CommandHelper(whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
-public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command) {
+public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo command) {
     if (player != null && !IsPlayerAdmin(player)) {
         return;
     }
@@ -922,7 +879,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
         // 1. 聊天室廣播給大家聽
-        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Orange}已 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Orange}已 取 取 消 隨 機 隊 伍 分 配 {ChatColors.Default}」 維 持 隊 伍 不 變");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
@@ -957,15 +914,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
     {
         if (!isShufflePending) return;
 
-        // 【優化替換 3】：移除 LINQ .Where().ToList()，改用高效能 foreach 手動收集
-        List<CCSPlayerController> activePlayers = new List<CCSPlayerController>();
-        foreach (var p in Utilities.GetPlayers())
-        {
-            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
-            {
-                activePlayers.Add(p);
-            }
-        }
+        List<CCSPlayerController> activePlayers = Utilities.GetPlayers()
+            .Where(p => p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+            .ToList();
 
         if (activePlayers.Count < 2) 
         {
