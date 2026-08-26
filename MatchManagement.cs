@@ -464,8 +464,8 @@ namespace MatchZy
             {
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    // .NET 現代化屬性模式匹配：一氣呵成檢查所有狀態
-                    if (p is { IsValid: true, IsBot: false, TeamNum: 3 } && !string.IsNullOrWhiteSpace(p.PlayerName))
+                    // ⚠️ 注意這裡！已經把 IsBot: false 刪除了，現在會抓 BOT 的名字了！
+                    if (p is { IsValid: true, TeamNum: 3 } && !string.IsNullOrWhiteSpace(p.PlayerName))
                     {
                         if (HasValidChar(p.PlayerName.AsSpan()))
                         {
@@ -491,7 +491,8 @@ namespace MatchZy
             {
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p is { IsValid: true, IsBot: false, TeamNum: 2 } && !string.IsNullOrWhiteSpace(p.PlayerName))
+                    // ⚠️ 注意這裡！也把 IsBot: false 刪除了！
+                    if (p is { IsValid: true, TeamNum: 2 } && !string.IsNullOrWhiteSpace(p.PlayerName))
                     {
                         if (HasValidChar(p.PlayerName.AsSpan()))
                         {
@@ -538,7 +539,6 @@ namespace MatchZy
                 return false;
             }
         }
-
         public void GetCvarValues(JObject jsonDataObject)
         {
             try
