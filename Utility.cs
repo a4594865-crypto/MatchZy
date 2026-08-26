@@ -336,7 +336,7 @@ namespace MatchZy
             knifeWinnerName = knifeWinner == 3 ? reverseTeamSides["CT"].teamName : reverseTeamSides["TERRORIST"].teamName;
             
             // 將刀局贏家的隊伍名稱強制洗乾淨（不分大小寫洗掉 team_）
-            string cleanKnifeWinnerName = System.Text.RegularExpressions.Regex.Replace(knifeWinnerName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            string cleanKnifeWinnerName = System.Text.RegularExpressions.Regex.Replace(knifeWinnerName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             
             // 在名字的最後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
             if (!cleanKnifeWinnerName.EndsWith("隊伍")) cleanKnifeWinnerName += " 隊伍";
@@ -495,8 +495,8 @@ namespace MatchZy
                 nadeSpecificLastGrenadeData = [];
                 UnpauseMatch();
 
-                matchzyTeam1.teamName = "反恐小組";
-                matchzyTeam2.teamName = "恐怖份子";
+                matchzyTeam1.teamName = "COUNTER-TERRORISTS";
+                matchzyTeam2.teamName = "TERRORISTS";
 
                 matchzyTeam1.teamPlayers = null;
                 matchzyTeam2.teamPlayers = null;
@@ -768,7 +768,7 @@ namespace MatchZy
             }
         }
 
-private void HandleMatchStart()
+        private void HandleMatchStart()
         {
             isPractice = false;
             isDryRun = false;
@@ -779,84 +779,42 @@ private void HandleMatchStart()
                 pendingRestoreFileName = "";
                 return;
             }
-
-            // ==========================================
-            // 內嵌過濾
-            // ==========================================
-            bool HasValidChar(ReadOnlySpan<char> nameSpan)
-            {
-                if (nameSpan.IsEmpty) return false;
-                foreach (char c in nameSpan)
-                {
-                    if (char.IsAsciiLetterOrDigit(c) || c is >= '\u4E00' and <= '\u9FA5') return true;
-                }
-                return false;
-            }
-
-            // ==========================================
-            // CT 陣營自動抓名
-            // ==========================================
-            if (matchzyTeam1.teamName == "COUNTER-TERRORISTS" || matchzyTeam1.teamName == "反恐小組")
+            if (matchzyTeam1.teamName == "COUNTER-TERRORISTS")
             {
                 teamSides[matchzyTeam1] = "CT";
                 reverseTeamSides["CT"] = matchzyTeam1;
-                
-                string foundName = "";
-                
                 foreach (var (key, player) in playerData)
                 {
-                    // 找到了名字正常的 CT 玩家！
-                    if (player.TeamNum == 3 && !string.IsNullOrWhiteSpace(player.PlayerName) && HasValidChar(player.PlayerName.AsSpan()))
+                    if (player.TeamNum == 3)
                     {
-                        foundName = player.PlayerName;
+                        matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(player.PlayerName.Replace(" ", "_"));
+                        foreach (var coach in matchzyTeam1.coach) {
+                            coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
+                        }
                         break;
                     }
                 }
-                
-                // 極端防護：整隊都是符號哥
-                if (string.IsNullOrWhiteSpace(foundName)) foundName = "反恐小組";
-                
-                matchzyTeam1.teamName = "隊伍_" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
-                
-                foreach (var coach in matchzyTeam1.coach) {
-                    coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
-                }
             }
 
-            // ==========================================
-            // T 陣營自動抓名
-            // ==========================================
-            if (matchzyTeam2.teamName == "TERRORISTS" || matchzyTeam2.teamName == "恐怖份子")
+            if (matchzyTeam2.teamName == "TERRORISTS")
             {
                 teamSides[matchzyTeam2] = "TERRORIST";
                 reverseTeamSides["TERRORIST"] = matchzyTeam2;
-                
-                string foundName = "";
-                
                 foreach (var (key, player) in playerData)
                 {
-                    // 找到了名字正常的 T 玩家！
-                    if (player.TeamNum == 2 && !string.IsNullOrWhiteSpace(player.PlayerName) && HasValidChar(player.PlayerName.AsSpan()))
+                    if (player.TeamNum == 2)
                     {
-                        foundName = player.PlayerName;
+                        matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(player.PlayerName.Replace(" ", "_"));
+                        foreach (var coach in matchzyTeam2.coach) {
+                            coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
+                        }
                         break;
                     }
                 }
-                
-                if (string.IsNullOrWhiteSpace(foundName)) foundName = "恐怖份子";
-                
-                matchzyTeam2.teamName = "隊伍_" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
-                
-                foreach (var coach in matchzyTeam2.coach) {
-                    coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
-                }
             }
 
-            // ==========================================
-            // 原本的後續邏輯保持不變
-            // ==========================================
-            Server.ExecuteCommand($"mp_teamname_1 \"{reverseTeamSides["CT"].teamName}\"");
-            Server.ExecuteCommand($"mp_teamname_2 \"{reverseTeamSides["TERRORIST"].teamName}\"");
+            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
+            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
 
             HandleClanTags();
 
@@ -972,7 +930,7 @@ private void HandleMatchStart()
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
              // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
-            string cleanTeamName1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            string cleanTeamName1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             if (!cleanTeamName1.EndsWith("隊伍")) cleanTeamName1 += " 隊伍";
                 
            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
@@ -980,7 +938,7 @@ private void HandleMatchStart()
         else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
         {
             // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
-            string cleanTeamName2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            string cleanTeamName2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             if (!cleanTeamName2.EndsWith("隊伍")) cleanTeamName2 += " 隊伍";
                 
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
@@ -1097,8 +1055,8 @@ private void HandleMatchStart()
                     (int t1score, int t2score) = GetTeamsScore();
 
                     // 小局：在這裡自動洗掉雙方隊伍開頭的 "Team_"
-                    string cleanRoundTeam1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
-                    string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                    string cleanRoundTeam1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                    string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
 
                     // 在名字的後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
                     if (!cleanRoundTeam1.EndsWith("隊伍")) cleanRoundTeam1 += " 隊伍";
