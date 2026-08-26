@@ -816,7 +816,7 @@ private void HandleMatchStart()
                 // 極端防護：整隊都是符號哥
                 if (string.IsNullOrWhiteSpace(foundName)) foundName = "CTs";
                 
-                matchzyTeam1.teamName = "隊伍\u00A0\u00A0" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
+                matchzyTeam1.teamName = "隊伍\u00A0\u00A0\u00A0\u00A0" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
                 foreach (var coach in matchzyTeam1.coach) {
                     coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
@@ -845,7 +845,7 @@ private void HandleMatchStart()
                 
                 if (string.IsNullOrWhiteSpace(foundName)) foundName = "TERRORISTS";
                 
-                matchzyTeam2.teamName = "隊伍\u00A0\u00A0" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
+                matchzyTeam2.teamName = "隊伍\u00A0\u00A0\u00A0\u00A0" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
                 foreach (var coach in matchzyTeam2.coach) {
                     coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
