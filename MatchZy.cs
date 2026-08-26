@@ -249,6 +249,7 @@ namespace MatchZy
                     if (isAdName)
                     {
                         Log($"[廣告防禦] 偵測到違規名稱，進場秒 Ban: {player.PlayerName} (SteamID: {player.SteamID})");
+                        Server.PrintToChatAll($" {chatPrefix} 偵 測 到 廣 告 機 器 人 {ChatColors.Gold}{player.PlayerName} {ChatColors.White}已 被 永 久 封 鎖");
                         Server.ExecuteCommand($"css_addban {player.SteamID} 0 \"廣告機器人\"");
                         Server.ExecuteCommand($"kickid {player.UserId} \"Ban_Ads\""); // 雙重保險：瞬間斷開連線
                         return HookResult.Continue;
@@ -297,7 +298,7 @@ namespace MatchZy
                 // 呼叫原生處理程序
                 return EventPlayerConnectFullHandler(@event, info);
             });
-            // ▼▼▼ 新增：防禦機器人進場後「偷偷改名」的第二道防線 ▼▼▼
+        // ▼▼▼ 新增：防禦機器人進場後「偷偷改名」的第二道防線 ▼▼▼
             RegisterEventHandler<EventPlayerChangename>((@event, info) => {
                 var changedPlayer = @event.Userid;
                 string newName = @event.Newname;
@@ -317,8 +318,15 @@ namespace MatchZy
                     if (isAdName)
                     {
                         Log($"[廣告防禦] 偵測到違規改名，瞬間 Ban 掉: {newName} (SteamID: {changedPlayer.SteamID})");
+                        
+                        // 新增：全伺服器公開廣播
+                        Server.PrintToChatAll($" {chatPrefix} 偵 測 到 廣 告 機 器 人 {ChatColors.Gold}{newName} {ChatColors.White}已 被 永 久 封 鎖");
+                        
                         // 使用 changedPlayer 取得 UserId，觸發線上踢除套餐
                         Server.ExecuteCommand($"css_addban {changedPlayer.SteamID} 0 \"廣告機器人\"");
+                        
+                        // 新增：順便補上一腳瞬間踢出，雙重保險
+                        Server.ExecuteCommand($"kickid {changedPlayer.UserId} \"Ban_Ads\"");
                     }
                 }
                 return HookResult.Continue;
@@ -596,7 +604,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     var message = originalMessageSpan.ToString().ToLower();
     int currentEventUserId = @event.Userid; 
 
-   // ▼▼▼ 新增：廣告防禦門神 (文字與名稱雙重黑洞吞噬 + SteamID 絕殺) ▼▼▼
+  // ▼▼▼ 新增：廣告防禦門神 (文字與名稱雙重黑洞吞噬 + SteamID 絕殺) ▼▼▼
     if (adBlacklist.Length > 0)
     {
         // 1. 先把發話者抓出來，確保他不是沒有實體的「幽靈 (Console)」
@@ -620,6 +628,9 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             if (isSpam)
             {
                 Log($"[廣告防禦] 攔截到洗頻或廣告名稱，直接吞掉: {playerName} 說了 {message}");
+                
+                // 新增：全伺服器公開廣播
+                Server.PrintToChatAll($" {chatPrefix} 偵 測 到 廣 告 洗 頻 {ChatColors.Gold}{playerName} {ChatColors.White}已 被 永 久 封 鎖");
                 
                 // 3. 【絕對擊殺】：直接使用 SteamID 進行封鎖，避免 UserId 解析失敗
                 Server.ExecuteCommand($"css_addban {badPlayer.SteamID} 0 \"廣告洗頻\"");
