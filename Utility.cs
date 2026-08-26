@@ -336,7 +336,7 @@ namespace MatchZy
             knifeWinnerName = knifeWinner == 3 ? reverseTeamSides["CT"].teamName : reverseTeamSides["TERRORIST"].teamName;
             
             // 將刀局贏家的隊伍名稱強制洗乾淨（不分大小寫洗掉 team_）
-            string cleanKnifeWinnerName = System.Text.RegularExpressions.Regex.Replace(knifeWinnerName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            string cleanKnifeWinnerName = System.Text.RegularExpressions.Regex.Replace(knifeWinnerName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             
             // 在名字的最後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
             if (!cleanKnifeWinnerName.EndsWith("隊伍")) cleanKnifeWinnerName += " 隊伍";
@@ -1097,8 +1097,8 @@ private void HandleMatchStart()
                     (int t1score, int t2score) = GetTeamsScore();
 
                     // 小局：在這裡自動洗掉雙方隊伍開頭的 "Team_"
-                    string cleanRoundTeam1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
-                    string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                    string cleanRoundTeam1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                    string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
 
                     // 在名字的後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
                     if (!cleanRoundTeam1.EndsWith("隊伍")) cleanRoundTeam1 += " 隊伍";
