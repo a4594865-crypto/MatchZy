@@ -506,12 +506,16 @@ namespace MatchZy
                     tName = "TERRORISTS";
                 }
                 
-                reverseTeamSides["TERRORIST"].teamName = ttName;
+                reverseTeamSides["TERRORIST"].teamName = tName;
             }
 
             // ==========================================
-            // 3. 執行指令 (加上雙引號防護！)
+            // 3. 執行指令 (加上終極雙引號過濾！)
             // ==========================================
+            // 確保玩家名字裡的雙引號被清空，防止 CS2 控制台語法錯亂
+            ctName = ctName.Replace("\"", "");
+            tName = tName.Replace("\"", "");
+            
             Server.ExecuteCommand($"mp_teamname_1 \"{ctName}\"");
             Server.ExecuteCommand($"mp_teamname_2 \"{tName}\"");
 
@@ -526,7 +530,6 @@ namespace MatchZy
                 foreach (char c in nameSpan)
                 {
                     // C# 高效邏輯模式匹配：判斷 ASCII 英數 或 繁簡中文字元區間
-                    // 速度直接碾壓傳統的正則表達式 (Regex)
                     if (char.IsAsciiLetterOrDigit(c) || c is >= '\u4E00' and <= '\u9FA5')
                     {
                         return true;
