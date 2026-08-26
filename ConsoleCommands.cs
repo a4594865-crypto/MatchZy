@@ -584,7 +584,18 @@ namespace MatchZy
                 }
                 else
                 {
-                    StartMatchCountdown();
+                    // === 加上判斷邏輯 ===
+                    if (isShufflePending)
+                    {
+                        // 如果有預約洗牌，就去執行洗牌 (洗完它會自動幫你呼叫 7 秒倒數)
+                        ExecuteShuffleLogic(); 
+                    }
+                    else
+                    {
+                        // 如果沒預約，就跟平常一樣直接進 7 秒倒數
+                        StartMatchCountdown(); 
+                    }
+                    
                     ResetTechPauseCount(); 
                 }
             }
@@ -593,7 +604,6 @@ namespace MatchZy
                 SendPlayerNotAdminMessage(player);
             }
         }
-
         [ConsoleCommand("css_asay", "Say as an admin")]
         public void OnAdminSay(CCSPlayerController? player, CommandInfo? command)
         {
