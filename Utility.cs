@@ -814,7 +814,7 @@ private void HandleMatchStart()
                 }
                 
                 // 極端防護：整隊都是符號哥
-                if (string.IsNullOrWhiteSpace(foundName)) foundName = "CTs";
+                if (string.IsNullOrWhiteSpace(foundName)) foundName = "反恐小組";
                 
                 matchzyTeam1.teamName = "隊伍_" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
@@ -843,7 +843,7 @@ private void HandleMatchStart()
                     }
                 }
                 
-                if (string.IsNullOrWhiteSpace(foundName)) foundName = "TERRORISTS";
+                if (string.IsNullOrWhiteSpace(foundName)) foundName = "恐怖份子";
                 
                 matchzyTeam2.teamName = "隊伍_" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
