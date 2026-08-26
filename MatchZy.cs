@@ -1,6 +1,7 @@
 using System;                                       
 using System.Collections.Generic;                       
 using System.Collections.Frozen;
+using System.IO;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -69,6 +70,9 @@ namespace MatchZy
         // Admin Data
         private Dictionary<string, string> loadedAdmins = new();
 
+        // 廣告防禦黑名單 (Ad Blacklist)
+        public string[] adBlacklist = [];
+
         // Timers
         public CounterStrikeSharp.API.Modules.Timers.Timer? unreadyPlayerMessageTimer = null;
         public CounterStrikeSharp.API.Modules.Timers.Timer? sideSelectionMessageTimer = null;
@@ -97,6 +101,7 @@ namespace MatchZy
         public override void Load(bool hotReload) {
             
             LoadAdmins();
+            LoadAdBlacklist(); // 載入廣告黑名單設定檔
 
             database.InitializeDatabase(ModuleDirectory);
 
@@ -228,6 +233,29 @@ namespace MatchZy
             RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
                 var player = @event.Userid;
 
+                // ▼▼▼ 新增：廣告防禦門神 (進場名稱秒踢與永久封鎖) ▼▼▼
+                if (player is { IsValid: true, IsBot: false } && !string.IsNullOrEmpty(player.PlayerName) && adBlacklist.Length > 0)
+                {
+                    bool isAdName = false;
+                    foreach (var ad in adBlacklist)
+                    {
+                        if (player.PlayerName.Contains(ad, StringComparison.OrdinalIgnoreCase))
+                        {
+                            isAdName = true;
+                            break;
+                        }
+                    }
+
+                    if (isAdName)
+                    {
+                        Log($"[廣告防禦] 偵測到違規名稱，進場秒 Ban: {player.PlayerName} (SteamID: {player.SteamID})");
+                        Server.ExecuteCommand($"css_addban {player.SteamID} 0 \"廣告機器人\"");
+                        Server.ExecuteCommand($"kickid {player.UserId} \"Ban_Ads\""); // 雙重保險：瞬間斷開連線
+                        return HookResult.Continue;
+                    }
+                }
+                // ▲▲▲ 新增結束 ▲▲▲
+
                 // 只有開啟 .whitelist 指令時才檢查
                 // 【.NET 10 升級】：現代化模式匹配
                 if (isWhitelistRequired && player is { IsValid: true, IsBot: false }) {
@@ -269,6 +297,33 @@ namespace MatchZy
                 // 呼叫原生處理程序
                 return EventPlayerConnectFullHandler(@event, info);
             });
+            // ▼▼▼ 新增：防禦機器人進場後「偷偷改名」的第二道防線 ▼▼▼
+            RegisterEventHandler<EventPlayerChangename>((@event, info) => {
+                var changedPlayer = @event.Userid;
+                string newName = @event.Newname;
+
+                if (changedPlayer is { IsValid: true, IsBot: false } && !string.IsNullOrEmpty(newName) && adBlacklist.Length > 0)
+                {
+                    bool isAdName = false;
+                    foreach (var ad in adBlacklist)
+                    {
+                        if (newName.Contains(ad, StringComparison.OrdinalIgnoreCase))
+                        {
+                            isAdName = true;
+                            break;
+                        }
+                    }
+
+                    if (isAdName)
+                    {
+                        Log($"[廣告防禦] 偵測到違規改名，瞬間 Ban 掉: {newName} (SteamID: {changedPlayer.SteamID})");
+                        // 使用 changedPlayer 取得 UserId，觸發線上踢除套餐
+                        Server.ExecuteCommand($"css_addban {changedPlayer.SteamID} 0 \"廣告機器人\"");
+                    }
+                }
+                return HookResult.Continue;
+            });
+            // ▲▲▲ 第二道防線結束 ▲▲▲
             
            // 1. 斷線事件處理：整合「倒數中止」與「刀場斷線自動移除名單」
             RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
@@ -540,6 +595,43 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     ReadOnlySpan<char> originalMessageSpan = @event.Text.AsSpan().Trim();
     var message = originalMessageSpan.ToString().ToLower();
     int currentEventUserId = @event.Userid; 
+
+   // ▼▼▼ 新增：廣告防禦門神 (文字與名稱雙重黑洞吞噬 + SteamID 絕殺) ▼▼▼
+    if (adBlacklist.Length > 0)
+    {
+        // 1. 先把發話者抓出來，確保他不是沒有實體的「幽靈 (Console)」
+        var badPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
+        if (badPlayer is { IsValid: true }) 
+        {
+            bool isSpam = false;
+            string playerName = badPlayer.PlayerName ?? "";
+
+            foreach (var ad in adBlacklist)
+            {
+                // 2. 【終極絕殺】：檢查「他說的話(message)」或「他的名字(playerName)」！
+                if (message.Contains(ad, StringComparison.OrdinalIgnoreCase) || 
+                    playerName.Contains(ad, StringComparison.OrdinalIgnoreCase))
+                {
+                    isSpam = true;
+                    break;
+                }
+            }
+
+            if (isSpam)
+            {
+                Log($"[廣告防禦] 攔截到洗頻或廣告名稱，直接吞掉: {playerName} 說了 {message}");
+                
+                // 3. 【絕對擊殺】：直接使用 SteamID 進行封鎖，避免 UserId 解析失敗
+                Server.ExecuteCommand($"css_addban {badPlayer.SteamID} 0 \"廣告洗頻\"");
+                
+                // 補上一腳原生踢除，雙重保險確保牠瞬間消失
+                Server.ExecuteCommand($"kickid {badPlayer.UserId} \"Ban_Ads\"");
+                
+                return HookResult.Handled; 
+            }
+        }
+    }
+    // ▲▲▲ 新增結束 ▲▲▲
 
     // =========================================================================
     // 【跨外掛防禦網】：針對 SLAYER_PanoramaVote 的 RTV 與 Vote 指令攔截
@@ -1048,6 +1140,64 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
 
                 // 呼叫我們在 DamageInfo_2.cs 寫好的單人查詢邏輯
                 ShowSinglePlayerDamage(player);
+            }
+        }
+
+        // =========================================================================
+        // 載入廣告黑名單 (Ad Blacklist Loader)
+        // =========================================================================
+        private void LoadAdBlacklist()
+        {
+            string fileName = "MatchZy/ad_blacklist.txt";
+            string filePath = Path.Join(Server.GameDirectory + "/csgo/cfg", fileName);
+
+            if (File.Exists(filePath))
+            {
+                try
+                {
+                    var lines = File.ReadAllLines(filePath);
+                    List<string> validLines = [];
+                    foreach (var line in lines)
+                    {
+                        // 【.NET 10 升級】：Span 零分配切片與驗證
+                        var trimmed = line.AsSpan().Trim();
+                        if (!trimmed.IsEmpty && !trimmed.StartsWith("//"))
+                        {
+                            validLines.Add(trimmed.ToString());
+                        }
+                    }
+                    // 【.NET 10 升級】：集合表達式轉換
+                    adBlacklist = [.. validLines];
+                    Log($"[LoadAdBlacklist] 成功載入 {adBlacklist.Length} 筆廣告黑名單。");
+                }
+                catch (Exception e)
+                {
+                    Log($"[LoadAdBlacklist FATAL] 讀取黑名單時發生錯誤: {e.Message}");
+                }
+            }
+            else
+            {
+                Log("[LoadAdBlacklist] 黑名單檔案不存在，建立預設檔案。");
+                try
+                {
+                    string? directoryPath = Path.GetDirectoryName(filePath);
+                    if (directoryPath is not null && !Directory.Exists(directoryPath))
+                    {
+                        Directory.CreateDirectory(directoryPath);
+                    }
+                    // 預設寫入常見廣告，加上教學註解
+                    File.WriteAllLines(filePath, [
+                        "// 在下方加入要封鎖的廣告網址或關鍵字 (一行一個)", 
+                        "// 系統會自動忽略 // 開頭的註解與空白行",
+                        "cs2commends", 
+                        "cs2commends.com"
+                    ]);
+                    adBlacklist = ["cs2commends", "cs2commends.com"];
+                }
+                catch (Exception e)
+                {
+                    Log($"[LoadAdBlacklist FATAL] 建立黑名單檔案時發生錯誤: {e.Message}");
+                }
             }
         }
 
