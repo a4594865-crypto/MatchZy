@@ -852,6 +852,37 @@ namespace MatchZy
             // Currently it is not possible to keep updating player tags while in warmup without restarting the match
             // Hence returning from here until we find a proper solution
             return;
+
+            if (readyAvailable && !matchStarted)
+            {
+                foreach (var key in playerData.Keys)
+                {
+                    if (playerReadyStatus[key])
+                    {
+                        playerData[key].Clan = "[Ready]";
+                    }
+                    else
+                    {
+                        playerData[key].Clan = "[Unready]";
+                    }
+                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
+                }
+            }
+            else if (matchStarted)
+            {
+                foreach (var key in playerData.Keys)
+                {
+                    if (playerData[key].TeamNum == 2)
+                    {
+                        playerData[key].Clan = reverseTeamSides["TERRORIST"].teamTag;
+                    }
+                    else if (playerData[key].TeamNum == 3)
+                    {
+                        playerData[key].Clan = reverseTeamSides["CT"].teamTag;
+                    }
+                    Server.PrintToChatAll($"PlayerName: {playerData[key].PlayerName} Clan: {playerData[key].Clan}");
+                }
+            }
         }
 
         private void HandleMatchEnd()
@@ -1887,7 +1918,10 @@ namespace MatchZy
                     return;
                 }
 
-               byte[] fileContent = await File.ReadAllBytesAsync(filePath);
+                using FileStream fileStream = File.OpenRead(filePath);
+
+                byte[] fileContent = new byte[fileStream.Length];
+                await fileStream.ReadAsync(fileContent, 0, (int)fileStream.Length);
 
                 using ByteArrayContent content = new(fileContent);
                 content.Headers.Add("Content-Type", "application/octet-stream");
