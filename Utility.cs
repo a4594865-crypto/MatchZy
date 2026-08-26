@@ -972,7 +972,7 @@ private void HandleMatchStart()
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
              // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
-            string cleanTeamName1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            string cleanTeamName1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             if (!cleanTeamName1.EndsWith("隊伍")) cleanTeamName1 += " 隊伍";
                 
            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
@@ -980,7 +980,7 @@ private void HandleMatchStart()
         else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
         {
             // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
-            string cleanTeamName2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "team_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            string cleanTeamName2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             if (!cleanTeamName2.EndsWith("隊伍")) cleanTeamName2 += " 隊伍";
                 
             Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
