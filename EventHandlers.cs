@@ -16,9 +16,9 @@ public partial class MatchZy
             Log($"[FULL CONNECT] Player ID: {player!.UserId}, Name: {player.PlayerName} has connected!");
 
            // --- 坑位識別系統修正版：根據隊伍自動判定準備狀態 ---
-            // 【修正】：直接使用 is int 完成非空檢查與拆箱
-            if (player.UserId is int userId)
+            if (player.UserId.HasValue)
             {
+                int userId = player.UserId.Value;
                 playerData[userId] = player;
                 connectedPlayers++;
                 
@@ -69,9 +69,8 @@ public partial class MatchZy
             CCSPlayerController? player = @event.Userid;
 
             if (!IsPlayerValid(player)) return HookResult.Continue;
-            
-            // 【修正】：直接使用 is not int 攔截 null
-            if (player!.UserId is not int userId) return HookResult.Continue;
+            if (!player!.UserId.HasValue) return HookResult.Continue;
+            int userId = player.UserId.Value;
 
             // 斷開連線時立刻釋放 UserId 佔用的 Slot 資源
             if (playerReadyStatus.ContainsKey(userId))
@@ -165,7 +164,7 @@ public partial class MatchZy
     public HookResult EventPlayerGivenC4(EventPlayerGivenC4 @event, GameEventInfo info) {
         try {
             if (!matchStarted) return HookResult.Continue;
-            if (@event.Userid is null) return HookResult.Continue;
+            if (@event.Userid == null) return HookResult.Continue;
             var recv = @event.Userid;
 
             var coaches = reverseTeamSides["TERRORIST"].coach;
@@ -182,17 +181,21 @@ public partial class MatchZy
     {
         try
         {
-            if (!isPractice || entity is not { Entity: not null }) return;
+            if (!isPractice || entity == null || entity.Entity == null) return;
             if (!Constants.ProjectileTypeMap.ContainsKey(entity.Entity.DesignerName)) return;
 
             Server.NextFrame(() => {
-                CBaseCSGrenadeProjectile projectile = new(entity.Handle);
+                CBaseCSGrenadeProjectile projectile = new CBaseCSGrenadeProjectile(entity.Handle);
 
-                if (projectile is not { IsValid: true, Thrower: { IsValid: true, Value.Controller.Value: not null }, Globalname: not "custom" }) return;
+                if (!projectile.IsValid ||
+                    !projectile.Thrower.IsValid ||
+                    projectile.Thrower.Value == null ||
+                    projectile.Thrower.Value.Controller.Value == null ||
+                    projectile.Globalname == "custom"
+                ) return;
 
                 CCSPlayerController player = new(projectile.Thrower.Value.Controller.Value.Handle);
-                
-                if (player is not { IsValid: true, PlayerPawn: { IsValid: true, Value: not null } }) return;
+                if(!player.IsValid || player.PlayerPawn.Value == null || !player.PlayerPawn.IsValid) return;
                 int client = player.UserId!.Value;
                 
                 Vector position = new(projectile.AbsOrigin!.X, projectile.AbsOrigin.Y, projectile.AbsOrigin.Z);
@@ -201,12 +204,12 @@ public partial class MatchZy
                 string nadeType = Constants.ProjectileTypeMap[entity.Entity.DesignerName];
 
                 if (!lastGrenadesData.ContainsKey(client)) {
-                    lastGrenadesData[client] = [];
+                    lastGrenadesData[client] = new();
                 }
 
                 if (!nadeSpecificLastGrenadeData.ContainsKey(client))
                 {
-                    nadeSpecificLastGrenadeData[client] = [];
+                    nadeSpecificLastGrenadeData[client] = new(){};
                 }
 
                 GrenadeThrownData lastGrenadeThrown = new(

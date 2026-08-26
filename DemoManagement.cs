@@ -38,17 +38,15 @@ namespace MatchZy
             try
             {
                 string? directoryPath = Path.GetDirectoryName(Path.Join(Server.GameDirectory + "/csgo/", demoPath));
-                
-                // 合併檢查，屬性模式匹配確保資料夾路徑不為空
-                if (directoryPath is not null && !Directory.Exists(directoryPath))
+                if (directoryPath != null)
                 {
-                    Directory.CreateDirectory(directoryPath);
+                    if (!Directory.Exists(directoryPath))
+                    {
+                        Directory.CreateDirectory(directoryPath);
+                    }
                 }
-                
-                // .NET 10 模式匹配，取代傳統 == ""
-                string tempDemoPath = demoPath is "" ? demoFileName : demoPath + demoFileName;
+                string tempDemoPath = demoPath == "" ? demoFileName : demoPath + demoFileName;
                 activeDemoFile = tempDemoPath;
-                
                 Log($"[StartDemoRecoding] Starting demo recording, path: {tempDemoPath}");
                 Server.ExecuteCommand($"tv_record {tempDemoPath}");
                 isDemoRecording = true;
@@ -60,6 +58,7 @@ namespace MatchZy
                 Server.ExecuteCommand($"tv_record {demoFileName}");
                 isDemoRecording = true;
             }
+
         }
 
         public void StopDemoRecording(float delay, string activeDemoFile, long liveMatchId, int currentMapNumber)
@@ -68,7 +67,6 @@ namespace MatchZy
             string demoPath = Path.Join(Server.GameDirectory + "/csgo/", activeDemoFile);
             (int t1score, int t2score) = GetTeamsScore();
             int roundNumber = t1score + t2score;
-            
             AddTimer(delay, () =>
             {
                 if (isDemoRecording)
@@ -76,7 +74,6 @@ namespace MatchZy
                     Server.ExecuteCommand($"tv_stoprecord");
                 }
                 isDemoRecording = false;
-                
                 AddTimer(15, () =>
                 {
                     Task.Run(async () =>
@@ -89,46 +86,37 @@ namespace MatchZy
 
         public int GetTvDelay()
         {
-            // 徹底拆除強制轉換驚嘆號 (!)，嚴格檢查 CVar 是否存在，杜絕 CS8602 潛在空參考例外
-            var tvEnableCvar = ConVar.Find("tv_enable");
-            if (tvEnableCvar is null || !tvEnableCvar.GetPrimitiveValue<bool>()) return 0;
+            bool tvEnable = ConVar.Find("tv_enable")!.GetPrimitiveValue<bool>();
+            if (!tvEnable) return 0;
 
-            var tvEnable1Cvar = ConVar.Find("tv_enable1");
-            bool tvEnable1 = tvEnable1Cvar is not null && tvEnable1Cvar.GetPrimitiveValue<bool>();
-
-            var tvDelayCvar = ConVar.Find("tv_delay");
-            int tvDelay = tvDelayCvar is not null ? tvDelayCvar.GetPrimitiveValue<int>() : 0;
+            bool tvEnable1 = ConVar.Find("tv_enable1")!.GetPrimitiveValue<bool>();
+            int tvDelay = ConVar.Find("tv_delay")!.GetPrimitiveValue<int>();
 
             if (!tvEnable1) return tvDelay;
+            int tvDelay1 = ConVar.Find("tv_delay1")!.GetPrimitiveValue<int>();
 
-            var tvDelay1Cvar = ConVar.Find("tv_delay1");
-            int tvDelay1 = tvDelay1Cvar is not null ? tvDelay1Cvar.GetPrimitiveValue<int>() : 0;
-
-            return tvDelay < tvDelay1 ? tvDelay1 : tvDelay;
+            if (tvDelay < tvDelay1) return tvDelay1;
+            return tvDelay;
         }
 
         [ConsoleCommand("get5_demo_upload_header_key", "If defined, a custom HTTP header with this name is added to the HTTP requests for demos")]
         [ConsoleCommand("matchzy_demo_upload_header_key", "If defined, a custom HTTP header with this name is added to the HTTP requests for demos")]
         public void DemoUploadHeaderKeyCommand(CCSPlayerController? player, CommandInfo command)
         {
-            // 改用 is not null
-            if (player is not null) return;
+            if (player != null) return;
             string header = command.ArgByIndex(1).Trim();
 
-            // .NET 10 常數模式匹配
-            if (header is not "") demoUploadHeaderKey = header;
+            if (header != "") demoUploadHeaderKey = header;
         }
 
         [ConsoleCommand("get5_demo_upload_header_value", "If defined, the value of the custom header added to the demos sent over HTTP")]
         [ConsoleCommand("matchzy_demo_upload_header_value", "If defined, the value of the custom header added to the demos sent over HTTP")]
         public void DemoUploadHeaderValueCommand(CCSPlayerController? player, CommandInfo command)
         {
-            // 改用 is not null
-            if (player is not null) return;
+            if (player != null) return;
             string headerValue = command.ArgByIndex(1).Trim();
 
-            // .NET 10 常數模式匹配
-            if (headerValue is not "") demoUploadHeaderValue = headerValue;
+            if (headerValue != "") demoUploadHeaderValue = headerValue;
         }
     }
 }

@@ -18,7 +18,7 @@ namespace MatchZy
 {
     public class Database
     {
-        private IDbConnection connection = null!;
+        private IDbConnection connection;
 
         DatabaseConfig? config;
         public DatabaseType databaseType { get; set; }
@@ -55,14 +55,13 @@ namespace MatchZy
             {
                 SetDatabaseConfig(directory);
 
-                if (databaseType is DatabaseType.SQLite)
+                if (databaseType == DatabaseType.SQLite)
                 {
                     connection =
                         new SqliteConnection(
                             $"Data Source={Path.Join(directory, "matchzy.db")}");
                 }
-                // 【.NET 10 升級】：現代化模式匹配
-                else if (config is not null && databaseType is DatabaseType.MySQL)
+                else if (config != null && databaseType == DatabaseType.MySQL)
                 {
                     string connectionString = $"Server={config.MySqlHost};Port={config.MySqlPort};Database={config.MySqlDatabase};User Id={config.MySqlUsername};Password={config.MySqlPassword};";
                     connection = new MySqlConnection(connectionString);           
@@ -372,10 +371,11 @@ namespace MatchZy
         {
             try
             {
-                // 【.NET 10 升級】：字典迴圈解構
-                foreach (var (steamid64, playerStats) in playerStatsDictionary)
+                foreach (ulong steamid64 in playerStatsDictionary.Keys)
                 {
                     Log($"[UpdatePlayerStats] Going to update data for Match: {matchId}, MapNumber: {mapNumber}, Player: {steamid64}");
+
+                    var playerStats = playerStatsDictionary[steamid64];
 
                     string sqlQuery = $@"
                     INSERT INTO matchzy_stats_players (
@@ -484,7 +484,7 @@ namespace MatchZy
             try {
                 string csvFilePath = $"{filePath}/match_data_map{mapNumber}_{matchId}.csv";
                 string? directoryPath = Path.GetDirectoryName(csvFilePath);
-                if (directoryPath is not null)
+                if (directoryPath != null)
                 {
                     if (!Directory.Exists(directoryPath))
                     {
@@ -492,39 +492,33 @@ namespace MatchZy
                     }
                 }
 
-                using var writer = new StreamWriter(csvFilePath);
-                using var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture));
-                
-                IEnumerable<dynamic> playerStatsData = await connection.QueryAsync(
-                    "SELECT * FROM matchzy_stats_players WHERE matchid = @MatchId AND mapnumber = @MapNumber ORDER BY team, kills DESC", new { MatchId = matchId, MapNumber = mapNumber });
-
-                // 【.NET 10 升級】：拔除 LINQ FirstOrDefault，改用 0 分配的 foreach 提早中斷
-                dynamic? firstDataRow = null;
-                foreach (var row in playerStatsData)
+                using (var writer = new StreamWriter(csvFilePath))
+                using (var csv = new CsvWriter(writer, new CsvConfiguration(CultureInfo.InvariantCulture)))
                 {
-                    firstDataRow = row;
-                    break;
-                }
+                    IEnumerable<dynamic> playerStatsData = await connection.QueryAsync(
+                        "SELECT * FROM matchzy_stats_players WHERE matchid = @MatchId AND mapnumber = @MapNumber ORDER BY team, kills DESC", new { MatchId = matchId, MapNumber = mapNumber });
 
-                if (firstDataRow is not null)
-                {
-                    foreach (var propertyName in ((IDictionary<string, object>)firstDataRow).Keys)
+                    // Use the first data row to get the column names
+                    dynamic? firstDataRow = playerStatsData.FirstOrDefault();
+                    if (firstDataRow != null)
                     {
-                        csv.WriteField(propertyName);
-                    }
-                    csv.NextRecord(); // End of the column names row
-
-                    // Write data to the CSV file
-                    foreach (var playerStats in playerStatsData)
-                    {
-                        foreach (var propertyValue in ((IDictionary<string, object>)playerStats).Values)
+                        foreach (var propertyName in ((IDictionary<string, object>)firstDataRow).Keys)
                         {
-                            csv.WriteField(propertyValue);
+                            csv.WriteField(propertyName);
                         }
-                        csv.NextRecord();
+                        csv.NextRecord(); // End of the column names row
+
+                        // Write data to the CSV file
+                        foreach (var playerStats in playerStatsData)
+                        {
+                            foreach (var propertyValue in ((IDictionary<string, object>)playerStats).Values)
+                            {
+                                csv.WriteField(propertyValue);
+                            }
+                            csv.NextRecord();
+                        }
                     }
                 }
-                
                 Log($"[WritePlayerStatsToCsv] Match stats for ID: {matchId} written successfully at: {csvFilePath}");
             }
             catch (Exception ex)
@@ -536,8 +530,8 @@ namespace MatchZy
 
         private void CreateDefaultConfigFile(string configFile)
         {
-            // 【.NET 10 升級】：Target-typed new
-            DatabaseConfig defaultConfig = new()
+            // Create a default configuration
+            DatabaseConfig defaultConfig = new DatabaseConfig
             {
                 DatabaseType = "SQLite",
                 MySqlHost = "your_mysql_host",
@@ -547,7 +541,7 @@ namespace MatchZy
                 MySqlPort = 3306
             };
 
-            // 【.NET 10 升級】：Target-typed new
+            // Serialize and save the default configuration to the file
             string defaultConfigJson = JsonSerializer.Serialize(defaultConfig, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(configFile, defaultConfigJson);
 
@@ -569,9 +563,8 @@ namespace MatchZy
             {
                 string jsonContent = File.ReadAllText(configFile);
                 config = JsonSerializer.Deserialize<DatabaseConfig>(jsonContent);
-                
-                // 【.NET 10 升級】：模式匹配
-                if (config is { DatabaseType: not null } && config.DatabaseType.Trim().ToLower() == "mysql") {
+                // Set the database type
+                if (config != null && config.DatabaseType?.Trim().ToLower() == "mysql") {
                     databaseType = DatabaseType.MySQL;
                 } else {
                     databaseType = DatabaseType.SQLite;

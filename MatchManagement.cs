@@ -18,38 +18,36 @@ namespace MatchZy
         public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo info)
         {
             CCSPlayerController? player = @event.Userid;
-            // 【.NET 10 升級】：現代化屬性模式匹配
-            if (player is not { IsValid: true }) return HookResult.Continue;
+            if (!IsPlayerValid(player)) return HookResult.Continue;
 
-            int userId = (int)player.UserId!.Value;
+            int userId = (int)player!.UserId!.Value;
 
             // --- 核心修正：觀戰者不應佔用「已準備」名額 ---
-            if (@event.Team == 1) // 進入觀戰
-            {
-                // 關鍵修正：不再只是設為 false，而是直接從名單中「擦除」
-                playerReadyStatus.Remove(userId); 
-                return HookResult.Continue; 
-            }
-            else if (@event.Team == 2 || @event.Team == 3) // 進入選手隊伍
-            {
-                // 當玩家從觀戰回歸選手位，系統才重新把他寫入點名單，預設為未準備 (false)
-                if (!playerReadyStatus.ContainsKey(userId)) {
-                    playerReadyStatus[userId] = false;
-                }
-            }
+          if (@event.Team == 1) // 進入觀戰
+{
+    // 關鍵修正：不再只是設為 false，而是直接從名單中「擦除」
+    playerReadyStatus.Remove(userId); 
+    return HookResult.Continue; 
+}
+else if (@event.Team == 2 || @event.Team == 3) // 進入選手隊伍
+{
+    // 當玩家從觀戰回歸選手位，系統才重新把他寫入點名單，預設為未準備 (false)
+    if (!playerReadyStatus.ContainsKey(userId)) {
+        playerReadyStatus[userId] = false;
+    }
+}
 
-            // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
-            if (!isWarmup && (matchStarted || isKnifeRequired))
-            {
-                if (!@event.Silent)
-                {
-                    // 這裡刪除了 ReplyToUserCommand
-                    return HookResult.Stop; // 依然保留攔截功能，讓換隊無效
-                }
-            }
-            return HookResult.Continue;
-        }
-        
+          // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
+if (!isWarmup && (matchStarted || isKnifeRequired))
+{
+    if (!@event.Silent)
+    {
+        // 這裡刪除了 ReplyToUserCommand
+        return HookResult.Stop; // 依然保留攔截功能，讓換隊無效
+    }
+}
+return HookResult.Continue;
+}
         public MatchConfig matchConfig = new();
 
         public bool isMatchSetup = false;
@@ -85,7 +83,7 @@ namespace MatchZy
         {
             try
             {
-                if (player is null) return;
+                if (player != null) return;
                 if (isMatchSetup)
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.mm.matchisalreadysetup", liveMatchId]);
@@ -120,7 +118,7 @@ namespace MatchZy
         [ConsoleCommand("matchzy_loadmatch_url", "Loads a match from the given URL")]
         public void LoadMatchFromURL(CCSPlayerController? player, CommandInfo command)
         {
-            if (player is null) return;
+            if (player != null) return;
             if (isMatchSetup)
             {
                 ReplyToUserCommand(player, Localizer["matchzy.mm.get5matchisalreadysetup", liveMatchId]);
@@ -177,12 +175,11 @@ namespace MatchZy
 
         static string ValidateMatchJsonStructure(JObject jsonData)
         {
-            // 【.NET 10 升級】：集合表達式 []
-            string[] requiredFields = ["maplist", "team1", "team2", "num_maps"];
+            string[] requiredFields = { "maplist", "team1", "team2", "num_maps" };
 
             foreach (string field in requiredFields)
             {
-                if (jsonData[field] is null)
+                if (jsonData[field] == null)
                 {
                     return $"Missing mandatory field: {field}";
                 }
@@ -199,10 +196,11 @@ namespace MatchZy
                     case "min_players_to_ready":
                     case "min_spectators_to_ready":
                     case "num_maps":
-                        // 【.NET 10 升級】：Inline Out 變數宣告
-                        if (!int.TryParse(jsonData[field]!.ToString(), out int numMaps))
+                        int numMaps;
+                        if (!int.TryParse(jsonData[field]!.ToString(), out numMaps))
                         {
                             return $"{field} should be an integer!";
+                            
                         }
                         if (field == "num_maps" && numMaps > jsonData["maplist"]!.ToObject<List<string>>()!.Count)
                         {
@@ -225,7 +223,7 @@ namespace MatchZy
                         {
                             return $"{field} should be a JSON structure!";
                         }
-                        if ((field != "spectators") && (jsonData[field]!["players"] is null || jsonData[field]!["players"]!.Type != JTokenType.Object)) 
+                        if ((field != "spectators") && (jsonData[field]!["players"] == null || jsonData[field]!["players"]!.Type != JTokenType.Object)) 
                         {
                             return $"{field} should have 'players' JSON!";
                         }
@@ -243,8 +241,7 @@ namespace MatchZy
                         {
                             return $"{field} should be an Array!";
                         }
-                        // 【.NET 10 升級】：拔除 LINQ .Any()，改用 JToken 屬性 HasValues，0 記憶體分配
-                        if (!jsonData[field]!.HasValues)
+                        if (!jsonData[field]!.Any())
                         {
                             return $"{field} should contain atleast 1 map!";
                         }
@@ -255,29 +252,8 @@ namespace MatchZy
                         {
                             return $"{field} should be an Array!";
                         }
-                        
-                        // 【.NET 10 升級】：拔除 LINQ .All() 與 .Contains()，改用高速 foreach，0 記憶體分配
-                        string[] allowedValues = ["team1_ct", "team1_t", "team2_ct", "team2_t", "knife"];
-                        bool allElementsValid = true;
-                        
-                        foreach (var element in jsonData[field]!)
-                        {
-                            bool isValid = false;
-                            string elementStr = element.ToString();
-                            foreach (var allowed in allowedValues)
-                            {
-                                if (elementStr == allowed)
-                                {
-                                    isValid = true;
-                                    break;
-                                }
-                            }
-                            if (!isValid)
-                            {
-                                allElementsValid = false;
-                                break;
-                            }
-                        }
+                        string[] allowedValues = { "team1_ct", "team1_t", "team2_ct", "team2_t", "knife" };
+                        bool allElementsValid = jsonData[field]!.All(element => allowedValues.Contains(element.ToString()));
 
                         if (!allElementsValid) {
                             return $"{field} should be \"team1_ct\", \"team1_t\", or \"knife\"!";
@@ -315,7 +291,7 @@ namespace MatchZy
                 return false;
             }
 
-            if(jsonDataObject["matchid"] is not null)
+            if(jsonDataObject["matchid"] != null)
             {
                 liveMatchId = (long)jsonDataObject["matchid"]!;
             }
@@ -323,8 +299,8 @@ namespace MatchZy
             JToken team2 = jsonDataObject["team2"]!;
             JToken maplist = jsonDataObject["maplist"]!;
 
-            if (team1["id"] is not null) matchzyTeam1.id = team1["id"]!.ToString();
-            if (team2["id"] is not null) matchzyTeam2.id = team2["id"]!.ToString();
+            if (team1["id"] != null) matchzyTeam1.id = team1["id"]!.ToString();
+            if (team2["id"] != null) matchzyTeam2.id = team2["id"]!.ToString();
 
             matchzyTeam1.teamName = RemoveSpecialCharacters(team1["name"]!.ToString());
             matchzyTeam2.teamName = RemoveSpecialCharacters(team2["name"]!.ToString());
@@ -460,7 +436,7 @@ namespace MatchZy
         {
             try
             {
-                if (jsonDataObject["cvars"] is null) return;
+                if (jsonDataObject["cvars"] == null) return;
 
                 foreach (JProperty cvarData in jsonDataObject["cvars"]!)
                 {
@@ -484,23 +460,23 @@ namespace MatchZy
 
         public void GetOptionalMatchValues(JObject jsonDataObject)
         {
-            if(jsonDataObject["map_sides"] is not null)
+            if(jsonDataObject["map_sides"] != null)
             {
                 matchConfig.MapSides = jsonDataObject["map_sides"]!.ToObject<List<string>>()!;
             }
-            if(jsonDataObject["players_per_team"] is not null)
+            if(jsonDataObject["players_per_team"] != null)
             {
                 matchConfig.PlayersPerTeam = jsonDataObject["players_per_team"]!.Value<int>();
             }
-            if(jsonDataObject["min_players_to_ready"] is not null)
+            if(jsonDataObject["min_players_to_ready"] != null)
             {
                 matchConfig.MinPlayersToReady = jsonDataObject["min_players_to_ready"]!.Value<int>();
             }
-            if(jsonDataObject["min_spectators_to_ready"] is not null)
+            if(jsonDataObject["min_spectators_to_ready"] != null)
             {
                 matchConfig.MinSpectatorsToReady = jsonDataObject["min_spectators_to_ready"]!.Value<int>();
             }
-            if (jsonDataObject["spectators"] is not null && jsonDataObject["spectators"]!["players"] is not null)
+            if (jsonDataObject["spectators"] != null && jsonDataObject["spectators"]!["players"] != null)
             {
                 matchConfig.Spectators = jsonDataObject["spectators"]!["players"]!;
                 if (matchConfig.Spectators is JArray spectatorsArray && spectatorsArray.Count == 0)
@@ -508,19 +484,19 @@ namespace MatchZy
                     matchConfig.Spectators = new JObject();
                 }
             }
-            if (jsonDataObject["clinch_series"] is not null)
+            if (jsonDataObject["clinch_series"] != null)
             {
                 matchConfig.SeriesCanClinch = bool.Parse(jsonDataObject["clinch_series"]!.ToString());
             }
-            if (jsonDataObject["skip_veto"] is not null)
+            if (jsonDataObject["skip_veto"] != null)
             {
                 matchConfig.SkipVeto = bool.Parse(jsonDataObject["skip_veto"]!.ToString());
             }
-            if (jsonDataObject["wingman"] is not null)
+            if (jsonDataObject["wingman"] != null)
             {
                 matchConfig.Wingman = bool.Parse(jsonDataObject["wingman"]!.ToString());
             }
-            if (jsonDataObject["veto_mode"] is not null)
+            if (jsonDataObject["veto_mode"] != null)
             {
                 matchConfig.MapBanOrder = jsonDataObject["veto_mode"]!.ToObject<List<string>>()!;
             }
@@ -568,9 +544,7 @@ namespace MatchZy
 
         private CsTeam GetPlayerTeam(CCSPlayerController player)
         {
-            // 【.NET 10 升級】：現代化屬性模式匹配
-            if (player is not { IsValid: true }) return CsTeam.None;
-            
+            if (player == null || !player.IsValid) return CsTeam.None;
             return player.TeamNum switch {
                 3 => CsTeam.CounterTerrorist,
                 2 => CsTeam.Terrorist,
@@ -583,7 +557,7 @@ namespace MatchZy
         {
             long matchId = liveMatchId;
             (int team1Score, int team2Score) = (matchzyTeam1.seriesScore, matchzyTeam2.seriesScore);
-            if (winnerName is null)
+            if (winnerName == null)
             {
                 PrintToAllChat($"{ChatColors.Green}雙 方 最 終 戰 平{ChatColors.Default}");
             }
@@ -592,7 +566,7 @@ namespace MatchZy
                 Server.PrintToChatAll($"{chatPrefix} {ChatColors.Green}{winnerName}{ChatColors.Default} 贏 得 了 最 終 勝 利");
             }
 
-            string winnerTeam = (winnerName is null) ? "none" : matchzyTeam1.seriesScore > matchzyTeam2.seriesScore ? "team1" : "team2";
+            string winnerTeam = (winnerName == null) ? "none" : matchzyTeam1.seriesScore > matchzyTeam2.seriesScore ? "team1" : "team2";
 
             var seriesResultEvent = new MatchZySeriesResultEvent()
             {
@@ -630,10 +604,10 @@ namespace MatchZy
             }
         }
 
-        public string GetTeamNameFromSide(int teamNum) {
-            if (teamNum == 3) return reverseTeamSides["CT"].teamName;
-            if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
-            return "Unknown";
-        } // 結束 GetTeamNameFromSide 函數
+   public string GetTeamNameFromSide(int teamNum) {
+    if (teamNum == 3) return reverseTeamSides["CT"].teamName;
+    if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
+    return "Unknown";
+} // 結束 GetTeamNameFromSide 函數
     } // 結束 public partial class MatchZy
 } // 結束 namespace MatchZy

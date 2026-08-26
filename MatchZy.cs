@@ -1,7 +1,5 @@
 using System;                                       
 using System.Collections.Generic;                       
-using System.Collections.Frozen;
-using System.IO;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -49,8 +47,7 @@ namespace MatchZy
 
         // Pause Data
         public bool isPaused = false;
-        // 【.NET 10 升級】：使用 Target-typed new
-        public Dictionary<string, object> unpauseData = new() {
+        public Dictionary<string, object> unpauseData = new Dictionary<string, object> {
             { "ct", false },
             { "t", false },
             { "pauseTeam", "" }
@@ -64,14 +61,11 @@ namespace MatchZy
 
         // Players Data (including admins)
         public int connectedPlayers = 0;
-        private Dictionary<int, bool> playerReadyStatus = new();
-        private Dictionary<int, CCSPlayerController> playerData = new();
+        private Dictionary<int, bool> playerReadyStatus = new Dictionary<int, bool>();
+        private Dictionary<int, CCSPlayerController> playerData = new Dictionary<int, CCSPlayerController>();
 
         // Admin Data
-        private Dictionary<string, string> loadedAdmins = new();
-
-        // 廣告防禦黑名單 (Ad Blacklist)
-        public string[] adBlacklist = [];
+        private Dictionary<string, string> loadedAdmins = new Dictionary<string, string>();
 
         // Timers
         public CounterStrikeSharp.API.Modules.Timers.Timer? unreadyPlayerMessageTimer = null;
@@ -92,8 +86,8 @@ namespace MatchZy
 
         public bool playerHasTakenDamage = false;
 
-        // 【.NET 10 升級】：轉換為 FrozenDictionary，讓指令查詢速度物理封頂
-        public FrozenDictionary<string, Action<CCSPlayerController?, CommandInfo?>>? commandActions;
+        // User command - action map
+        public Dictionary<string, Action<CCSPlayerController?, CommandInfo?>>? commandActions;
 
         // SQLite/MySQL Database 
         private Database database = new();
@@ -101,7 +95,6 @@ namespace MatchZy
         public override void Load(bool hotReload) {
             
             LoadAdmins();
-            LoadAdBlacklist(); // 載入廣告黑名單設定檔
 
             database.InitializeDatabase(ModuleDirectory);
 
@@ -117,7 +110,6 @@ namespace MatchZy
                 AutoStart();
             }
 
-            // 【.NET 10 升級】：字典初始化後呼叫 ToFrozenDictionary 永久鎖定效能
             commandActions = new Dictionary<string, Action<CCSPlayerController?, CommandInfo?>> {
                 { ".ready", OnPlayerReady },
                 { ".r", OnPlayerReady },
@@ -227,38 +219,14 @@ namespace MatchZy
                 { ".unshuffle", OnUnshuffleCommand },
                 { ".loadpos", OnLoadPosCommand},
                 { ".hp", OnHpCommand }
-            }.ToFrozenDictionary();
+            };
 
             // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
             RegisterEventHandler<EventPlayerConnectFull>((@event, info) => {
                 var player = @event.Userid;
 
-                // ▼▼▼ 新增：廣告防禦門神 (進場名稱秒踢與永久封鎖) ▼▼▼
-                if (player is { IsValid: true, IsBot: false } && !string.IsNullOrEmpty(player.PlayerName) && adBlacklist.Length > 0)
-                {
-                    bool isAdName = false;
-                    foreach (var ad in adBlacklist)
-                    {
-                        if (player.PlayerName.Contains(ad, StringComparison.OrdinalIgnoreCase))
-                        {
-                            isAdName = true;
-                            break;
-                        }
-                    }
-
-                    if (isAdName)
-                    {
-                        Log($"[廣告防禦] 偵測到違規名稱，進場秒 Ban: {player.PlayerName} (SteamID: {player.SteamID})");
-                        Server.ExecuteCommand($"css_addban {player.SteamID} 0 \"廣告機器人\"");
-                        Server.ExecuteCommand($"kickid {player.UserId} \"Ban_Ads\""); // 雙重保險：瞬間斷開連線
-                        return HookResult.Continue;
-                    }
-                }
-                // ▲▲▲ 新增結束 ▲▲▲
-
                 // 只有開啟 .whitelist 指令時才檢查
-                // 【.NET 10 升級】：現代化模式匹配
-                if (isWhitelistRequired && player is { IsValid: true, IsBot: false }) {
+                if (isWhitelistRequired && player != null && player.IsValid && !player.IsBot) {
                     
                     // 管理員豁免
                     if (IsPlayerAdmin(player, "css_whitelist", "@css/chat")) {
@@ -273,10 +241,10 @@ namespace MatchZy
                         var lines = File.ReadAllLines(wlPath);
                         string playerSid = player.SteamID.ToString();
                         
-                        // 【優化替換 1】：移除 .Any()，改用高效能 foreach + Span 零分配比對
+                        // 【優化替換 1】：移除 .Any()，改用高效能 foreach
                         foreach (var line in lines)
                         {
-                            if (line.AsSpan().Trim().SequenceEqual(playerSid))
+                            if (line.Trim() == playerSid)
                             {
                                 isAllowed = true;
                                 break;
@@ -287,7 +255,7 @@ namespace MatchZy
                     if (!isAllowed) {
                         // 延遲踢除，確保訊息發送
                         AddTimer(1.5f, () => {
-                            if (player is { IsValid: true }) {
+                            if (player != null && player.IsValid) {
                                 Server.ExecuteCommand($"kickid {player.UserId} \"伺 服 器 白 名 單 已 開 啟，您 不 在 白 名 單 中。\"");
                                 Log($"[WHITELIST] 已踢出未授權玩家: {player.PlayerName}");
                             }
@@ -297,40 +265,13 @@ namespace MatchZy
                 // 呼叫原生處理程序
                 return EventPlayerConnectFullHandler(@event, info);
             });
-            // ▼▼▼ 新增：防禦機器人進場後「偷偷改名」的第二道防線 ▼▼▼
-            RegisterEventHandler<EventPlayerChangename>((@event, info) => {
-                var changedPlayer = @event.Userid;
-                string newName = @event.Newname;
-
-                if (changedPlayer is { IsValid: true, IsBot: false } && !string.IsNullOrEmpty(newName) && adBlacklist.Length > 0)
-                {
-                    bool isAdName = false;
-                    foreach (var ad in adBlacklist)
-                    {
-                        if (newName.Contains(ad, StringComparison.OrdinalIgnoreCase))
-                        {
-                            isAdName = true;
-                            break;
-                        }
-                    }
-
-                    if (isAdName)
-                    {
-                        Log($"[廣告防禦] 偵測到違規改名，瞬間 Ban 掉: {newName} (SteamID: {changedPlayer.SteamID})");
-                        // 使用 changedPlayer 取得 UserId，觸發線上踢除套餐
-                        Server.ExecuteCommand($"css_addban {changedPlayer.SteamID} 0 \"廣告機器人\"");
-                    }
-                }
-                return HookResult.Continue;
-            });
-            // ▲▲▲ 第二道防線結束 ▲▲▲
             
            // 1. 斷線事件處理：整合「倒數中止」與「刀場斷線自動移除名單」
             RegisterEventHandler<EventPlayerDisconnect>((@event, info) => {
                 var player = @event.Userid;
                 
                 //  1：排除空指標、無效實體與機器人 (Bot 離開不影響比賽，直接跳出)
-                if (player is not { IsValid: true, IsBot: false }) return HookResult.Continue;
+                if (player == null || !player.IsValid || player.IsBot) return HookResult.Continue;
                 
                 int userId = (int)(player.UserId ?? -1);
                 byte teamNum = player.TeamNum; 
@@ -385,8 +326,7 @@ namespace MatchZy
 // 2. 鐵腕版：倒數期間絕對禁止換隊與觀戰
 AddCommandListener("jointeam", (player, info) =>
 {
-    // 【.NET 10 升級】：模式匹配
-    if (player is not { IsValid: true } || player.IsBot || isSleep) return HookResult.Continue;
+    if (player == null || player.IsBot || isSleep) return HookResult.Continue;
 
     string targetTeam = info.ArgByIndex(1); 
     int userId = (int)(player.UserId ?? -1);
@@ -425,7 +365,7 @@ AddCommandListener("jointeam", (player, info) =>
         // 【關鍵差別點二：LIVE正賽期間（非刀局），保護補位機制，但鎖死場上選手】
         byte playerTeam = player.TeamNum;
 
-        // 情況 A：如果你目前是「觀 spectator (1)」或「剛連線未分配 (0)」
+        // 情況 A：如果你目前是「觀戰者 (1)」或「剛連線未分配 (0)」
         // 允許你自由選擇隊伍 (包含點選自動選擇 0、加入 T 2、加入 CT 3) 來補位！
         if (playerTeam == 0 || playerTeam == 1)
         {
@@ -591,47 +531,9 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
            RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
     // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
-    // 【.NET 10 升級】：改用 ReadOnlySpan 進行零垃圾 (0 GC) 切片與比對，保留原本邏輯
-    ReadOnlySpan<char> originalMessageSpan = @event.Text.AsSpan().Trim();
-    var message = originalMessageSpan.ToString().ToLower();
+    var originalMessage = @event.Text.Trim();
+    var message = originalMessage.ToLower();
     int currentEventUserId = @event.Userid; 
-
-   // ▼▼▼ 新增：廣告防禦門神 (文字與名稱雙重黑洞吞噬 + SteamID 絕殺) ▼▼▼
-    if (adBlacklist.Length > 0)
-    {
-        // 1. 先把發話者抓出來，確保他不是沒有實體的「幽靈 (Console)」
-        var badPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
-        if (badPlayer is { IsValid: true }) 
-        {
-            bool isSpam = false;
-            string playerName = badPlayer.PlayerName ?? "";
-
-            foreach (var ad in adBlacklist)
-            {
-                // 2. 【終極絕殺】：檢查「他說的話(message)」或「他的名字(playerName)」！
-                if (message.Contains(ad, StringComparison.OrdinalIgnoreCase) || 
-                    playerName.Contains(ad, StringComparison.OrdinalIgnoreCase))
-                {
-                    isSpam = true;
-                    break;
-                }
-            }
-
-            if (isSpam)
-            {
-                Log($"[廣告防禦] 攔截到洗頻或廣告名稱，直接吞掉: {playerName} 說了 {message}");
-                
-                // 3. 【絕對擊殺】：直接使用 SteamID 進行封鎖，避免 UserId 解析失敗
-                Server.ExecuteCommand($"css_addban {badPlayer.SteamID} 0 \"廣告洗頻\"");
-                
-                // 補上一腳原生踢除，雙重保險確保牠瞬間消失
-                Server.ExecuteCommand($"kickid {badPlayer.UserId} \"Ban_Ads\"");
-                
-                return HookResult.Handled; 
-            }
-        }
-    }
-    // ▲▲▲ 新增結束 ▲▲▲
 
     // =========================================================================
     // 【跨外掛防禦網】：針對 SLAYER_PanoramaVote 的 RTV 與 Vote 指令攔截
@@ -704,7 +606,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     }
 
     // 2. 如果倒數已經在跑，擋掉所有一般發話（維持你原本完美的發話管理）
-    if (isCountdownActive && !originalMessageSpan.ToString().Contains("倒數：")) {
+    if (isCountdownActive && !originalMessage.Contains("倒數：")) {
         return HookResult.Handled;
     }
     // --- [第一步結束] ---
@@ -713,18 +615,11 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     int index = currentEventUserId + 1; // 這裡也同步改用安全變數
     var playerUserId = NativeAPI.GetUseridFromIndex(index);
 
-    // 【優化替換 2】：移除 .Split 與 string.Join，改用內建 Span 高效能切片完美無損分割
-    int spaceIndex = originalMessageSpan.IndexOf(' ');
-    string messageCommand;
-    string messageCommandArg;
-
-    if (spaceIndex == -1) {
-        messageCommand = originalMessageSpan.ToString();
-        messageCommandArg = string.Empty;
-    } else {
-        messageCommand = originalMessageSpan[..spaceIndex].ToString();
-        messageCommandArg = originalMessageSpan[(spaceIndex + 1)..].ToString();
-    }
+    var parts = originalMessage.Split(' ');
+    var messageCommand = parts.Length > 0 ? parts[0] : string.Empty;
+    
+    // 【優化替換 2】：移除 LINQ .Skip(1)，改用內建高效能陣列組合
+    var messageCommandArg = parts.Length > 1 ? string.Join(" ", parts, 1, parts.Length - 1) : string.Empty;
 
     CCSPlayerController? player = null;
     if (playerData.TryGetValue(playerUserId, out CCSPlayerController? value)) {
@@ -737,8 +632,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     }
 
     // Handling player commands
-    if (commandActions != null && commandActions.TryGetValue(message, out var action)) {
-        action(player, null);
+    if (commandActions.ContainsKey(message)) {
+        commandActions[message](player, null);
     }
 
     if (message.StartsWith(".map"))
@@ -901,14 +796,15 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         public int GetReadyPlayersCount()
         {
             int count = 0;
-            // 【.NET 10 升級】：字典解構，0二次查詢成本
-            foreach (var (key, value) in playerReadyStatus)
+            foreach (var entry in playerReadyStatus)
             {
-                if (value == true)
+                if (entry.Value == true)
                 {
-                    var player = Utilities.GetPlayerFromUserid(key);
+                    var player = Utilities.GetPlayerFromUserid(entry.Key);
                     // 超強防護網：必須「IsValid 且在線 (PlayerConnected) 且在 T/CT 隊上」才算人數
-                    if (player is { IsValid: true, Connected: PlayerConnectedState.Connected } && 
+                    if (player != null && 
+                        player.IsValid && 
+                        player.Connected == PlayerConnectedState.Connected && 
                         (player.TeamNum == 2 || player.TeamNum == 3))
                     {
                         count++;
@@ -929,7 +825,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 targetPlayer = Utilities.GetPlayerFromSlot(slot);
             }
 
-            if (targetPlayer is not { IsValid: true }) return HookResult.Continue;
+            if (targetPlayer == null || !targetPlayer.IsValid) return HookResult.Continue;
 
             // 1. 【新增防護】：如果是 BO1/BO3 正式比賽，無論如何全面禁止投票！
             if (isMatchSetup)
@@ -991,7 +887,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) 
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
+            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
             {
                 p.PrintToCenter("已 開 啟 隨 機 隊 伍 分 配");
             }
@@ -1031,7 +927,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
+            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
             {
                 p.PrintToCenter("已 取 消 隨 機 隊 伍 分 配");
             }
@@ -1055,17 +951,17 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
         // =========================================================================
        public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
 {
-    int savedUserId = (readyPlayer is { IsValid: true }) ? (int)(readyPlayer.UserId ?? -1) : -1;
+    int savedUserId = (readyPlayer != null && readyPlayer.IsValid) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
     lock (_shuffleLock)
     {
         if (!isShufflePending) return;
 
-        // 【優化替換 3】：移除 LINQ .Where().ToList()，改用集合表達式 []
-        List<CCSPlayerController> activePlayers = [];
+        // 【優化替換 3】：移除 LINQ .Where().ToList()，改用高效能 foreach 手動收集
+        List<CCSPlayerController> activePlayers = new List<CCSPlayerController>();
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
+            if (p != null && p.IsValid && !p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
             {
                 activePlayers.Add(p);
             }
@@ -1077,7 +973,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
             isShufflePending = false; 
             
             var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
-            if (originalPlayer is { IsValid: true }) OnPlayerReady(originalPlayer, null);
+            if (originalPlayer != null && originalPlayer.IsValid) OnPlayerReady(originalPlayer, null);
             return;
         }
 
@@ -1096,7 +992,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
         for (int i = 0; i < activePlayers.Count; i++) 
         {
             var player = activePlayers[i];
-            if (player is not { IsValid: true }) continue;
+            if (player == null || !player.IsValid) continue;
 
             // 1. 直接宣告為標準的 CsTeam 列舉型態，絕不使用 int 混淆
             CsTeam targetTeam = (i < half) ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
@@ -1130,7 +1026,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         public void OnHpCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player is { IsValid: true })
+            if (player != null && player.IsValid)
             {
                 // 核心防護：如果是 BO1/BO3 正式比賽，直接安靜結束，不顯示任何訊息
                 if (isMatchSetup) return;
@@ -1140,64 +1036,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
 
                 // 呼叫我們在 DamageInfo_2.cs 寫好的單人查詢邏輯
                 ShowSinglePlayerDamage(player);
-            }
-        }
-
-        // =========================================================================
-        // 載入廣告黑名單 (Ad Blacklist Loader)
-        // =========================================================================
-        private void LoadAdBlacklist()
-        {
-            string fileName = "MatchZy/ad_blacklist.txt";
-            string filePath = Path.Join(Server.GameDirectory + "/csgo/cfg", fileName);
-
-            if (File.Exists(filePath))
-            {
-                try
-                {
-                    var lines = File.ReadAllLines(filePath);
-                    List<string> validLines = [];
-                    foreach (var line in lines)
-                    {
-                        // 【.NET 10 升級】：Span 零分配切片與驗證
-                        var trimmed = line.AsSpan().Trim();
-                        if (!trimmed.IsEmpty && !trimmed.StartsWith("//"))
-                        {
-                            validLines.Add(trimmed.ToString());
-                        }
-                    }
-                    // 【.NET 10 升級】：集合表達式轉換
-                    adBlacklist = [.. validLines];
-                    Log($"[LoadAdBlacklist] 成功載入 {adBlacklist.Length} 筆廣告黑名單。");
-                }
-                catch (Exception e)
-                {
-                    Log($"[LoadAdBlacklist FATAL] 讀取黑名單時發生錯誤: {e.Message}");
-                }
-            }
-            else
-            {
-                Log("[LoadAdBlacklist] 黑名單檔案不存在，建立預設檔案。");
-                try
-                {
-                    string? directoryPath = Path.GetDirectoryName(filePath);
-                    if (directoryPath is not null && !Directory.Exists(directoryPath))
-                    {
-                        Directory.CreateDirectory(directoryPath);
-                    }
-                    // 預設寫入常見廣告，加上教學註解
-                    File.WriteAllLines(filePath, [
-                        "// 在下方加入要封鎖的廣告網址或關鍵字 (一行一個)", 
-                        "// 系統會自動忽略 // 開頭的註解與空白行",
-                        "cs2commends", 
-                        "cs2commends.com"
-                    ]);
-                    adBlacklist = ["cs2commends", "cs2commends.com"];
-                }
-                catch (Exception e)
-                {
-                    Log($"[LoadAdBlacklist FATAL] 建立黑名單檔案時發生錯誤: {e.Message}");
-                }
             }
         }
 
