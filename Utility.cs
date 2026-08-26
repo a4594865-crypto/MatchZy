@@ -768,7 +768,7 @@ namespace MatchZy
             }
         }
 
-        private void HandleMatchStart()
+private void HandleMatchStart()
         {
             isPractice = false;
             isDryRun = false;
@@ -779,42 +779,84 @@ namespace MatchZy
                 pendingRestoreFileName = "";
                 return;
             }
+
+            // ==========================================
+            // 🛡️ 內嵌過濾雷達 🛡️
+            // ==========================================
+            bool HasValidChar(ReadOnlySpan<char> nameSpan)
+            {
+                if (nameSpan.IsEmpty) return false;
+                foreach (char c in nameSpan)
+                {
+                    if (char.IsAsciiLetterOrDigit(c) || c is >= '\u4E00' and <= '\u9FA5') return true;
+                }
+                return false;
+            }
+
+            // ==========================================
+            // CT 陣營自動抓名 (加上防護罩)
+            // ==========================================
             if (matchzyTeam1.teamName == "COUNTER-TERRORISTS")
             {
                 teamSides[matchzyTeam1] = "CT";
                 reverseTeamSides["CT"] = matchzyTeam1;
+                
+                string foundName = "";
+                
                 foreach (var (key, player) in playerData)
                 {
-                    if (player.TeamNum == 3)
+                    // 找到了名字正常的 CT 玩家！
+                    if (player.TeamNum == 3 && !string.IsNullOrWhiteSpace(player.PlayerName) && HasValidChar(player.PlayerName.AsSpan()))
                     {
-                        matchzyTeam1.teamName = "team_" + RemoveSpecialCharacters(player.PlayerName.Replace(" ", "_"));
-                        foreach (var coach in matchzyTeam1.coach) {
-                            coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
-                        }
+                        foundName = player.PlayerName;
                         break;
                     }
                 }
+                
+                // 極端防護：整隊都是符號哥
+                if (string.IsNullOrWhiteSpace(foundName)) foundName = "CTs";
+                
+                matchzyTeam1.teamName = "Team " + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
+                
+                foreach (var coach in matchzyTeam1.coach) {
+                    coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
+                }
             }
 
+            // ==========================================
+            // T 陣營自動抓名 (加上防護罩)
+            // ==========================================
             if (matchzyTeam2.teamName == "TERRORISTS")
             {
                 teamSides[matchzyTeam2] = "TERRORIST";
                 reverseTeamSides["TERRORIST"] = matchzyTeam2;
+                
+                string foundName = "";
+                
                 foreach (var (key, player) in playerData)
                 {
-                    if (player.TeamNum == 2)
+                    // 找到了名字正常的 T 玩家！
+                    if (player.TeamNum == 2 && !string.IsNullOrWhiteSpace(player.PlayerName) && HasValidChar(player.PlayerName.AsSpan()))
                     {
-                        matchzyTeam2.teamName = "team_" + RemoveSpecialCharacters(player.PlayerName.Replace(" ", "_"));
-                        foreach (var coach in matchzyTeam2.coach) {
-                            coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
-                        }
+                        foundName = player.PlayerName;
                         break;
                     }
                 }
+                
+                if (string.IsNullOrWhiteSpace(foundName)) foundName = "TERRORISTS";
+                
+                matchzyTeam2.teamName = "Team " + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
+                
+                foreach (var coach in matchzyTeam2.coach) {
+                    coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
+                }
             }
 
-            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
+            // ==========================================
+            // 原本的後續邏輯保持不變
+            // ==========================================
+            Server.ExecuteCommand($"mp_teamname_1 \"{reverseTeamSides["CT"].teamName}\"");
+            Server.ExecuteCommand($"mp_teamname_2 \"{reverseTeamSides["TERRORIST"].teamName}\"");
 
             HandleClanTags();
 
