@@ -20,7 +20,7 @@ namespace MatchZy
             CCSPlayerController? player = @event.Userid;
             if (!IsPlayerValid(player)) return HookResult.Continue;
 
-            int userId = (int)player!.UserId!.Value;
+            int userId = (int)player.UserId!.Value;
 
             // --- 核心修正：觀戰者不應佔用「已準備」名額 ---
           if (@event.Team == 1) // 進入觀戰
