@@ -105,19 +105,16 @@ namespace MatchZy
         // SQLite/MySQL Database 
         private Database database = new();
     
-        public override void Load(bool hotReload) {
+       public override void Load(bool hotReload) {
             
             LoadAdmins();
 
-            // 【效能優化 1】：改用背景執行緒非同步初始化資料庫，完全釋放開機主執行緒
-            string moduleDir = ModuleDirectory;
-            _ = Task.Run(() => {
-                try {
-                    database.InitializeDatabase(moduleDir);
-                } catch (Exception ex) {
-                    Log($"[Load] Database init failed: {ex.Message}");
-                }
-            });
+            // 恢復為主執行緒同步初始化（配合 CS2 引擎的安全限制，避免執行緒報錯）
+            try {
+                database.InitializeDatabase(ModuleDirectory);
+            } catch (Exception ex) {
+                Log($"[Load] Database init failed: {ex.Message}");
+            }
 
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
