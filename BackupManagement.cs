@@ -5,7 +5,10 @@ using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Timers;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-
+using System.IO;
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace MatchZy
 {
@@ -23,6 +26,7 @@ namespace MatchZy
         public bool isRoundRestorePending = false;
         public string pendingRestoreFileName = "";
 
+        // 【.NET 10】: 使用 Target-typed new
         public Dictionary<string, bool> stopData = new()
         {
             { "ct", false },
@@ -35,9 +39,13 @@ namespace MatchZy
 
         public void SetupRoundBackupFile()
         {
-            // ▼ 修改此處：套用 txtBackupPrefix，讓 CS2 底層引擎生成對應前綴的 TXT
-            string backupFilePrefix = $"{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}";
-            Server.ExecuteCommand($"mp_backup_round_file {backupFilePrefix}");
+            // 建立並確認 MatchZyTXT 資料夾
+            string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyTXT");
+            if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+
+            // 使用絕對路徑強制寫入 MatchZyTXT (將 \ 轉 / 確保引擎讀取正常)
+            string backupFilePrefix = Path.Combine(backupDir, $"{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}").Replace("\\", "/");
+            Server.ExecuteCommand($"mp_backup_round_file \"{backupFilePrefix}\"");
         }
 
         // ▼ 新增指令：用來讀取 cfg 設定並更改 TXT 前綴名稱
@@ -94,7 +102,6 @@ namespace MatchZy
                     {
                         stopData["t"] = true;
                     }
-
                 }
                 else if (player.TeamNum == 3)
                 {
@@ -109,6 +116,7 @@ namespace MatchZy
                 {
                     return;
                 }
+                
                 if (stopData["t"] && stopData["ct"])
                 {
                     if (lastMatchZyBackupFileName != "")
@@ -119,7 +127,6 @@ namespace MatchZy
                     {
                         Log($"[OnStopCommand] lastMatchZyBackupFileName not found, unable to restore round!");
                     }
-
                 }
                 else
                 {
@@ -177,33 +184,24 @@ namespace MatchZy
 
         public static string ExtractJsonFileName(string input)
         {
-            if (string.IsNullOrEmpty(input))
-            {
-                return string.Empty;
-            }
+            if (string.IsNullOrEmpty(input)) return string.Empty;
 
-            if (!input.Contains('\\') && !input.Contains('/'))
-            {
-                return input;
-            }
+            if (!input.Contains('\\') && !input.Contains('/')) return input;
 
             int jsonIndex = input.IndexOf(".json", StringComparison.OrdinalIgnoreCase);
             if (jsonIndex != -1)
             {
-                int startIndex = input.LastIndexOfAny(new[] { '\\', '/' }, jsonIndex);
+                int startIndex = input.LastIndexOfAny(['\\', '/'], jsonIndex);
 
                 if (startIndex >= 0)
                 {
                     int length = jsonIndex - startIndex + 5;
-
                     if (length > 0 && startIndex + 1 + length <= input.Length)
                     {
-                        string fileName = input.Substring(startIndex + 1, length);
-                        return fileName;
+                        return input.Substring(startIndex + 1, length);
                     }
                 }
             }
-
             return string.Empty;
         }
 
@@ -224,6 +222,7 @@ namespace MatchZy
                 ReplyToUserCommand(player, Localizer["matchzy.backup.restoretacticaltimeout"]);
                 return;
             }
+            
             string backupFolder = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup");
             string filePath = Path.Combine(backupFolder, fileName);
 
@@ -239,7 +238,7 @@ namespace MatchZy
 
             gameRules.CTTimeOutActive = gameRules.TerroristTimeOutActive = false;
 
-            Dictionary<string, string> backupData = new();
+            Dictionary<string, string> backupData = [];
             try
             {
                 using (StreamReader fileReader = File.OpenText(filePath))
@@ -247,15 +246,8 @@ namespace MatchZy
                     string jsonContent = fileReader.ReadToEnd();
                     if (!string.IsNullOrEmpty(jsonContent))
                     {
-                        JsonSerializerOptions options = new()
-                        {
-                            AllowTrailingCommas = true,
-                        };
-                        backupData = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? new Dictionary<string, string>();
-                    }
-                    else
-                    {
-                        backupData = new();
+                        JsonSerializerOptions options = new() { AllowTrailingCommas = true };
+                        backupData = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? [];
                     }
                 }
 
@@ -284,7 +276,6 @@ namespace MatchZy
                 }
                 if (backupData.TryGetValue("team1_side", out var team1Side))
                 {
-
                     if (team1Side == "CT")
                     {
                         teamSides[matchzyTeam1] = "CT";
@@ -329,20 +320,25 @@ namespace MatchZy
                 {
                     gameRules.TerroristTimeOuts = int.Parse(terroristTimeouts);
                 }
-
                 if (backupData.TryGetValue("CTTimeOuts", out var ctTimeouts))
                 {
                     gameRules.CTTimeOuts = int.Parse(ctTimeouts);
                 }
+                
                 if (backupData.TryGetValue("valve_backup", out var valveBackup))
                 {
                     string tempFileName = fileName.Replace(".json", ".txt");
                     if (backupData.TryGetValue("round", out var roundNumber))
                     {
-                        // ▼ 修改此處：套用 txtBackupPrefix 作為讀取檔名前綴
+                        // 讀取時套用 txtBackupPrefix
                         tempFileName = $"{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{roundNumber}.txt";
                     }
-                    string tempFilePath = Path.Combine(Server.GameDirectory, "csgo", tempFileName);
+                    
+                    // 確保去 MatchZyTXT 裡面找檔案
+                    string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyTXT");
+                    if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+                    
+                    string tempFilePath = Path.Combine(backupDir, tempFileName);
 
                     if (!File.Exists(tempFilePath))
                     {
@@ -355,9 +351,9 @@ namespace MatchZy
                         SetupLiveFlagsAndCfg();
                     }
                     AddTimer(restoreTimer, () => {
-                        string fileName = Path.GetFileName(tempFilePath);
-
-                        Server.ExecuteCommand($"mp_backup_restore_load_file {fileName}");
+                        // 使用絕對路徑呼叫 CS2 底層引擎去 MatchZyTXT 內讀取
+                        string absoluteLoadPath = tempFilePath.Replace("\\", "/");
+                        Server.ExecuteCommand($"mp_backup_restore_load_file \"{absoluteLoadPath}\"");
                         StartDemoRecording();
                     });
                 }
@@ -380,80 +376,126 @@ namespace MatchZy
             }
         }
 
+        // ======================================================================================
+        // 【核心優化】: 非同步卸載 I/O，主執行緒 0 延遲，徹底消滅伺服器回合結束時的抖動 (Micro-stutter)
+        // ======================================================================================
         public void CreateMatchZyRoundDataBackup()
         {
-            Log($"[CreateMatchZyRoundDataBackup] isRoundRestoring: {isRoundRestoring} isMatchLive: {isMatchLive}");
             if (!isMatchLive || isRoundRestoring) return;
+
             try
             {
+                // 1. [主執行緒] 瞬間抓取所有遊戲狀態快照 (Snapshot)
+                // 絕對不能在 Task.Run 裡面呼叫 CS2 引擎 API，否則會引發 ThreadStateException
                 (int t1score, int t2score) = GetTeamsScore();
                 int roundNumber = t1score + t2score;
                 string round = roundNumber.ToString("D2");
-                
-                // JSON維持不變
-                string matchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.json";
-                string filePath = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup", matchZyBackupFileName);
 
-                string? directoryPath = Path.GetDirectoryName(filePath);
-                if (directoryPath != null && !Directory.Exists(directoryPath))
+                long currentMatchId = liveMatchId;
+                int currentMapNumber = matchConfig.CurrentMapNumber;
+                string currentMapName = Server.MapName;
+                
+                string t1Name = matchzyTeam1.teamName;
+                string t1Flag = matchzyTeam1.teamFlag;
+                string t1Tag = matchzyTeam1.teamTag;
+                string t1Side = teamSides[matchzyTeam1];
+                int t1SeriesScore = matchzyTeam1.seriesScore;
+
+                string t2Name = matchzyTeam2.teamName;
+                string t2Flag = matchzyTeam2.teamFlag;
+                string t2Tag = matchzyTeam2.teamTag;
+                string t2Side = teamSides[matchzyTeam2];
+                int t2SeriesScore = matchzyTeam2.seriesScore;
+
+                // 移除危險的 .First()，改用安全的遍歷與模式匹配
+                int tTimeOuts = 0, ctTimeOuts = 0;
+                foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
                 {
-                    Directory.CreateDirectory(directoryPath);
+                    if (entity is { GameRules: not null } proxy)
+                    {
+                        tTimeOuts = proxy.GameRules.TerroristTimeOuts;
+                        ctTimeOuts = proxy.GameRules.CTTimeOuts;
+                        break;
+                    }
                 }
 
-                var gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").First().GameRules!;
-                
-                // ▼ 修改此處：套用 txtBackupPrefix 作為生成檔名前綴
-                string lastBackupFilePath = $"{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.txt"; 
-                
-                bool lastBackupExists = File.Exists(Path.Combine(Server.GameDirectory, "csgo", lastBackupFilePath));
-                lastBackupFilePath = Path.Combine(Server.GameDirectory, "csgo", lastBackupFilePath);
+                bool isLoaded = isMatchSetup;
+                string team1ConfigStr = GetTeamConfig("team1");
+                string team2ConfigStr = GetTeamConfig("team2");
+                string matchConfigStr = GetMatchConfig();
 
-                string valveBackupContent = lastBackupExists ? File.ReadAllText(lastBackupFilePath) : "";
+                // 準備寫入路徑
+                string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyTXT");
+                string lastBackupFileName = $"{txtBackupPrefix}_{currentMatchId}_{currentMapNumber}_round{round}.txt";
+                string lastBackupFilePath = Path.Combine(backupDir, lastBackupFileName);
 
-                Dictionary<string, string> roundData = new()
+                string jsonBackupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup");
+                string matchZyBackupFileName = $"matchzy_{currentMatchId}_{currentMapNumber}_round{round}.json";
+                string jsonFilePath = Path.Combine(jsonBackupDir, matchZyBackupFileName);
+
+                string bUploadURL = backupUploadURL;
+                string bUploadHeaderKey = backupUploadHeaderKey;
+                string bUploadHeaderValue = backupUploadHeaderValue;
+
+                // 2. [背景執行緒] 將耗時的硬碟 I/O 與 JSON 序列化交由底層 ThreadPool 處理
+                Task.Run(async () =>
                 {
-                    { "matchid", liveMatchId.ToString() },
-                    { "timestamp", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") },
-                    { "map_name", Server.MapName },
-                    { "mapnumber", matchConfig.CurrentMapNumber.ToString() },
-                    { "round", round },
-                    { "team1", GetTeamConfig("team1") },
-                    { "team2", GetTeamConfig("team2") },
-                    { "team1_name", matchzyTeam1.teamName },
-                    { "team1_flag", matchzyTeam1.teamFlag },
-                    { "team1_tag", matchzyTeam1.teamTag },
-                    { "team1_side", teamSides[matchzyTeam1] },
-                    { "team2_name", matchzyTeam2.teamName },
-                    { "team2_flag", matchzyTeam2.teamFlag },
-                    { "team2_tag", matchzyTeam2.teamTag },
-                    { "team2_side", teamSides[matchzyTeam2] },
-                    { "team1_score", t1score.ToString() },
-                    { "team2_score", t2score.ToString() },
-                    { "team1_series_score", matchzyTeam1.seriesScore.ToString() },
-                    { "team2_series_score", matchzyTeam2.seriesScore.ToString() },
-                    { "TerroristTimeOuts", gameRules.TerroristTimeOuts.ToString() },
-                    { "CTTimeOuts", gameRules.CTTimeOuts.ToString() },
-                    { "match_loaded", isMatchSetup.ToString() },
-                    { "match_config", GetMatchConfig() },
-                    { "valve_backup", valveBackupContent }
-                };
-                
-                JsonSerializerOptions options = new()
-                {
-                    WriteIndented = true,
-                };
-                string defaultJson = JsonSerializer.Serialize(roundData, options);
+                    try
+                    {
+                        if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+                        if (!Directory.Exists(jsonBackupDir)) Directory.CreateDirectory(jsonBackupDir);
 
-                File.WriteAllText(filePath, defaultJson);
+                        // 使用 Async 非同步讀取 CS2 引擎生成的 TXT 檔
+                        string valveBackupContent = File.Exists(lastBackupFilePath) 
+                            ? await File.ReadAllTextAsync(lastBackupFilePath) 
+                            : "";
 
-                Task.Run(async () => {
-                    await UploadFileAsync(filePath, backupUploadURL, backupUploadHeaderKey, backupUploadHeaderValue, liveMatchId, matchConfig.CurrentMapNumber, roundNumber);
+                        Dictionary<string, string> roundData = new()
+                        {
+                            { "matchid", currentMatchId.ToString() },
+                            { "timestamp", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") },
+                            { "map_name", currentMapName },
+                            { "mapnumber", currentMapNumber.ToString() },
+                            { "round", round },
+                            { "team1", team1ConfigStr },
+                            { "team2", team2ConfigStr },
+                            { "team1_name", t1Name },
+                            { "team1_flag", t1Flag },
+                            { "team1_tag", t1Tag },
+                            { "team1_side", t1Side },
+                            { "team2_name", t2Name },
+                            { "team2_flag", t2Flag },
+                            { "team2_tag", t2Tag },
+                            { "team2_side", t2Side },
+                            { "team1_score", t1score.ToString() },
+                            { "team2_score", t2score.ToString() },
+                            { "team1_series_score", t1SeriesScore.ToString() },
+                            { "team2_series_score", t2SeriesScore.ToString() },
+                            { "TerroristTimeOuts", tTimeOuts.ToString() },
+                            { "CTTimeOuts", ctTimeOuts.ToString() },
+                            { "match_loaded", isLoaded.ToString() },
+                            { "match_config", matchConfigStr },
+                            { "valve_backup", valveBackupContent }
+                        };
+
+                        // 非同步寫入 JSON，徹底解放主執行緒
+                        JsonSerializerOptions options = new() { WriteIndented = true };
+                        string defaultJson = JsonSerializer.Serialize(roundData, options);
+
+                        await File.WriteAllTextAsync(jsonFilePath, defaultJson);
+
+                        // 上傳備份
+                        await UploadFileAsync(jsonFilePath, bUploadURL, bUploadHeaderKey, bUploadHeaderValue, currentMatchId, currentMapNumber, roundNumber);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[CreateMatchZyRoundDataBackup Background Task FATAL] {ex.Message}");
+                    }
                 });
-
             }
             catch (Exception e)
             {
-                Log($"[CreateMatchZyRoundDataBackup FATAL] Error creating the JSON file: {e.Message}");
+                Log($"[CreateMatchZyRoundDataBackup FATAL] Error: {e.Message}");
             }
         }
 
@@ -461,16 +503,14 @@ namespace MatchZy
         {
             string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup");
 
-            if (!Directory.Exists(backupDir))
-            {
-                return [];
-            }
+            // 【.NET 10】: 集合表達式 []
+            if (!Directory.Exists(backupDir)) return [];
 
             var directoryInfo = new DirectoryInfo(backupDir);
             var files = directoryInfo.GetFiles();
 
             var pattern = $"matchzy_{matchID}_";
-            var backups = new List<string>();
+            List<string> backups = []; // 【.NET 10】: 集合表達式 []
 
             foreach (var file in files)
             {
@@ -487,12 +527,9 @@ namespace MatchZy
         public string GetBackupInfo(string filePath)
         {
             string info = "";
-            if (!File.Exists(filePath))
-            {
-                return "";
-            }
+            if (!File.Exists(filePath)) return "";
 
-            Dictionary<string, string> backupData = new();
+            Dictionary<string, string> backupData = []; // 【.NET 10】: 集合表達式 []
             try
             {
                 using (StreamReader fileReader = File.OpenText(filePath))
@@ -504,16 +541,12 @@ namespace MatchZy
                     }
                     else
                     {
-                        JsonSerializerOptions options = new()
-                        {
-                            AllowTrailingCommas = true,
-                        };
-                        backupData = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? new Dictionary<string, string>();
+                        JsonSerializerOptions options = new() { AllowTrailingCommas = true };
+                        backupData = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? [];
                     }
                 }
 
                 info = $"{filePath.Split("/")[^1]} {backupData["timestamp"]} {backupData["team1_name"]} {backupData["team2_name"]} {backupData["map_name"]} {backupData["team1_score"]} {backupData["team2_score"]}";
-
             }
             catch (Exception e)
             {
@@ -546,8 +579,8 @@ namespace MatchZy
                 return;
             }
             
-           var  fileName = ExtractJsonFileName(command.ArgString);
-           RestoreRoundBackup(player, fileName);
+            var fileName = ExtractJsonFileName(command.ArgString);
+            RestoreRoundBackup(player, fileName);
         }
 
         [ConsoleCommand("get5_loadbackup_url", "Loads a backup from the given URL")]
