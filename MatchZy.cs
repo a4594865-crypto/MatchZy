@@ -8,7 +8,7 @@ using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration; 
 using CounterStrikeSharp.API.Modules.Events;
-
+using CounterStrikeSharp.API.Modules.Timers; // 加入計時器模組
 
 namespace MatchZy
 {
@@ -45,6 +45,9 @@ namespace MatchZy
         public int autoStartMode = 1;
         private static readonly object _shuffleLock = new();
         public bool mapReloadRequired = false;
+
+        // ▼▼▼ 準備階段記分板標籤計時器 ▼▼▼
+        public CounterStrikeSharp.API.Modules.Timers.Timer? clanTagTimer = null;
 
         // Pause Data
         public bool isPaused = false;
@@ -294,6 +297,12 @@ namespace MatchZy
                     isCountdownActive = false;
                     matchStarted = false;
 
+                    // ▼▼▼ Clan Tag 修復：斷線重置時同步清除標籤並重啟計時器 ▼▼▼
+                    clanTagTimer?.Kill();
+                    clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+                    ClearReadyClanTags();
+                    // ▲▲▲ ▲▲▲ ▲▲▲
+
                     // 物理重置我們自訂的字典與洗牌預約
                     playerReadyStatus.Clear(); 
                     isShufflePending = false; 
@@ -468,6 +477,11 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         // 核心修正：清理緩存，但不手動指定 CT/T
         ResetTeamDataCaches(); 
 
+        // ▼▼▼ 啟動記分板標籤計時器 ▼▼▼
+        clanTagTimer?.Kill();
+        clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         if (!isMatchSetup) {
             // 一般路人局：自動啟動
             AutoStart();
@@ -599,6 +613,9 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                             // 5. 手動幫他把紀錄寫進去！
                             playerReadyStatus[uid] = true;
 
+                            // ▼▼▼ 瞬間更新記分板標籤，確保最後一人打勾也能無延遲顯示 ▼▼▼
+                            UpdateReadyClanTags();
+
                             // 啟動洗牌與秒開
                             ExecuteShuffleLogic();     
                             
@@ -647,6 +664,13 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // Handling player commands
     if (commandActions != null && commandActions.TryGetValue(message, out var action)) {
         action(player, null);
+
+        // ▼▼▼ 當玩家輸入準備或取消準備時，瞬間同步記分板標籤 ▼▼▼
+        if (message == ".r" || message == ".ready" || message == ".unready" || message == ".notready" || message == ".ur")
+        {
+            UpdateReadyClanTags();
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
     }
 
     if (message.StartsWith(".map"))
@@ -826,6 +850,56 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             return count;
         }
 
+        // ▼▼▼ ClanTags 記分板準備標籤的專用函數 ▼▼▼
+        private void UpdateReadyClanTags()
+        {
+            // 如果不在準備階段或是已經倒數開賽，就不更新
+            if (!readyAvailable || matchStarted || isCountdownActive) return;
+
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
+                    continue;
+
+                // 防呆：如果是在觀戰區(1)或是未分配陣營(0)，一律清空標籤
+                if (p.TeamNum != 2 && p.TeamNum != 3)
+                {
+                    if (p.Clan == "✔" || p.Clan == "✘")
+                    {
+                        p.Clan = "";
+                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                    }
+                    continue;
+                }
+
+                int uid = p.UserId.Value;
+                bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
+
+                string targetTag = isReady ? "✔" : "✘";
+                if (p.Clan != targetTag)
+                {
+                    p.Clan = targetTag;
+                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                }
+            }
+        }
+
+        private void ClearReadyClanTags()
+        {
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
+                    continue;
+
+                if (p.Clan == "✔" || p.Clan == "✘")
+                {
+                    p.Clan = "";
+                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                }
+            }
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         // 專門用來擋控制台跨外掛投票的共用函數
         private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
         {
@@ -894,7 +968,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) 
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
         // 1. 真人管理員手動輸入 ➔ 聊天室廣播給大家聽
-        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 自 動 洗 牌");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
