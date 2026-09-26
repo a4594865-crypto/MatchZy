@@ -805,7 +805,7 @@ namespace MatchZy
                 // 防呆：如果是在觀戰區(1)或是未分配陣營(0)，一律清空標籤
                 if (p.TeamNum != 2 && p.TeamNum != 3)
                 {
-                    if (p.Clan == "[已準備]" || p.Clan == "[未準備]")
+                    if (p.Clan == "✔" || p.Clan == "✘")
                     {
                         p.Clan = "";
                         Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); // 強制瞬間同步給所有客戶端
@@ -816,7 +816,7 @@ namespace MatchZy
                 int uid = p.UserId.Value;
                 bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
 
-                string targetTag = isReady ? "[已準備]" : "[未準備]";
+                string targetTag = isReady ? "✔" : "✘";
                 if (p.Clan != targetTag)
                 {
                     p.Clan = targetTag;
@@ -832,7 +832,7 @@ namespace MatchZy
                 if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
                     continue;
 
-                if (p.Clan == "[已準備]" || p.Clan == "[未準備]")
+                if (p.Clan == "✔" || p.Clan == "✘")
                 {
                     p.Clan = "";
                     Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); // 強制瞬間同步給所有客戶端
