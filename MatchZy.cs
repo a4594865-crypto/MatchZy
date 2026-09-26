@@ -864,7 +864,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 // 防呆：如果是在觀戰區(1)或是未分配陣營(0)，一律清空標籤
                 if (p.TeamNum != 2 && p.TeamNum != 3)
                 {
-                    if (p.Clan == "✔" || p.Clan == "✘")
+                    if (p.Clan == "[Ｏ]" || p.Clan == "[Ｘ]")
                     {
                         p.Clan = "";
                         Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
@@ -875,7 +875,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 int uid = p.UserId.Value;
                 bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
 
-                string targetTag = isReady ? "✔" : "✘";
+                string targetTag = isReady ? "[Ｏ]" : "[Ｘ]";
                 if (p.Clan != targetTag)
                 {
                     p.Clan = targetTag;
@@ -891,7 +891,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
                     continue;
 
-                if (p.Clan == "✔" || p.Clan == "✘")
+                if (p.Clan == "[Ｏ]" || p.Clan == "[Ｘ]")
                 {
                     p.Clan = "";
                     Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
