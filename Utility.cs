@@ -378,9 +378,13 @@ namespace MatchZy
             SetupLiveFlagsAndCfg();
             StartDemoRecording();
 
+           // 建立並確認 MatchZyTXT 資料夾是否存在
+            string backupDir = Path.Combine(Server.GameDirectory, "MatchZyTXT");
+            if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+
             // Storing 0-0 score backup file as lastBackupFileName, so that .stop functions properly in first round.
-            lastBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.txt";
-            lastMatchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.json";
+            lastBackupFileName = Path.Combine(backupDir, $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.txt");
+            lastMatchZyBackupFileName = Path.Combine(backupDir, $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round00.json");
 
             // This is to reload the map once it is over so that all flags are reset accordingly
             Server.ExecuteCommand("mp_match_end_restart true");
@@ -1136,9 +1140,13 @@ private void HandleMatchStart()
                         await database.UpdateMapStatsAsync(matchId, currentMapNumber, t1score, t2score);
                     });
 
+                    // 建立並確認 MatchZyTXT 資料夾是否存在
+                    string backupDir = Path.Combine(Server.GameDirectory, "MatchZyTXT");
+                    if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+
                     string round = GetRoundNumer().ToString("D2");
-                    lastBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.txt";
-                    lastMatchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.json";
+                    lastBackupFileName = Path.Combine(backupDir, $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.txt");
+                    lastMatchZyBackupFileName = Path.Combine(backupDir, $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.json");
                     Log($"[HandlePostRoundEndEvent] Setting lastBackupFileName to {lastBackupFileName} and lastMatchZyBackupFileName to {lastMatchZyBackupFileName}");
 
                     // One of the team did not use .stop command hence display the proper message after the round has ended.
