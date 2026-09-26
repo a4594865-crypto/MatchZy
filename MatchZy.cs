@@ -11,6 +11,7 @@ using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration; 
 using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Modules.Cvars;
+using CounterStrikeSharp.API.Modules.Timers;
 
 namespace MatchZy
 {
@@ -793,7 +794,7 @@ namespace MatchZy
             return count;
         }
 
-        // ▼▼▼ 準備標籤的函式 ▼▼▼
+       // ▼▼▼ 準備標籤的函式 ▼▼▼
         private void UpdateReadyClanTags()
         {
             // 如果不在準備階段或是已經倒數開賽，就不更新
@@ -807,9 +808,10 @@ namespace MatchZy
                 // 防呆：如果是在觀戰區(1)或是未分配陣營(0)，一律清空標籤
                 if (p.TeamNum != 2 && p.TeamNum != 3)
                 {
-                    if (p.ClanTag == "[已準備]" || p.ClanTag == "[未準備]")
+                    if (p.Clan == "[已準備]" || p.Clan == "[未準備]")
                     {
-                        p.ClanTag = "";
+                        p.Clan = "";
+                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); // 強制瞬間同步給所有客戶端
                     }
                     continue;
                 }
@@ -818,9 +820,10 @@ namespace MatchZy
                 bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
 
                 string targetTag = isReady ? "[已準備]" : "[未準備]";
-                if (p.ClanTag != targetTag)
+                if (p.Clan != targetTag)
                 {
-                    p.ClanTag = targetTag;
+                    p.Clan = targetTag;
+                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); // 強制瞬間同步給所有客戶端
                 }
             }
         }
@@ -832,9 +835,10 @@ namespace MatchZy
                 if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
                     continue;
 
-                if (p.ClanTag == "[已準備]" || p.ClanTag == "[未準備]")
+                if (p.Clan == "[已準備]" || p.Clan == "[未準備]")
                 {
-                    p.ClanTag = "";
+                    p.Clan = "";
+                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); // 強制瞬間同步給所有客戶端
                 }
             }
         }
