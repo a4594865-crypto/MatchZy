@@ -45,7 +45,10 @@ namespace MatchZy
         public int autoStartMode = 1;
         private static readonly object _shuffleLock = new();
         public bool mapReloadRequired = false;
-
+        // ▼▼▼ 快取常用的 ConVar 參照 ▼▼▼
+        private ConVar? _cvTvEnable = null;
+        private ConVar? _cvMatchRestartDelay = null;
+        // ▲▲▲ ▲▲▲ ▲▲▲
         // Pause Data
         public bool isPaused = false;
         // 【.NET 10 升級】：使用 Target-typed new
@@ -96,12 +99,24 @@ namespace MatchZy
     
         public override void Load(bool hotReload) {
             
-            LoadAdmins();
+        LoadAdmins();
 
-            database.InitializeDatabase(ModuleDirectory);
+    // 【效能優化 1】：改用背景執行緒非同步初始化資料庫，完全釋放開機主執行緒
+    string moduleDir = ModuleDirectory;
+    _ = Task.Run(() => {
+        try {
+            database.InitializeDatabase(moduleDir);
+        } catch (Exception ex) {
+            Log($"[Load] Database init failed: {ex.Message}");
+        }
+    });
 
-            // This sets default config ConVars
-            Server.ExecuteCommand("execifexists MatchZy/config.cfg");
+    // This sets default config ConVars
+    Server.ExecuteCommand("execifexists MatchZy/config.cfg");
+
+    // 【效能優化 2】：在開機時快取常用的 ConVar 參照
+    _cvTvEnable = ConVar.Find("tv_enable");
+    _cvMatchRestartDelay = ConVar.Find("mp_match_restart_delay");
 
             if (!hotReload) {
                 AutoStart();
