@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;                       
 using System.Collections.Frozen;
 using System.IO;
+using System.Threading.Tasks;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -9,6 +10,7 @@ using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration; 
 using CounterStrikeSharp.API.Modules.Events;
+using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
 
 namespace MatchZy
@@ -46,6 +48,11 @@ namespace MatchZy
         public int autoStartMode = 1;
         private static readonly object _shuffleLock = new();
         public bool mapReloadRequired = false;
+        
+        // ▼▼▼ 快取常用的 ConVar 參照 ▼▼▼
+        private ConVar? _cvTvEnable = null;
+        private ConVar? _cvMatchRestartDelay = null;
+        // ▲▲▲ ▲▲▲ ▲▲▲
         
         // 準備階段記分板標籤計時器
         public CounterStrikeSharp.API.Modules.Timers.Timer? clanTagTimer = null;
@@ -102,15 +109,22 @@ namespace MatchZy
             
             LoadAdmins();
 
-            // 恢復原本的同步初始化寫法（已移除 Task.Run 背景非同步與 ConVar 快取）
-            database.InitializeDatabase(ModuleDirectory);
-
-            // 啟動記分板標籤計時器
-            clanTagTimer?.Kill();
-            clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+            // 【效能優化 1】：改用背景執行緒非同步初始化資料庫，完全釋放開機主執行緒
+            string moduleDir = ModuleDirectory;
+            _ = Task.Run(() => {
+                try {
+                    database.InitializeDatabase(moduleDir);
+                } catch (Exception ex) {
+                    Log($"[Load] Database init failed: {ex.Message}");
+                }
+            });
 
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
+
+            // 【效能優化 2】：在開機時快取常用的 ConVar 參照
+            _cvTvEnable = ConVar.Find("tv_enable");
+            _cvMatchRestartDelay = ConVar.Find("mp_match_restart_delay");
 
             if (!hotReload) {
                 AutoStart();
@@ -282,7 +296,7 @@ namespace MatchZy
                 if (matchStartCountdownTimer != null && (teamNum == 2 || teamNum == 3))
                 {
                     string playerName = string.IsNullOrEmpty(player.PlayerName) ? "未知玩家" : player.PlayerName;
-                    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{playerName} {ChatColors.White}斷 開 連 線 請 重 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
+                    string disconnectMsg = $"{chatPrefix} {ChatColors.White}玩 家 {ChatColors.Green}{playerName} {ChatColors.White}斷 開 連 線 請 重短 新 輸 入 {ChatColors.LightRed}.R {ChatColors.White}準 備";
 
                     matchStartCountdownTimer.Kill();
                     matchStartCountdownTimer = null;
@@ -780,55 +794,53 @@ namespace MatchZy
             return count;
         }
 
-        // ▼▼▼ 準備標籤的函式（含 Server.NextFrame 執行緒安全保護） ▼▼▼
+        // ▼▼▼ 準備標籤的函式 ▼▼▼
         private void UpdateReadyClanTags()
         {
+            // 如果不在準備階段或是已經倒數開賽，就不更新
             if (!readyAvailable || matchStarted || isCountdownActive) return;
 
-            Server.NextFrame(() => {
-                foreach (var p in Utilities.GetPlayers())
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
+                    continue;
+
+                // 防呆：如果是在觀戰區(1)或是未分配陣營(0)，一律清空標籤
+                if (p.TeamNum != 2 && p.TeamNum != 3)
                 {
-                    if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
-                        continue;
-
-                    if (p.TeamNum != 2 && p.TeamNum != 3)
+                    if (p.Clan == "[已準備]" || p.Clan == "[未準備]")
                     {
-                        if (p.Clan == "[Ｏ]" || p.Clan == "[Ｘ]")
-                        {
-                            p.Clan = "";
-                            Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                        }
-                        continue;
+                        p.Clan = "";
+                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); // 強制瞬間同步給所有客戶端
                     }
-
-                    int uid = p.UserId.Value;
-                    bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
-
-                    string targetTag = isReady ? "[Ｏ]" : "[Ｘ]";
-                    if (p.Clan != targetTag)
-                    {
-                        p.Clan = targetTag;
-                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                    }
+                    continue;
                 }
-            });
+
+                int uid = p.UserId.Value;
+                bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
+
+                string targetTag = isReady ? "[已準備]" : "[未準備]";
+                if (p.Clan != targetTag)
+                {
+                    p.Clan = targetTag;
+                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); // 強制瞬間同步給所有客戶端
+                }
+            }
         }
 
         private void ClearReadyClanTags()
         {
-            Server.NextFrame(() => {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
-                        continue;
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
+                    continue;
 
-                    if (p.Clan == "[Ｏ]" || p.Clan == "[Ｘ]")
-                    {
-                        p.Clan = "";
-                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                    }
+                if (p.Clan == "[已準備]" || p.Clan == "[未準備]")
+                {
+                    p.Clan = "";
+                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); // 強制瞬間同步給所有客戶端
                 }
-            });
+            }
         }
         // ▲▲▲ ▲▲▲ ▲▲▲
 
