@@ -49,6 +49,8 @@ namespace MatchZy
         private ConVar? _cvTvEnable = null;
         private ConVar? _cvMatchRestartDelay = null;
         // ▲▲▲ ▲▲▲ ▲▲▲
+        // 準備階段記分板標籤計時器
+        public CounterStrikeSharp.API.Modules.Timers.Timer? clanTagTimer = null;
         // Pause Data
         public bool isPaused = false;
         // 【.NET 10 升級】：使用 Target-typed new
@@ -840,6 +842,41 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             }
             return count;
         }
+        // ▼▼▼ 準備標籤的函式 ▼▼▼
+        private void UpdateReadyClanTags()
+        {
+            if (!readyAvailable || matchStarted) return;
+
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
+                    continue;
+
+                int uid = p.UserId.Value;
+                bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
+
+                string targetTag = isReady ? "[已準備]" : "[未準備]";
+                if (p.ClanTag != targetTag)
+                {
+                    p.ClanTag = targetTag;
+                }
+            }
+        }
+
+        private void ClearReadyClanTags()
+        {
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
+                    continue;
+
+                if (p.ClanTag == "[READY]" || p.ClanTag == "[UNREADY]")
+                {
+                    p.ClanTag = "";
+                }
+            }
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
 
         // 專門用來擋控制台跨外掛投票的共用函數
         private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
