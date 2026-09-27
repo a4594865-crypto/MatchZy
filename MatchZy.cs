@@ -10,6 +10,10 @@ using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Events;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
+// ▼▼▼ 新增：攔截底層記憶體必須引入的命名空間 ▼▼▼
+using CounterStrikeSharp.API.Modules.Memory;
+using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
+// ▲▲▲ ▲▲▲ ▲▲▲
 
 namespace MatchZy
 {
@@ -54,6 +58,10 @@ namespace MatchZy
 
         // ▼▼▼ 準備階段記分板標籤計時器 ▼▼▼
         public CounterStrikeSharp.API.Modules.Timers.Timer? clanTagTimer = null;
+
+        // ▼▼▼ 新增：阻擋 CS2 引擎洗掉標籤的記憶體攔截器 ▼▼▼
+        public MemoryFunctionVoid<CCSPlayerController, uint, string> SetClanFunc = new("CCSPlayerController::SetClan");
+        // ▲▲▲ ▲▲▲ ▲▲▲
 
         // Pause Data
         public bool isPaused = false;
@@ -119,6 +127,10 @@ namespace MatchZy
             // ▼▼▼ 啟動記分板標籤計時器 ▼▼▼
             clanTagTimer?.Kill();
             clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+
+            // ▼▼▼ 新增：啟動記憶體攔截盾牌，防止引擎覆蓋準備標籤 ▼▼▼
+            SetClanFunc.Hook(OnSetClan, HookMode.Pre);
+            // ▲▲▲ ▲▲▲ ▲▲▲
 
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
@@ -591,7 +603,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             var chatPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
             if (chatPlayer != null && chatPlayer.IsValid) {
                 if (isMatchSetup) {
-                    chatPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 何 投 票");
+                    chatPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 有 投 票");
                     chatPlayer.PrintToCenter("正 式 比 賽 期 間 ， 禁 止 發 起 投 票");
                 } else {
                     chatPlayer.PrintToChat($"{chatPrefix} 比 賽 進 行 中 ，禁 止 發 起 任 何 投 票");
@@ -929,6 +941,18 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                     }
                 }
             });
+        }
+
+        // ▼▼▼ 新增：沒收 CS2 引擎修改標籤的權限 ▼▼▼
+        private HookResult OnSetClan(DynamicHook hook)
+        {
+            // 狀態判斷與 UpdateReadyClanTags 保持完全一致：
+            // 只要我們正在顯示準備標籤，就不准遊戲引擎覆蓋我們的 " ✔ " 和 " ✖ "
+            if (readyAvailable && !matchStarted && !isCountdownActive && !isKnifeRound && !isSideSelectionPhase && !isMatchLive && !isPractice)
+            {
+                return HookResult.Handled;
+            }
+            return HookResult.Continue; // 其他時間（如正式開賽後）放行，讓玩家顯示自己的 Steam 群組標籤
         }
         // ▲▲▲ ▲▲▲ ▲▲▲
 
