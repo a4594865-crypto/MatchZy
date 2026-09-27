@@ -8,7 +8,7 @@ using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration; 
 using CounterStrikeSharp.API.Modules.Events;
-// ▼ 僅補上這一行，讓計分板標籤計時器能使用 TimerFlags.REPEAT
+// ▼ 僅補上這一行，讓記分板標籤計時器能安全使用 TimerFlags.REPEAT
 using CounterStrikeSharp.API.Modules.Timers;
 
 namespace MatchZy
@@ -107,11 +107,6 @@ namespace MatchZy
 
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
-
-            // ▼▼▼ 新增：啟動記分板標籤計時器 ▼▼▼
-            clanTagTimer?.Kill();
-            clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
-            // ▲▲▲ ▲▲▲ ▲▲▲
 
             if (!hotReload) {
                 AutoStart();
@@ -304,9 +299,7 @@ namespace MatchZy
                     isCountdownActive = false;
                     matchStarted = false;
 
-                    // ▼▼▼ 新增：斷線重置時同步清除標籤並重啟計時器 ▼▼▼
-                    clanTagTimer?.Kill();
-                    clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+                    // ▼▼▼ 新增：斷線重置時同步清除標籤 ▼▼▼
                     ClearReadyClanTags();
                     // ▲▲▲ ▲▲▲ ▲▲▲
 
@@ -484,7 +477,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         // 核心修正：清理緩存，但不手動指定 CT/T
         ResetTeamDataCaches(); 
 
-        // ▼▼▼ 新增：啟動記分板標籤計時器 ▼▼▼
+        // ▼▼▼ 終極防禦：移到地圖完全載入後，才啟動 ClanTag 計時器，絕對不會崩潰 ▼▼▼
         clanTagTimer?.Kill();
         clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
         // ▲▲▲ ▲▲▲ ▲▲▲
@@ -620,7 +613,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                             // 5. 手動幫他把紀錄寫進去！
                             playerReadyStatus[uid] = true;
 
-                            // ▼▼▼ 新增：瞬間更新記分板標籤 ▼▼▼
+                            // ▼▼▼ 新增：瞬間更新記分板標籤，確保最後一人打勾也能無延遲顯示 ▼▼▼
                             UpdateReadyClanTags();
                             // ▲▲▲ ▲▲▲ ▲▲▲
 
@@ -858,6 +851,84 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             return count;
         }
 
+        // =========================================================================
+        // ▼▼▼ 新增：準備標籤的函式（含極限防崩潰沙盒） ▼▼▼
+        // =========================================================================
+        private void UpdateReadyClanTags()
+        {
+            try 
+            {
+                // 只要不在「初始準備熱身階段」，就絕對不處理標籤，並一次性清空
+                if (!readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
+                {
+                    ClearReadyClanTags();
+                    return;
+                }
+
+                Server.NextFrame(() => {
+                    try 
+                    {
+                        foreach (var p in Utilities.GetPlayers())
+                        {
+                            if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
+                                continue;
+
+                            if (p.TeamNum != 2 && p.TeamNum != 3)
+                            {
+                                string currentClan = p.Clan ?? "";
+                                if (currentClan.Contains("✔") || currentClan.Contains("✖"))
+                                {
+                                    p.Clan = "";
+                                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                                }
+                                continue;
+                            }
+
+                            int uid = p.UserId.Value;
+                            bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
+
+                            string targetTag = isReady ? " ✔ " : " ✖ ";
+                            string pClan = p.Clan ?? "";
+                            if (pClan != targetTag)
+                            {
+                                p.Clan = targetTag;
+                                Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                            }
+                        }
+                    }
+                    catch (Exception) { /* 靜默防護，確保不干擾計時器主執行緒 */ }
+                });
+            }
+            catch (Exception) { }
+        }
+
+        private void ClearReadyClanTags()
+        {
+            try 
+            {
+                Server.NextFrame(() => {
+                    try 
+                    {
+                        foreach (var p in Utilities.GetPlayers())
+                        {
+                            if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
+                                continue;
+
+                            string currentClan = p.Clan ?? "";
+                            if (currentClan.Contains("✔") || currentClan.Contains("✖"))
+                            {
+                                p.Clan = "";
+                                Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                            }
+                        }
+                    }
+                    catch (Exception) { }
+                });
+            }
+            catch (Exception) { }
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         // 專門用來擋控制台跨外掛投票的共用函數
         private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
         {
@@ -1065,81 +1136,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 });
             } //  結束 lock (_shuffleLock)
         } //  結束 ExecuteShuffleLogicWithReady 方法
-
-        // =========================================================================
-        // ▼▼▼ 新增：準備標籤的函式（含全面狀態攔截、自動清除與極限防崩潰沙盒） ▼▼▼
-        // =========================================================================
-        private void UpdateReadyClanTags()
-        {
-            try 
-            {
-                // 只要不在「初始準備熱身階段」，就絕對不顯示標籤，並立刻清空記分板
-                if (!readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
-                {
-                    ClearReadyClanTags();
-                    return;
-                }
-
-                Server.NextFrame(() => {
-                    try 
-                    {
-                        foreach (var p in Utilities.GetPlayers())
-                        {
-                            if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
-                                continue;
-
-                            if (p.TeamNum != 2 && p.TeamNum != 3)
-                            {
-                                if (p.Clan == " ✔ " || p.Clan == " ✖ ")
-                                {
-                                    p.Clan = "";
-                                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                                }
-                                continue;
-                            }
-
-                            int uid = p.UserId.Value;
-                            bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
-
-                            string targetTag = isReady ? " ✔ " : " ✖ ";
-                            if (p.Clan != targetTag)
-                            {
-                                p.Clan = targetTag;
-                                Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                            }
-                        }
-                    }
-                    catch (Exception) { /* 極限靜默防護，確保不干擾系統主計時器 */ }
-                });
-            }
-            catch (Exception) { }
-        }
-
-        private void ClearReadyClanTags()
-        {
-            try 
-            {
-                Server.NextFrame(() => {
-                    try 
-                    {
-                        foreach (var p in Utilities.GetPlayers())
-                        {
-                            if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
-                                continue;
-
-                            if (p.Clan == " ✔ " || p.Clan == " ✖ ")
-                            {
-                                p.Clan = "";
-                                Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                            }
-                        }
-                    }
-                    catch (Exception) { }
-                });
-            }
-            catch (Exception) { }
-        }
-        // ▲▲▲ ▲▲▲ ▲▲▲
 
         [ConsoleCommand("css_hp", "查詢對擊殺者的傷害統計")]
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
