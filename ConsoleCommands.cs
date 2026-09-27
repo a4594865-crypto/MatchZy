@@ -117,13 +117,25 @@ namespace MatchZy
         [ConsoleCommand("css_stay", "Stays after knife round")]
         public void OnTeamStay(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player is null || !isSideSelectionPhase) return;
+            if (!isSideSelectionPhase) return;
 
-            Log($"[!stay command] {player.UserId}, TeamNum: {player.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
-            if (player.TeamNum == knifeWinner)
+            if (player is null)
             {
+                // ▼▼▼ 新增：允許系統(null)自動觸發 ▼▼▼
+                Log($"[!stay command] System auto-stay. knifeWinner: {knifeWinner}");
                 PrintToAllChat(Localizer["matchzy.knife.decidedtostay", knifeWinnerName]);
                 StartLive();
+                // ▲▲▲ ▲▲▲ ▲▲▲
+            }
+            else
+            {
+                // 原有玩家手動觸發邏輯
+                Log($"[!stay command] {player.UserId}, TeamNum: {player.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
+                if (player.TeamNum == knifeWinner)
+                {
+                    PrintToAllChat(Localizer["matchzy.knife.decidedtostay", knifeWinnerName]);
+                    StartLive();
+                }
             }
         }
 
@@ -131,16 +143,29 @@ namespace MatchZy
         [ConsoleCommand("css_swap", "Switch after knife round")]
         public void OnTeamSwitch(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player is null || !isSideSelectionPhase) return;
+            if (!isSideSelectionPhase) return;
 
-            Log($"[!switch command] {player.UserId}, TeamNum: {player.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
-
-            if (player.TeamNum == knifeWinner)
+            if (player is null)
             {
+                // ▼▼▼ 新增：允許系統(null)自動觸發 ▼▼▼
+                Log($"[!switch command] System auto-switch. knifeWinner: {knifeWinner}");
                 Server.ExecuteCommand("mp_swapteams;");
                 SwapSidesInTeamData(true);
                 PrintToAllChat(Localizer["matchzy.knife.decidedtoswitch", knifeWinnerName]);
                 StartLive();
+                // ▲▲▲ ▲▲▲ ▲▲▲
+            }
+            else
+            {
+                // 原有玩家手動觸發邏輯
+                Log($"[!switch command] {player.UserId}, TeamNum: {player.TeamNum}, knifeWinner: {knifeWinner}, isSideSelectionPhase: {isSideSelectionPhase}");
+                if (player.TeamNum == knifeWinner)
+                {
+                    Server.ExecuteCommand("mp_swapteams;");
+                    SwapSidesInTeamData(true);
+                    PrintToAllChat(Localizer["matchzy.knife.decidedtoswitch", knifeWinnerName]);
+                    StartLive();
+                }
             }
         }
 
@@ -584,18 +609,8 @@ namespace MatchZy
                 }
                 else
                 {
-                    // === 加上判斷邏輯 ===
-                    if (isShufflePending)
-                    {
-                        // 如果有預約洗牌，就去執行洗牌 (洗完它會自動幫你呼叫 7 秒倒數)
-                        ExecuteShuffleLogic(); 
-                    }
-                    else
-                    {
-                        // 如果沒預約，就跟平常一樣直接進 7 秒倒數
-                        StartMatchCountdown(); 
-                    }
-                    
+                    PrintToAllChat(Localizer["matchzy.cc.gamestarted"]);
+                    HandleMatchStart();
                     ResetTechPauseCount(); 
                 }
             }
@@ -604,6 +619,7 @@ namespace MatchZy
                 SendPlayerNotAdminMessage(player);
             }
         }
+
         [ConsoleCommand("css_asay", "Say as an admin")]
         public void OnAdminSay(CCSPlayerController? player, CommandInfo? command)
         {
