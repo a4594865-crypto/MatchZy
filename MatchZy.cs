@@ -1199,11 +1199,11 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                         {
                             if (p.TeamNum == knifeWinner)
                             {
-                                p.PrintToCenter($"請 盡 速 輸 入 .stay 或 .swap 選 邊\n剩 餘 時 間 : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter($"請選邊: .stay 或 .switch 倒數 : {sideSelectionRemainingSeconds} 秒");
                             }
                             else if (p.TeamNum == 2 || p.TeamNum == 3)
                             {
-                                p.PrintToCenter($"等 待 刀 局 獲 勝 方 選 邊\n剩 餘 時 間 : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter($"等待對方選邊...倒數 : {sideSelectionRemainingSeconds} 秒");
                             }
                         }
                     }
