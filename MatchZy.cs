@@ -1038,7 +1038,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
         {
             if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
             {
-                p.PrintToCenter("已 取 取 消 隨 機 隊 伍 分 配");
+                p.PrintToCenter("已 取 消 隨 機 隊 伍 分 配");
             }
         }
     } else {
