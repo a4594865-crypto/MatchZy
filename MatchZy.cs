@@ -875,10 +875,15 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             return count;
         }
 
-        // ▼▼▼ 準備標籤的函式（含 Server.NextFrame 執行緒安全保護） ▼▼▼
+// ▼▼▼ 準備標籤的函式（含全面狀態攔截與自動清除） ▼▼▼
         private void UpdateReadyClanTags()
         {
-            if (!readyAvailable || matchStarted || isCountdownActive) return;
+            // 只要不在「初始準備熱身階段」，就絕對不顯示標籤，並立刻清空記分板
+            if (!readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
+            {
+                ClearReadyClanTags();
+                return;
+            }
 
             Server.NextFrame(() => {
                 foreach (var p in Utilities.GetPlayers())
@@ -1191,7 +1196,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 if (sideSelectionRemainingSeconds > 0 && sideSelectionRemainingSeconds % sideSelectionReminder == 0)
                 {
                     string pendingMessage = Localizer["matchzy.knife.sidedecisionpending", knifeWinnerName];
-                    Server.PrintToChatAll($"{chatPrefix} {pendingMessage} {ChatColors.Default}(剩餘: {ChatColors.Red}{sideSelectionRemainingSeconds}{ChatColors.Default} 秒)");
+                    Server.PrintToChatAll($"{chatPrefix} {pendingMessage} {ChatColors.Default} {ChatColors.Red}{sideSelectionRemainingSeconds}{ChatColors.Default} 秒");
                 }
 
                 // ==========================================
@@ -1205,7 +1210,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                         {
                             if (p.TeamNum == knifeWinner)
                             {
-                                p.PrintToCenter($"請選邊 .C 或 .T 倒數 : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter($"勝者選邊 .C 或 .T 倒數 : {sideSelectionRemainingSeconds} 秒");
                             }
                             else if (p.TeamNum == 2 || p.TeamNum == 3)
                             {
