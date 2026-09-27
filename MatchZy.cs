@@ -8,7 +8,8 @@ using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration; 
 using CounterStrikeSharp.API.Modules.Events;
-
+using CounterStrikeSharp.API.Modules.Cvars;
+using CounterStrikeSharp.API.Modules.Timers;
 
 namespace MatchZy
 {
@@ -45,6 +46,14 @@ namespace MatchZy
         public int autoStartMode = 1;
         private static readonly object _shuffleLock = new();
         public bool mapReloadRequired = false;
+
+        // ▼▼▼ 快取常用的 ConVar 參照 ▼▼▼
+        private ConVar? _cvTvEnable = null;
+        private ConVar? _cvMatchRestartDelay = null;
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
+        // ▼▼▼ 準備階段記分板標籤計時器 ▼▼▼
+        public CounterStrikeSharp.API.Modules.Timers.Timer? clanTagTimer = null;
 
         // Pause Data
         public bool isPaused = false;
@@ -100,8 +109,16 @@ namespace MatchZy
 
             database.InitializeDatabase(ModuleDirectory);
 
+            // ▼▼▼ 啟動記分板標籤計時器 ▼▼▼
+            clanTagTimer?.Kill();
+            clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
+
+            // ▼▼▼ 快取常用的 ConVar 參照 ▼▼▼
+            _cvTvEnable = ConVar.Find("tv_enable");
+            _cvMatchRestartDelay = ConVar.Find("mp_match_restart_delay");
 
             if (!hotReload) {
                 AutoStart();
@@ -294,6 +311,12 @@ namespace MatchZy
                     isCountdownActive = false;
                     matchStarted = false;
 
+                    // ▼▼▼ Clan Tag 修復：斷線重置時同步清除標籤並重啟計時器 ▼▼▼
+                    clanTagTimer?.Kill();
+                    clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+                    ClearReadyClanTags();
+                    // ▲▲▲ ▲▲▲ ▲▲▲
+
                     // 物理重置我們自訂的字典與洗牌預約
                     playerReadyStatus.Clear(); 
                     isShufflePending = false; 
@@ -468,6 +491,11 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         // 核心修正：清理緩存，但不手動指定 CT/T
         ResetTeamDataCaches(); 
 
+        // ▼▼▼ 啟動記分板標籤計時器 ▼▼▼
+        clanTagTimer?.Kill();
+        clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         if (!isMatchSetup) {
             // 一般路人局：自動啟動
             AutoStart();
@@ -599,6 +627,9 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                             // 5. 手動幫他把紀錄寫進去！
                             playerReadyStatus[uid] = true;
 
+                            // ▼▼▼ 瞬間更新記分板標籤，確保最後一人打勾也能無延遲顯示 ▼▼▼
+                            UpdateReadyClanTags();
+
                             // 啟動洗牌與秒開
                             ExecuteShuffleLogic();     
                             
@@ -647,6 +678,13 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     // Handling player commands
     if (commandActions != null && commandActions.TryGetValue(message, out var action)) {
         action(player, null);
+
+        // ▼▼▼ 當玩家輸入準備或取消準備時，瞬間同步記分板標籤 ▼▼▼
+        if (message == ".r" || message == ".ready" || message == ".unready" || message == ".notready" || message == ".ur")
+        {
+            UpdateReadyClanTags();
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
     }
 
     if (message.StartsWith(".map"))
@@ -825,6 +863,58 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             }
             return count;
         }
+
+        // ▼▼▼ 準備標籤的函式（含 Server.NextFrame 執行緒安全保護） ▼▼▼
+        private void UpdateReadyClanTags()
+        {
+            if (!readyAvailable || matchStarted || isCountdownActive) return;
+
+            Server.NextFrame(() => {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
+                        continue;
+
+                    if (p.TeamNum != 2 && p.TeamNum != 3)
+                    {
+                        if (p.Clan == "[ Ｏ ]" || p.Clan == "[ Ｘ ]")
+                        {
+                            p.Clan = "";
+                            Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                        }
+                        continue;
+                    }
+
+                    int uid = p.UserId.Value;
+                    bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
+
+                    string targetTag = isReady ? "[ Ｏ ]" : "[ Ｘ ]";
+                    if (p.Clan != targetTag)
+                    {
+                        p.Clan = targetTag;
+                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                    }
+                }
+            });
+        }
+
+        private void ClearReadyClanTags()
+        {
+            Server.NextFrame(() => {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
+                        continue;
+
+                    if (p.Clan == "[ Ｏ ]" || p.Clan == "[ Ｘ ]")
+                    {
+                        p.Clan = "";
+                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                    }
+                }
+            });
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
 
         // 專門用來擋控制台跨外掛投票的共用函數
         private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
