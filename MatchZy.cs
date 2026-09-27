@@ -8,7 +8,6 @@ using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration; 
 using CounterStrikeSharp.API.Modules.Events;
-using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
 
 namespace MatchZy
@@ -46,11 +45,6 @@ namespace MatchZy
         public int autoStartMode = 1;
         private static readonly object _shuffleLock = new();
         public bool mapReloadRequired = false;
-
-        // ▼▼▼ 快取常用的 ConVar 參照 ▼▼▼
-        private ConVar? _cvTvEnable = null;
-        private ConVar? _cvMatchRestartDelay = null;
-        // ▲▲▲ ▲▲▲ ▲▲▲
 
         // ▼▼▼ 準備階段記分板標籤計時器 ▼▼▼
         public CounterStrikeSharp.API.Modules.Timers.Timer? clanTagTimer = null;
@@ -122,10 +116,6 @@ namespace MatchZy
 
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
-
-            // ▼▼▼ 快取常用的 ConVar 參照 ▼▼▼
-            _cvTvEnable = ConVar.Find("tv_enable");
-            _cvMatchRestartDelay = ConVar.Find("mp_match_restart_delay");
 
             if (!hotReload) {
                 AutoStart();
@@ -919,6 +909,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             Server.NextFrame(() => {
                 foreach (var p in Utilities.GetPlayers())
                 {
+                    // .NET 10 優化寫法：模式匹配
                     if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
                         continue;
 
@@ -1047,7 +1038,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
         {
             if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
             {
-                p.PrintToCenter("已 取 消 隨 機 隊 伍 分 配");
+                p.PrintToCenter("已 取 取 消 隨 機 隊 伍 分 配");
             }
         }
     } else {
@@ -1210,11 +1201,11 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                         {
                             if (p.TeamNum == knifeWinner)
                             {
-                                p.PrintToCenter($"勝者選邊 .C 或 .T 倒數 : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter($"勝 者 選 邊 .C 或 .T 倒 數 : {sideSelectionRemainingSeconds} 秒");
                             }
                             else if (p.TeamNum == 2 || p.TeamNum == 3)
                             {
-                                p.PrintToCenter($"等待對方選邊...倒數 : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter($"等 待 對 方 選 邊...倒 數 : {sideSelectionRemainingSeconds} 秒");
                             }
                         }
                     }
@@ -1228,7 +1219,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                     CancelSideSelectionTimer();
                     
                     string autoStayMessage = Localizer["matchzy.knife.decidedtostay", knifeWinnerName];
-                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}選邊逾時！ {autoStayMessage}");
+                    Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時 {autoStayMessage}");
                     
                     foreach (var p in Utilities.GetPlayers())
                     {
