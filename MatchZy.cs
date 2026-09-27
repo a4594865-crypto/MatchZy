@@ -1168,8 +1168,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
 
             sideSelectionTimer = AddTimer(1.0f, () =>
             {
-                // 狀態防呆：如果已經不在選邊階段，或比賽已開始，立刻停止並自動銷毀
-                if (!isSideSelectionPhase || matchStarted)
+                // 【修正防呆鎖】：把 matchStarted 改為 isMatchLive
+                // 只有在正賽真正 LIVE 或不在選邊階段時，計時器才銷毀
+                if (!isSideSelectionPhase || isMatchLive)
                 {
                     CancelSideSelectionTimer();
                     return;
@@ -1183,7 +1184,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 if (sideSelectionRemainingSeconds > 0 && 
                    (sideSelectionRemainingSeconds % sideSelectionReminder == 0 || sideSelectionRemainingSeconds <= 5))
                 {
-                    // 讀取 "matchzy.knife.sidedecisionpending" 並代入獲勝方名稱，後面補上倒數秒數
                     string pendingMessage = Localizer["matchzy.knife.sidedecisionpending", knifeWinnerName];
                     Server.PrintToChatAll($"{chatPrefix} {pendingMessage} {ChatColors.Default}(剩餘: {ChatColors.Red}{sideSelectionRemainingSeconds}{ChatColors.Default} 秒)");
                 }
@@ -1199,10 +1199,12 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                         {
                             if (p.TeamNum == knifeWinner)
                             {
-                                p.PrintToCenter($"請選邊: .stay 或 .switch 倒數 : {sideSelectionRemainingSeconds} 秒");
+                                // 獲勝方極簡提示
+                                p.PrintToCenter($"請選邊 .stay 或 .switch 倒數 : {sideSelectionRemainingSeconds} 秒");
                             }
                             else if (p.TeamNum == 2 || p.TeamNum == 3)
                             {
+                                // 敗方極簡提示
                                 p.PrintToCenter($"等待對方選邊...倒數 : {sideSelectionRemainingSeconds} 秒");
                             }
                         }
@@ -1216,7 +1218,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 {
                     CancelSideSelectionTimer();
                     
-                    // 讀取 "matchzy.knife.decidedtostay" 並代入獲勝方名稱，作為超時自動選邊的廣播
                     string autoStayMessage = Localizer["matchzy.knife.decidedtostay", knifeWinnerName];
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}選邊逾時！ {autoStayMessage}");
                     
@@ -1224,7 +1225,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                     {
                         if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
                         {
-                            p.PrintToCenter("選 邊 逾 時 系 統 自 動 選 擇 原 陣 營");
+                            p.PrintToCenter("選 邊 逾 時 ！ 系 統 自 動 選 擇 留 在 原 陣 營");
                         }
                     }
                     
