@@ -1165,7 +1165,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
             }
         }
 
-      public void StartSideSelectionTimer()
+public void StartSideSelectionTimer()
         {
             CancelSideSelectionTimer(); 
             
@@ -1226,7 +1226,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                         {
                             if (p.TeamNum == knifeWinner)
                             {
-                                p.PrintToCenter($"勝 者 選 邊 .C 或 .T 倒 數 : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter($"勝 者 輸 入 選 邊 .C 或 .T : {sideSelectionRemainingSeconds} 秒");
                             }
                             else if (p.TeamNum == 2 || p.TeamNum == 3)
                             {
@@ -1246,36 +1246,20 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                     string autoStayMessage = Localizer["matchzy.knife.decidedtostay", knifeWinnerName];
                     Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時 {autoStayMessage}");
                     
-                    foreach (var p in Utilities.GetPlayers())
-                    {
-                        if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
-                        {
-                            p.PrintToCenter("選 邊 逾 時 自 動 留 在 原 陣 營");
-                        }
-                    }
+                    // 已移除畫面正中央的超時提示
                     
                     OnTeamStay(null, null); 
                 }
             }, TimerFlags.REPEAT);
         }
 
-     public void CancelSideSelectionTimer()
+        public void CancelSideSelectionTimer()
         {
             if (sideSelectionTimer != null)
             {
                 sideSelectionTimer.Kill();
                 sideSelectionTimer = null;
             }
-
-            // ▼▼▼ 【精緻化修正 2】：計時器銷毀時瞬間清除全體玩家的 HUD 殘影，絕不定格 ▼▼▼
-            foreach (var p in Utilities.GetPlayers())
-            {
-                if (p is { IsValid: true, IsBot: false })
-                {
-                    p.PrintToCenter("&#8203;"); 
-                }
-            }
-            // ▲▲▲ ▲▲▲ ▲▲▲
         }
         [ConsoleCommand("css_hp", "查詢對擊殺者的傷害統計")]
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
