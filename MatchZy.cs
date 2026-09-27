@@ -8,7 +8,7 @@ using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration; 
 using CounterStrikeSharp.API.Modules.Events;
-// ▼ 僅補上這一行，讓記分板標籤計時器能安全使用 TimerFlags.REPEAT
+using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
 
 namespace MatchZy
@@ -47,6 +47,14 @@ namespace MatchZy
         private static readonly object _shuffleLock = new();
         public bool mapReloadRequired = false;
 
+        // ▼▼▼ 快取常用的 ConVar 參照 ▼▼▼
+        private ConVar? _cvTvEnable = null;
+        private ConVar? _cvMatchRestartDelay = null;
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
+        // ▼▼▼ 準備階段記分板標籤計時器 ▼▼▼
+        public CounterStrikeSharp.API.Modules.Timers.Timer? clanTagTimer = null;
+
         // Pause Data
         public bool isPaused = false;
         // 【.NET 10 升級】：使用 Target-typed new
@@ -75,8 +83,11 @@ namespace MatchZy
         public CounterStrikeSharp.API.Modules.Timers.Timer? sideSelectionMessageTimer = null;
         public CounterStrikeSharp.API.Modules.Timers.Timer? pausedStateTimer = null;
 
-        // ▼▼▼ 新增：準備階段記分板標籤計時器 ▼▼▼
-        public CounterStrikeSharp.API.Modules.Timers.Timer? clanTagTimer = null;
+        // ▼▼▼ 新增：刀局選邊倒數計時系統 ▼▼▼
+        public CounterStrikeSharp.API.Modules.Timers.Timer? sideSelectionTimer = null;
+        public int sideSelectionRemainingSeconds = 0;
+        public int sideSelectionTimeLimit = 60; // 在 config.cfg 中設定的總秒數
+        public int sideSelectionReminder = 10;  // 在 config.cfg 中設定的提示間隔
         // ▲▲▲ ▲▲▲ ▲▲▲
 
         // Each message is kept in chat display for ~13 seconds, hence setting default chat timer to 13 seconds.
@@ -105,8 +116,16 @@ namespace MatchZy
 
             database.InitializeDatabase(ModuleDirectory);
 
+            // ▼▼▼ 啟動記分板標籤計時器 ▼▼▼
+            clanTagTimer?.Kill();
+            clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+
             // This sets default config ConVars
             Server.ExecuteCommand("execifexists MatchZy/config.cfg");
+
+            // ▼▼▼ 快取常用的 ConVar 參照 ▼▼▼
+            _cvTvEnable = ConVar.Find("tv_enable");
+            _cvMatchRestartDelay = ConVar.Find("mp_match_restart_delay");
 
             if (!hotReload) {
                 AutoStart();
@@ -299,7 +318,9 @@ namespace MatchZy
                     isCountdownActive = false;
                     matchStarted = false;
 
-                    // ▼▼▼ 新增：斷線重置時同步清除標籤 ▼▼▼
+                    // ▼▼▼ Clan Tag 修復：斷線重置時同步清除標籤並重啟計時器 ▼▼▼
+                    clanTagTimer?.Kill();
+                    clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
                     ClearReadyClanTags();
                     // ▲▲▲ ▲▲▲ ▲▲▲
 
@@ -447,6 +468,10 @@ AddCommandListener("jointeam", (player, info) =>
                 isKnifeRound = false;
                 StartAfterKnifeWarmup();
 
+                // ▼▼▼ 新增：啟動選邊倒數計時器 ▼▼▼
+                StartSideSelectionTimer();
+                // ▲▲▲ ▲▲▲ ▲▲▲
+
                 return HookResult.Changed;
             }, HookMode.Pre);
 
@@ -477,7 +502,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         // 核心修正：清理緩存，但不手動指定 CT/T
         ResetTeamDataCaches(); 
 
-        // ▼▼▼ 終極防禦：移到地圖完全載入後，才啟動 ClanTag 計時器，絕對不會崩潰 ▼▼▼
+        // ▼▼▼ 啟動記分板標籤計時器 ▼▼▼
         clanTagTimer?.Kill();
         clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
         // ▲▲▲ ▲▲▲ ▲▲▲
@@ -613,9 +638,8 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                             // 5. 手動幫他把紀錄寫進去！
                             playerReadyStatus[uid] = true;
 
-                            // ▼▼▼ 新增：瞬間更新記分板標籤，確保最後一人打勾也能無延遲顯示 ▼▼▼
+                            // ▼▼▼ 瞬間更新記分板標籤，確保最後一人打勾也能無延遲顯示 ▼▼▼
                             UpdateReadyClanTags();
-                            // ▲▲▲ ▲▲▲ ▲▲▲
 
                             // 啟動洗牌與秒開
                             ExecuteShuffleLogic();     
@@ -666,7 +690,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     if (commandActions != null && commandActions.TryGetValue(message, out var action)) {
         action(player, null);
 
-        // ▼▼▼ 新增：當玩家輸入準備或取消準備時，瞬間同步記分板標籤 ▼▼▼
+        // ▼▼▼ 當玩家輸入準備或取消準備時，瞬間同步記分板標籤 ▼▼▼
         if (message == ".r" || message == ".ready" || message == ".unready" || message == ".notready" || message == ".ur")
         {
             UpdateReadyClanTags();
@@ -851,81 +875,60 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             return count;
         }
 
-        // =========================================================================
-        // ▼▼▼ 新增：準備標籤的函式（含極限防崩潰沙盒） ▼▼▼
-        // =========================================================================
+// ▼▼▼ 準備標籤的函式（含全面狀態攔截與自動清除） ▼▼▼
         private void UpdateReadyClanTags()
         {
-            try 
+            // 只要不在「初始準備熱身階段」，就絕對不顯示標籤，並立刻清空記分板
+            if (!readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
             {
-                // 只要不在「初始準備熱身階段」，就絕對不處理標籤，並一次性清空
-                if (!readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
-                {
-                    ClearReadyClanTags();
-                    return;
-                }
-
-                Server.NextFrame(() => {
-                    try 
-                    {
-                        foreach (var p in Utilities.GetPlayers())
-                        {
-                            if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
-                                continue;
-
-                            if (p.TeamNum != 2 && p.TeamNum != 3)
-                            {
-                                string currentClan = p.Clan ?? "";
-                                if (currentClan.Contains("✔") || currentClan.Contains("✖"))
-                                {
-                                    p.Clan = "";
-                                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                                }
-                                continue;
-                            }
-
-                            int uid = p.UserId.Value;
-                            bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
-
-                            string targetTag = isReady ? " ✔ " : " ✖ ";
-                            string pClan = p.Clan ?? "";
-                            if (pClan != targetTag)
-                            {
-                                p.Clan = targetTag;
-                                Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                            }
-                        }
-                    }
-                    catch (Exception) { /* 靜默防護，確保不干擾計時器主執行緒 */ }
-                });
+                ClearReadyClanTags();
+                return;
             }
-            catch (Exception) { }
+
+            Server.NextFrame(() => {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
+                        continue;
+
+                    if (p.TeamNum != 2 && p.TeamNum != 3)
+                    {
+                        if (p.Clan == " ✔ " || p.Clan == " ✖ ")
+                        {
+                            p.Clan = "";
+                            Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                        }
+                        continue;
+                    }
+
+                    int uid = p.UserId.Value;
+                    bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
+
+                    string targetTag = isReady ? " ✔ " : " ✖ ";
+                    if (p.Clan != targetTag)
+                    {
+                        p.Clan = targetTag;
+                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                    }
+                }
+            });
         }
 
         private void ClearReadyClanTags()
         {
-            try 
-            {
-                Server.NextFrame(() => {
-                    try 
-                    {
-                        foreach (var p in Utilities.GetPlayers())
-                        {
-                            if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
-                                continue;
+            Server.NextFrame(() => {
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
+                        continue;
 
-                            string currentClan = p.Clan ?? "";
-                            if (currentClan.Contains("✔") || currentClan.Contains("✖"))
-                            {
-                                p.Clan = "";
-                                Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                            }
-                        }
+                    if (p.Clan == " ✔ " || p.Clan == " ✖ ")
+                    {
+                        p.Clan = "";
+                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
                     }
-                    catch (Exception) { }
-                });
-            }
-            catch (Exception) { }
+                }
+            });
         }
         // ▲▲▲ ▲▲▲ ▲▲▲
 
@@ -1136,6 +1139,119 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 });
             } //  結束 lock (_shuffleLock)
         } //  結束 ExecuteShuffleLogicWithReady 方法
+
+        // =========================================================================
+        // ▼▼▼ 新增：刀局選邊限時與防呆系統 (支援 config.cfg 讀取) ▼▼▼
+        // =========================================================================
+        [ConsoleCommand("matchzy_side_selection_time", "設定刀局選邊限時 (秒)")]
+        public void OnSideSelectionTimeCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (player != null && !IsPlayerAdmin(player)) return;
+            if (command != null && command.ArgCount >= 2 && int.TryParse(command.ArgByIndex(1), out int time))
+            {
+                sideSelectionTimeLimit = time;
+                if (player != null) ReplyToUserCommand(player, $"選邊限時已更改為 {time} 秒");
+            }
+        }
+
+        [ConsoleCommand("matchzy_side_selection_reminder", "設定刀局選邊提示間隔 (秒)")]
+        public void OnSideSelectionReminderCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (player != null && !IsPlayerAdmin(player)) return;
+            if (command != null && command.ArgCount >= 2 && int.TryParse(command.ArgByIndex(1), out int interval))
+            {
+                sideSelectionReminder = interval;
+                if (player != null) ReplyToUserCommand(player, $"選邊提示間隔已更改為 {interval} 秒");
+            }
+        }
+
+      public void StartSideSelectionTimer()
+        {
+            CancelSideSelectionTimer(); 
+            
+            // ▼▼▼ 核心修正：強制關閉原版的重複廣播計時器，避免雙重洗頻 ▼▼▼
+            if (sideSelectionMessageTimer != null)
+            {
+                sideSelectionMessageTimer.Kill();
+                sideSelectionMessageTimer = null;
+            }
+            // ▲▲▲ ▲▲▲ ▲▲▲
+            
+            sideSelectionRemainingSeconds = sideSelectionTimeLimit;
+
+            sideSelectionTimer = AddTimer(1.0f, () =>
+            {
+                // 狀態防呆：只有在正賽真正 LIVE 或不在選邊階段時，計時器才銷毀
+                if (!isSideSelectionPhase || isMatchLive)
+                {
+                    CancelSideSelectionTimer();
+                    return;
+                }
+
+                sideSelectionRemainingSeconds--;
+
+                // ==========================================
+                // 1. 聊天室文字廣播 (純淨版：只在整數間隔提示，不再每秒洗頻)
+                // ==========================================
+                if (sideSelectionRemainingSeconds > 0 && sideSelectionRemainingSeconds % sideSelectionReminder == 0)
+                {
+                    string pendingMessage = Localizer["matchzy.knife.sidedecisionpending", knifeWinnerName];
+                    Server.PrintToChatAll($"{chatPrefix} {pendingMessage} {ChatColors.Default} {ChatColors.Red}{sideSelectionRemainingSeconds}{ChatColors.Default} 秒");
+                }
+
+                // ==========================================
+                // 2. HUD 畫面正中央提示 (常駐顯示)
+                // ==========================================
+                if (sideSelectionRemainingSeconds > 0)
+                {
+                    foreach (var p in Utilities.GetPlayers())
+                    {
+                        if (p is { IsValid: true, IsBot: false })
+                        {
+                            if (p.TeamNum == knifeWinner)
+                            {
+                                p.PrintToCenter($"勝 者 選 邊 .C 或 .T 倒 數 : {sideSelectionRemainingSeconds} 秒");
+                            }
+                            else if (p.TeamNum == 2 || p.TeamNum == 3)
+                            {
+                                p.PrintToCenter($"等 待 對 方 選 邊...倒 數 : {sideSelectionRemainingSeconds} 秒");
+                            }
+                        }
+                    }
+                }
+
+                // ==========================================
+                // 3. 超時邏輯：時間歸零，強制執行 .stay
+                // ==========================================
+                if (sideSelectionRemainingSeconds <= 0)
+                {
+                    CancelSideSelectionTimer();
+                    
+                    string autoStayMessage = Localizer["matchzy.knife.decidedtostay", knifeWinnerName];
+                    Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時 {autoStayMessage}");
+                    
+                    foreach (var p in Utilities.GetPlayers())
+                    {
+                        if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
+                        {
+                            p.PrintToCenter("選 邊 逾 時 自 動 留 在 原 陣 營");
+                        }
+                    }
+                    
+                    // 呼叫 OnTeamStay 進入正賽
+                    OnTeamStay(null, null); 
+                }
+            }, TimerFlags.REPEAT);
+        }
+        public void CancelSideSelectionTimer()
+        {
+            if (sideSelectionTimer != null)
+            {
+                sideSelectionTimer.Kill();
+                sideSelectionTimer = null;
+            }
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
 
         [ConsoleCommand("css_hp", "查詢對擊殺者的傷害統計")]
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
