@@ -1164,12 +1164,19 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
         {
             CancelSideSelectionTimer(); 
             
+            // ▼▼▼ 核心修正：強制關閉原版的重複廣播計時器，避免雙重洗頻 ▼▼▼
+            if (sideSelectionMessageTimer != null)
+            {
+                sideSelectionMessageTimer.Kill();
+                sideSelectionMessageTimer = null;
+            }
+            // ▲▲▲ ▲▲▲ ▲▲▲
+            
             sideSelectionRemainingSeconds = sideSelectionTimeLimit;
 
             sideSelectionTimer = AddTimer(1.0f, () =>
             {
-                // 【修正防呆鎖】：把 matchStarted 改為 isMatchLive
-                // 只有在正賽真正 LIVE 或不在選邊階段時，計時器才銷毀
+                // 狀態防呆：只有在正賽真正 LIVE 或不在選邊階段時，計時器才銷毀
                 if (!isSideSelectionPhase || isMatchLive)
                 {
                     CancelSideSelectionTimer();
@@ -1179,10 +1186,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 sideSelectionRemainingSeconds--;
 
                 // ==========================================
-                // 1. 聊天室文字廣播 (呼叫 zh-Hant.json 原生翻譯)
+                // 1. 聊天室文字廣播 (純淨版：只在整數間隔提示，不再每秒洗頻)
                 // ==========================================
-                if (sideSelectionRemainingSeconds > 0 && 
-                   (sideSelectionRemainingSeconds % sideSelectionReminder == 0 || sideSelectionRemainingSeconds <= 5))
+                if (sideSelectionRemainingSeconds > 0 && sideSelectionRemainingSeconds % sideSelectionReminder == 0)
                 {
                     string pendingMessage = Localizer["matchzy.knife.sidedecisionpending", knifeWinnerName];
                     Server.PrintToChatAll($"{chatPrefix} {pendingMessage} {ChatColors.Default}(剩餘: {ChatColors.Red}{sideSelectionRemainingSeconds}{ChatColors.Default} 秒)");
@@ -1199,12 +1205,10 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                         {
                             if (p.TeamNum == knifeWinner)
                             {
-                                // 獲勝方極簡提示
-                                p.PrintToCenter($"請選邊 .stay 或 .switch 倒數 : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter($"請選邊 .C 或 .T 倒數 : {sideSelectionRemainingSeconds} 秒");
                             }
                             else if (p.TeamNum == 2 || p.TeamNum == 3)
                             {
-                                // 敗方極簡提示
                                 p.PrintToCenter($"等待對方選邊...倒數 : {sideSelectionRemainingSeconds} 秒");
                             }
                         }
@@ -1225,11 +1229,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                     {
                         if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
                         {
-                            p.PrintToCenter("選 邊 逾 時 ！ 系 統 自 動 選 擇 留 在 原 陣 營");
+                            p.PrintToCenter("選 邊 逾 時 自 動 留 在 原 陣 營");
                         }
                     }
-                    
-                    isSideSelectionPhase = false;
                     
                     // 呼叫 OnTeamStay 進入正賽
                     OnTeamStay(null, null); 
