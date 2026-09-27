@@ -83,6 +83,13 @@ namespace MatchZy
         public CounterStrikeSharp.API.Modules.Timers.Timer? sideSelectionMessageTimer = null;
         public CounterStrikeSharp.API.Modules.Timers.Timer? pausedStateTimer = null;
 
+        // ▼▼▼ 新增：刀局選邊倒數計時系統 ▼▼▼
+        public CounterStrikeSharp.API.Modules.Timers.Timer? sideSelectionTimer = null;
+        public int sideSelectionRemainingSeconds = 0;
+        public int sideSelectionTimeLimit = 60; // 在 config.cfg 中設定的總秒數
+        public int sideSelectionReminder = 10;  // 在 config.cfg 中設定的提示間隔
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         // Each message is kept in chat display for ~13 seconds, hence setting default chat timer to 13 seconds.
         // Configurable using matchzy_chat_messages_timer_delay <seconds>
         public int chatTimerDelay = 13;
@@ -460,6 +467,10 @@ AddCommandListener("jointeam", (player, info) =>
                 isSideSelectionPhase = true;
                 isKnifeRound = false;
                 StartAfterKnifeWarmup();
+
+                // ▼▼▼ 新增：啟動選邊倒數計時器 ▼▼▼
+                StartSideSelectionTimer();
+                // ▲▲▲ ▲▲▲ ▲▲▲
 
                 return HookResult.Changed;
             }, HookMode.Pre);
@@ -1123,6 +1134,116 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 });
             } //  結束 lock (_shuffleLock)
         } //  結束 ExecuteShuffleLogicWithReady 方法
+
+        // =========================================================================
+        // ▼▼▼ 新增：刀局選邊限時與防呆系統 (支援 config.cfg 讀取) ▼▼▼
+        // =========================================================================
+        [ConsoleCommand("matchzy_side_selection_time", "設定刀局選邊限時 (秒)")]
+        public void OnSideSelectionTimeCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (player != null && !IsPlayerAdmin(player)) return;
+            if (command != null && command.ArgCount >= 2 && int.TryParse(command.ArgByIndex(1), out int time))
+            {
+                sideSelectionTimeLimit = time;
+                if (player != null) ReplyToUserCommand(player, $"選邊限時已更改為 {time} 秒");
+            }
+        }
+
+        [ConsoleCommand("matchzy_side_selection_reminder", "設定刀局選邊提示間隔 (秒)")]
+        public void OnSideSelectionReminderCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (player != null && !IsPlayerAdmin(player)) return;
+            if (command != null && command.ArgCount >= 2 && int.TryParse(command.ArgByIndex(1), out int interval))
+            {
+                sideSelectionReminder = interval;
+                if (player != null) ReplyToUserCommand(player, $"選邊提示間隔已更改為 {interval} 秒");
+            }
+        }
+
+      public void StartSideSelectionTimer()
+        {
+            CancelSideSelectionTimer(); 
+            
+            sideSelectionRemainingSeconds = sideSelectionTimeLimit;
+
+            sideSelectionTimer = AddTimer(1.0f, () =>
+            {
+                // 狀態防呆：如果已經不在選邊階段，或比賽已開始，立刻停止並自動銷毀
+                if (!isSideSelectionPhase || matchStarted)
+                {
+                    CancelSideSelectionTimer();
+                    return;
+                }
+
+                sideSelectionRemainingSeconds--;
+
+                // ==========================================
+                // 1. 聊天室文字廣播 (呼叫 zh-Hant.json 原生翻譯)
+                // ==========================================
+                if (sideSelectionRemainingSeconds > 0 && 
+                   (sideSelectionRemainingSeconds % sideSelectionReminder == 0 || sideSelectionRemainingSeconds <= 5))
+                {
+                    // 讀取 "matchzy.knife.sidedecisionpending" 並代入獲勝方名稱，後面補上倒數秒數
+                    string pendingMessage = Localizer["matchzy.knife.sidedecisionpending", knifeWinnerName];
+                    Server.PrintToChatAll($"{chatPrefix} {pendingMessage} {ChatColors.Default}(剩餘: {ChatColors.Red}{sideSelectionRemainingSeconds}{ChatColors.Default} 秒)");
+                }
+
+                // ==========================================
+                // 2. HUD 畫面正中央提示 (常駐顯示)
+                // ==========================================
+                if (sideSelectionRemainingSeconds > 0)
+                {
+                    foreach (var p in Utilities.GetPlayers())
+                    {
+                        if (p is { IsValid: true, IsBot: false })
+                        {
+                            if (p.TeamNum == knifeWinner)
+                            {
+                                p.PrintToCenter($"請 盡 速 輸 入 .stay 或 .swap 選 邊\n剩 餘 時 間 : {sideSelectionRemainingSeconds} 秒");
+                            }
+                            else if (p.TeamNum == 2 || p.TeamNum == 3)
+                            {
+                                p.PrintToCenter($"等 待 刀 局 獲 勝 方 選 邊\n剩 餘 時 間 : {sideSelectionRemainingSeconds} 秒");
+                            }
+                        }
+                    }
+                }
+
+                // ==========================================
+                // 3. 超時邏輯：時間歸零，強制執行 .stay
+                // ==========================================
+                if (sideSelectionRemainingSeconds <= 0)
+                {
+                    CancelSideSelectionTimer();
+                    
+                    // 讀取 "matchzy.knife.decidedtostay" 並代入獲勝方名稱，作為超時自動選邊的廣播
+                    string autoStayMessage = Localizer["matchzy.knife.decidedtostay", knifeWinnerName];
+                    Server.PrintToChatAll($"{chatPrefix} {ChatColors.Red}選邊逾時！ {autoStayMessage}");
+                    
+                    foreach (var p in Utilities.GetPlayers())
+                    {
+                        if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
+                        {
+                            p.PrintToCenter("選 邊 逾 時 系 統 自 動 選 擇 原 陣 營");
+                        }
+                    }
+                    
+                    isSideSelectionPhase = false;
+                    
+                    // 呼叫 OnTeamStay 進入正賽
+                    OnTeamStay(null, null); 
+                }
+            }, TimerFlags.REPEAT);
+        }
+        public void CancelSideSelectionTimer()
+        {
+            if (sideSelectionTimer != null)
+            {
+                sideSelectionTimer.Kill();
+                sideSelectionTimer = null;
+            }
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
 
         [ConsoleCommand("css_hp", "查詢對擊殺者的傷害統計")]
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
