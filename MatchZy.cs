@@ -8,7 +8,7 @@ using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Core.Attributes.Registration; 
 using CounterStrikeSharp.API.Modules.Events;
-// ▼ 僅補上這一行，讓計時器能使用 TimerFlags.REPEAT
+// ▼ 僅補上這一行，讓計分板標籤計時器能使用 TimerFlags.REPEAT
 using CounterStrikeSharp.API.Modules.Timers;
 
 namespace MatchZy
@@ -105,13 +105,13 @@ namespace MatchZy
 
             database.InitializeDatabase(ModuleDirectory);
 
+            // This sets default config ConVars
+            Server.ExecuteCommand("execifexists MatchZy/config.cfg");
+
             // ▼▼▼ 新增：啟動記分板標籤計時器 ▼▼▼
             clanTagTimer?.Kill();
             clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
             // ▲▲▲ ▲▲▲ ▲▲▲
-
-            // This sets default config ConVars
-            Server.ExecuteCommand("execifexists MatchZy/config.cfg");
 
             if (!hotReload) {
                 AutoStart();
@@ -620,7 +620,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                             // 5. 手動幫他把紀錄寫進去！
                             playerReadyStatus[uid] = true;
 
-                            // ▼▼▼ 新增：瞬間更新記分板標籤，確保最後一人打勾也能無延遲顯示 ▼▼▼
+                            // ▼▼▼ 新增：瞬間更新記分板標籤 ▼▼▼
                             UpdateReadyClanTags();
                             // ▲▲▲ ▲▲▲ ▲▲▲
 
@@ -858,66 +858,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             return count;
         }
 
-        // =========================================================================
-        // ▼▼▼ 新增：準備標籤的函式（含全面狀態攔截與自動清除） ▼▼▼
-        // =========================================================================
-        private void UpdateReadyClanTags()
-        {
-            // 只要不在「初始準備熱身階段」，就絕對不顯示標籤，並立刻清空記分板
-            if (!readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
-            {
-                ClearReadyClanTags();
-                return;
-            }
-
-            Server.NextFrame(() => {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
-                        continue;
-
-                    if (p.TeamNum != 2 && p.TeamNum != 3)
-                    {
-                        if (p.Clan == " ✔ " || p.Clan == " ✖ ")
-                        {
-                            p.Clan = "";
-                            Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                        }
-                        continue;
-                    }
-
-                    int uid = p.UserId.Value;
-                    bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
-
-                    string targetTag = isReady ? " ✔ " : " ✖ ";
-                    if (p.Clan != targetTag)
-                    {
-                        p.Clan = targetTag;
-                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                    }
-                }
-            });
-        }
-
-        private void ClearReadyClanTags()
-        {
-            Server.NextFrame(() => {
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    // .NET 10 優化寫法：模式匹配
-                    if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
-                        continue;
-
-                    if (p.Clan == " ✔ " || p.Clan == " ✖ ")
-                    {
-                        p.Clan = "";
-                        Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
-                    }
-                }
-            });
-        }
-        // ▲▲▲ ▲▲▲ ▲▲▲
-
         // 專門用來擋控制台跨外掛投票的共用函數
         private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
         {
@@ -986,7 +926,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) 
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
         // 1. 真人管理員手動輸入 ➔ 聊天室廣播給大家聽
-        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 自 動 洗 牌");
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
@@ -1125,6 +1065,81 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 });
             } //  結束 lock (_shuffleLock)
         } //  結束 ExecuteShuffleLogicWithReady 方法
+
+        // =========================================================================
+        // ▼▼▼ 新增：準備標籤的函式（含全面狀態攔截、自動清除與極限防崩潰沙盒） ▼▼▼
+        // =========================================================================
+        private void UpdateReadyClanTags()
+        {
+            try 
+            {
+                // 只要不在「初始準備熱身階段」，就絕對不顯示標籤，並立刻清空記分板
+                if (!readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
+                {
+                    ClearReadyClanTags();
+                    return;
+                }
+
+                Server.NextFrame(() => {
+                    try 
+                    {
+                        foreach (var p in Utilities.GetPlayers())
+                        {
+                            if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
+                                continue;
+
+                            if (p.TeamNum != 2 && p.TeamNum != 3)
+                            {
+                                if (p.Clan == " ✔ " || p.Clan == " ✖ ")
+                                {
+                                    p.Clan = "";
+                                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                                }
+                                continue;
+                            }
+
+                            int uid = p.UserId.Value;
+                            bool isReady = playerReadyStatus.TryGetValue(uid, out var ready) && ready;
+
+                            string targetTag = isReady ? " ✔ " : " ✖ ";
+                            if (p.Clan != targetTag)
+                            {
+                                p.Clan = targetTag;
+                                Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                            }
+                        }
+                    }
+                    catch (Exception) { /* 極限靜默防護，確保不干擾系統主計時器 */ }
+                });
+            }
+            catch (Exception) { }
+        }
+
+        private void ClearReadyClanTags()
+        {
+            try 
+            {
+                Server.NextFrame(() => {
+                    try 
+                    {
+                        foreach (var p in Utilities.GetPlayers())
+                        {
+                            if (p is not { IsValid: true, IsBot: false, IsHLTV: false }) 
+                                continue;
+
+                            if (p.Clan == " ✔ " || p.Clan == " ✖ ")
+                            {
+                                p.Clan = "";
+                                Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                            }
+                        }
+                    }
+                    catch (Exception) { }
+                });
+            }
+            catch (Exception) { }
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
 
         [ConsoleCommand("css_hp", "查詢對擊殺者的傷害統計")]
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
