@@ -1272,7 +1272,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
             {
                 if (p is { IsValid: true, IsBot: false })
                 {
-                    p.PrintToCenter("&#8203;", 0); 
+                    p.PrintToCenter("&#8203;"); 
                 }
             }
             // ▲▲▲ ▲▲▲ ▲▲▲
