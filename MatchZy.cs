@@ -1169,29 +1169,45 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
         {
             CancelSideSelectionTimer(); 
             
-            // ▼▼▼ 核心修正：強制關閉原版的重複廣播計時器，避免雙重洗頻 ▼▼▼
             if (sideSelectionMessageTimer != null)
             {
                 sideSelectionMessageTimer.Kill();
                 sideSelectionMessageTimer = null;
             }
-            // ▲▲▲ ▲▲▲ ▲▲▲
             
             sideSelectionRemainingSeconds = sideSelectionTimeLimit;
 
+            // ▼▼▼ 【精緻化修正 1】：在計時器啟動的「第 0 秒」立刻精準渲染滿秒數，徹底解決 120 變 119 的誤差 ▼▼▼
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p is { IsValid: true, IsBot: false })
+                {
+                    if (p.TeamNum == knifeWinner)
+                    {
+                        p.PrintToCenter($"勝 者 選 邊 .C 或 .T 倒 數 : {sideSelectionRemainingSeconds} 秒");
+                    }
+                    else if (p.TeamNum == 2 || p.TeamNum == 3)
+                    {
+                        p.PrintToCenter($"等 待 對 方 選 邊...倒 數 : {sideSelectionRemainingSeconds} 秒");
+                    }
+                }
+            }
+            // ▲▲▲ ▲▲▲ ▲▲▲
+
             sideSelectionTimer = AddTimer(1.0f, () =>
             {
-                // 狀態防呆：只有在正賽真正 LIVE 或不在選邊階段時，計時器才銷毀
+                // 狀態防呆
                 if (!isSideSelectionPhase || isMatchLive)
                 {
                     CancelSideSelectionTimer();
                     return;
                 }
 
+                // 先扣秒數，再印接下來的秒數
                 sideSelectionRemainingSeconds--;
 
                 // ==========================================
-                // 1. 聊天室文字廣播 (純淨版：只在整數間隔提示，不再每秒洗頻)
+                // 1. 聊天室文字廣播
                 // ==========================================
                 if (sideSelectionRemainingSeconds > 0 && sideSelectionRemainingSeconds % sideSelectionReminder == 0)
                 {
@@ -1200,7 +1216,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 }
 
                 // ==========================================
-                // 2. HUD 畫面正中央提示 (常駐顯示)
+                // 2. HUD 畫面正中央提示
                 // ==========================================
                 if (sideSelectionRemainingSeconds > 0)
                 {
@@ -1238,10 +1254,28 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                         }
                     }
                     
-                    // 呼叫 OnTeamStay 進入正賽
                     OnTeamStay(null, null); 
                 }
             }, TimerFlags.REPEAT);
+        }
+
+        public void CancelSideSelectionTimer()
+        {
+            if (sideSelectionTimer != null)
+            {
+                sideSelectionTimer.Kill();
+                sideSelectionTimer = null;
+            }
+
+            // ▼▼▼ 【精緻化修正 2】：仿效 Pausing.cs 的清空機制，計時器銷毀時瞬間清除全體玩家的 HUD 殘影，絕不定格 ▼▼▼
+            foreach (var p in Utilities.GetPlayers())
+            {
+                if (p is { IsValid: true, IsBot: false })
+                {
+                    p.PrintToCenter("&#8203;"); 
+                }
+            }
+            // ▲▲▲ ▲▲▲ ▲▲▲
         }
         public void CancelSideSelectionTimer()
         {
