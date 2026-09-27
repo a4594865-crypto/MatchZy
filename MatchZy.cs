@@ -1259,7 +1259,7 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
             }, TimerFlags.REPEAT);
         }
 
-        public void CancelSideSelectionTimer()
+     public void CancelSideSelectionTimer()
         {
             if (sideSelectionTimer != null)
             {
@@ -1267,26 +1267,16 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 sideSelectionTimer = null;
             }
 
-            // ▼▼▼ 【精緻化修正 2】：仿效 Pausing.cs 的清空機制，計時器銷毀時瞬間清除全體玩家的 HUD 殘影，絕不定格 ▼▼▼
+            // ▼▼▼ 【精緻化修正 2】：計時器銷毀時瞬間清除全體玩家的 HUD 殘影，絕不定格 ▼▼▼
             foreach (var p in Utilities.GetPlayers())
             {
                 if (p is { IsValid: true, IsBot: false })
                 {
-                    p.PrintToCenter("&#8203;"); 
+                    p.PrintToCenter("&#8203;", 0); 
                 }
             }
             // ▲▲▲ ▲▲▲ ▲▲▲
         }
-        public void CancelSideSelectionTimer()
-        {
-            if (sideSelectionTimer != null)
-            {
-                sideSelectionTimer.Kill();
-                sideSelectionTimer = null;
-            }
-        }
-        // ▲▲▲ ▲▲▲ ▲▲▲
-
         [ConsoleCommand("css_hp", "查詢對擊殺者的傷害統計")]
         [CommandHelper(whoCanExecute: CommandUsage.CLIENT_ONLY)]
         public void OnHpCommand(CCSPlayerController? player, CommandInfo? command)
