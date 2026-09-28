@@ -1208,7 +1208,7 @@ public void StartSideSelectionTimer()
                 {
                     if (p.TeamNum == knifeWinner)
                     {
-                        p.PrintToCenter($"勝 者 輸 入 .CT 或 .T 選 邊 : {sideSelectionRemainingSeconds} 秒");
+                        p.PrintToCenter($"勝 者 輸 入 .C 或 .T 選 邊 : {sideSelectionRemainingSeconds} 秒");
                     }
                     else if (p.TeamNum == 2 || p.TeamNum == 3)
                     {
@@ -1250,7 +1250,7 @@ public void StartSideSelectionTimer()
                         {
                             if (p.TeamNum == knifeWinner)
                             {
-                                p.PrintToCenter($"勝 者 輸 入 選 邊 .C 或 .T : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter($"勝 者 輸 入 選 邊 .CT 或 .T : {sideSelectionRemainingSeconds} 秒");
                             }
                             else if (p.TeamNum == 2 || p.TeamNum == 3)
                             {
