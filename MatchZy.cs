@@ -888,10 +888,10 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         }
 
 // ▼▼▼ 準備標籤的函式（含全面狀態攔截與自動清除） ▼▼▼
-        private void UpdateReadyClanTags()
+       private void UpdateReadyClanTags()
         {
-            // 只要不在「初始準備熱身階段」，就絕對不顯示標籤，並立刻清空記分板
-            if (!readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
+            // ▼ 核心修正：加入 !isWarmup，只要不是熱身階段（包含勝利結算畫面），絕對不顯示標籤並立刻清空
+            if (!isWarmup || !readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
             {
                 ClearReadyClanTags();
                 return;
@@ -943,19 +943,18 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             });
         }
 
-        // ▼▼▼ 新增：沒收 CS2 引擎修改標籤的權限 ▼▼▼
+       // ▼▼▼ 新增：沒收 CS2 引擎修改標籤的權限 ▼▼▼
         private HookResult OnSetClan(DynamicHook hook)
         {
-            // 狀態判斷與 UpdateReadyClanTags 保持完全一致：
-            // 只要我們正在顯示準備標籤，就不准遊戲引擎覆蓋我們的 " ✔ " 和 " ✖ "
-            if (readyAvailable && !matchStarted && !isCountdownActive && !isKnifeRound && !isSideSelectionPhase && !isMatchLive && !isPractice)
+            // ▼ 核心修正：加入 isWarmup，只有在「純熱身階段」才攔截引擎。
+            // 結算畫面時會放行 (Continue)，讓 CS2 引擎能順利掛回玩家原本的 Steam 群組名牌！
+            if (isWarmup && readyAvailable && !matchStarted && !isCountdownActive && !isKnifeRound && !isSideSelectionPhase && !isMatchLive && !isPractice)
             {
                 return HookResult.Handled;
             }
-            return HookResult.Continue; // 其他時間（如正式開賽後）放行，讓玩家顯示自己的 Steam 群組標籤
+            return HookResult.Continue; // 其他時間（如正式開賽後、勝利結算畫面）放行，讓玩家顯示自己的 Steam 群組標籤
         }
         // ▲▲▲ ▲▲▲ ▲▲▲
-
         // 專門用來擋控制台跨外掛投票的共用函數
         private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
         {
