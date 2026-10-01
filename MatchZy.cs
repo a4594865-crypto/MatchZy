@@ -1258,7 +1258,7 @@ public void StartSideSelectionTimer()
                         }
                     }
                 }
-                // ==========================================
+              // ==========================================
                 // 3. 超時邏輯：時間歸零，隨機執行 .stay 或 .switch
                 // ==========================================
                 if (sideSelectionRemainingSeconds <= 0)
@@ -1270,15 +1270,17 @@ public void StartSideSelectionTimer()
                     
                     if (randomChoice == 0)
                     {
-                        Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 決 定：{ChatColors.Lime}保 留 原 陣 營");
+                        Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 隨 機 決 定：{ChatColors.Lime}保 留 原 陣 營");
                         OnTeamStay(null, null); 
                     }
                     else
                     {
-                        Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 決 定：{ChatColors.Orange}交 換 陣 營");
+                        Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 隨 機 決 定：{ChatColors.Orange}交 換 陣 營");
                         OnTeamSwitch(null, null); 
                     }
                 }
+            }, TimerFlags.REPEAT); // <--- 就是這行剛才不小心被刪掉了！
+        }
 
         public void CancelSideSelectionTimer()
         {
