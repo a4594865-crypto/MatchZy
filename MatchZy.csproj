@@ -6,6 +6,8 @@
     <RootNamespace>MatchZy</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- 加上官方 0.9.0 的版本號標記 -->
+    <Version>0.9.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,10 +21,19 @@
     <PackageReference Include="Microsoft.Data.Sqlite" Version="7.0.13" />
     <PackageReference Include="MySqlConnector" Version="2.3.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.6" />
+    <!-- 這裡跟隨官方升級到 2.1.11 -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- 跟隨官方設定：確保編譯時排除不需要的測試檔案，縮小外掛體積 -->
+    <Compile Remove="tests\**" />
+    <None Remove="tests\**" />
+  </ItemGroup>
+
   <ItemGroup>
     <None Update="lang\**\*.*" CopyToOutputDirectory="PreserveNewest" />
     <None Update="spawns\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
+  
 </Project>
