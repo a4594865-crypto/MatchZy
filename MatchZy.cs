@@ -1258,23 +1258,27 @@ public void StartSideSelectionTimer()
                         }
                     }
                 }
-
                 // ==========================================
-                // 3. 超時邏輯：時間歸零，強制執行 .stay
+                // 3. 超時邏輯：時間歸零，隨機執行 .stay 或 .switch
                 // ==========================================
                 if (sideSelectionRemainingSeconds <= 0)
                 {
                     CancelSideSelectionTimer();
                     
-                    string autoStayMessage = Localizer["matchzy.knife.decidedtostay", knifeWinnerName];
-                    Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時 {autoStayMessage}");
+                    // 產生 0 或 1 的隨機亂數
+                    int randomChoice = new Random().Next(0, 2); 
                     
-                    // 已移除畫面正中央的超時提示
-                    
-                    OnTeamStay(null, null); 
+                    if (randomChoice == 0)
+                    {
+                        Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 決 定：{ChatColors.Lime}保 留 原 陣 營");
+                        OnTeamStay(null, null); 
+                    }
+                    else
+                    {
+                        Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 決 定：{ChatColors.Orange}交 換 陣 營");
+                        OnTeamSwitch(null, null); 
+                    }
                 }
-            }, TimerFlags.REPEAT);
-        }
 
         public void CancelSideSelectionTimer()
         {
