@@ -725,13 +725,17 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     {
         HandleRestoreCommand(player, messageCommandArg);
     }
-    if (message.StartsWith(".asay"))
+ if (message.StartsWith(".asay"))
     {
         if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
         {
             if (messageCommandArg != "")
             {
+                // 1. 聊天室廣播：發送到左下角，並自動帶有 [ADMIN] 標籤
                 Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
+                
+                // 2. HUD 畫面廣播：發送到畫面正中央，只顯示純文字內容
+                Server.PrintToCenterAll(messageCommandArg);
             }
             else
             {
