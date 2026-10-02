@@ -731,11 +731,17 @@ if (message.StartsWith(".asay"))
         {
             if (messageCommandArg != "")
             {
-                // 1. 聊天室廣播：帶有 [ADMIN] 標籤
+                // 1. 左下角聊天室廣播 (帶有管理員標籤)
                 Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
                 
-                // 2. HUD 畫面正中央：只顯示純文字內容，沒有任何標籤
-                p.PrintToCenter(messageCommandArg);
+                // 2. 畫面正中央 HUD：透過迴圈發送給線上所有真人玩家 (大約 3 秒自動淡出)
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p is { IsValid: true, IsBot: false })
+                    {
+                        p.PrintToCenter(messageCommandArg);
+                    }
+                }
             }
             else
             {
