@@ -731,10 +731,10 @@ if (message.StartsWith(".asay"))
         {
             if (messageCommandArg != "")
             {
-                // 1. 左下角聊天室廣播 (帶有管理員標籤)
+                // 1. 左下角聊天室廣播
                 Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
                 
-                // 2. 畫面正中央 HUD：透過迴圈發送給線上所有真人玩家 (大約 3 秒自動淡出)
+                // 2. 畫面正中央 HUD
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p is { IsValid: true, IsBot: false })
