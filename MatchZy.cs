@@ -1,6 +1,9 @@
 using System;                                       
 using System.Collections.Generic;                       
 using System.Collections.Frozen;
+// ▼▼▼ GetCustomAttributes<T> ▼▼▼
+using System.Reflection;
+// ▲▲▲ ▲▲▲ ▲▲▲
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
