@@ -118,6 +118,33 @@ namespace MatchZy
         // SQLite/MySQL Database 
         private Database database = new();
     
+        // ▼▼▼ 步驟 1：官方 0.9.1 修復防指令重複執行機制 (全域變數與方法) ▼▼▼
+        private HashSet<string>? registeredCssCommands;
+
+        private HashSet<string> GetRegisteredCssCommands()
+        {
+            if (registeredCssCommands != null) return registeredCssCommands;
+            registeredCssCommands = GetType()
+                .GetMethods(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic)
+                .SelectMany(method => method.GetCustomAttributes<CounterStrikeSharp.API.Core.Attributes.Registration.ConsoleCommandAttribute>())
+                .Select(attribute => attribute.Command.ToLowerInvariant())
+                .ToHashSet();
+            return registeredCssCommands;
+        }
+
+        private static bool IsDotCssChatTrigger()
+        {
+            try
+            {
+                return CounterStrikeSharp.API.Core.CoreConfig.PublicChatTrigger.Contains(".") || CounterStrikeSharp.API.Core.CoreConfig.SilentChatTrigger.Contains(".");
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         public override void Load(bool hotReload) {
             
             LoadAdmins();
@@ -688,6 +715,14 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         messageCommandArg = originalMessageSpan[(spaceIndex + 1)..].ToString();
     }
 
+    // ▼▼▼ 步驟 2：官方 0.9.1 修復防指令重複執行機制 (聊天攔截判斷) ▼▼▼
+    string commandName = messageCommand.ToLowerInvariant();
+    if (commandName.Length > 1 && commandName[0] == '.' && IsDotCssChatTrigger() && GetRegisteredCssCommands().Contains("css_" + commandName[1..]))
+    {
+        return HookResult.Continue;
+    }
+    // ▲▲▲ ▲▲▲ ▲▲▲
+
     CCSPlayerController? player = null;
     if (playerData.TryGetValue(playerUserId, out CCSPlayerController? value)) {
         player = value;
@@ -1036,7 +1071,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) 
     
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
-        // 1. 真人管理員手動輸入 ➔ 聊天室廣播給大家聽
+        // 1. 真人管理員手手動輸入 ➔ 聊天室廣播給大家聽
         Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
