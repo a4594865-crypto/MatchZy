@@ -510,20 +510,6 @@ AddCommandListener("jointeam", (player, info) =>
 
 
 RegisterListener<Listeners.OnMapStart>(mapName => {
-    
-    // 換圖防呆與狀態清理機制 ▼▼▼
-    // 1. 強制解除上一張地圖的 Demo 錄影佔用 (確保新圖 GOTV 正常錄影)
-    isDemoRecording = false;
-    CancelPendingDemoRecording();
-    
-    // 2. 重置 Veto 選圖與開賽等待時間狀態
-    mapChangePending = false;
-    readyTimeWaitingUsed = 0;
-    
-    // 3. 清空上一張圖的 C4 安裝/拆除數據 (防止跨圖疊加)
-    bombStats.Clear();
-    // ▲▲▲ ▲▲▲ ▲▲▲
-
     AddTimer(1.0f, () => {
         // 核心修正：清理緩存，但不手動指定 CT/T
         ResetTeamDataCaches(); 
@@ -811,22 +797,18 @@ if (message.StartsWith(".asay"))
     {
         HandleTeamNameChangeCommand(player, messageCommandArg, 2);
     }
-if (message.StartsWith(".rcon"))
-{
-    if (IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
+    if (message.StartsWith(".rcon"))
     {
-        // ▼▼ 補上官方新版安全紀錄，並自動呼叫 MatchZySecurity 遮蔽敏感資訊 ▼▼
-        Log($"[RCON] {player.PlayerName} ({player.SteamID}) executed: {MatchZySecurity.RedactConsoleCommand(messageCommandArg)}");
-        // ▲▲ ▲▲ ▲▲
-        
-        Server.ExecuteCommand(messageCommandArg);
-        ReplyToUserCommand(player, "Command sent successfully!");
+        if (IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
+        {
+            Server.ExecuteCommand(messageCommandArg);
+            ReplyToUserCommand(player, "Command sent successfully!");
+        }
+        else
+        {
+            SendPlayerNotAdminMessage(player);
+        }
     }
-    else
-    {
-        SendPlayerNotAdminMessage(player);
-    }
-}
     if (message.StartsWith(".coach"))
     {
         HandleCoachCommand(player, messageCommandArg);
