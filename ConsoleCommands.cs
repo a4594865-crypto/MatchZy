@@ -5,6 +5,7 @@ using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
 using System.Text.RegularExpressions;
+using CounterStrikeSharp.API.Modules.Timers;
 
 namespace MatchZy
 {
@@ -778,8 +779,8 @@ namespace MatchZy
             return HookResult.Stop;
         }
 
-        // ==========================================
-        // ▼ GG 認輸投票系統 (支援分數與開關設定版) ▼
+// ==========================================
+        // ▼ GG 認輸投票系統 (修正編譯錯誤版) ▼
         // ==========================================
         public bool isGGEnabled = true;       // 預設開啟
         public int ggMinScoreDifference = 6;  // 預設落後 6 分才能投降
@@ -893,28 +894,23 @@ namespace MatchZy
             int votesNeeded = teamSize <= 2 ? Math.Max(1, teamSize) : teamSize - 1;
             int currentVotes = ggVotes[playerTeam].Count;
             
-            // 將原本的 CT/T 顯示替換為完整的中文陣營名稱
             string teamName = playerTeam == CsTeam.CounterTerrorist ? "反恐小組" : "恐怖分子";
 
-            // 左下角聊天框廣播 (隱藏玩家名字，改為陣營)
+            // 左下角聊天框廣播
             PrintToAllChat($" {ChatColors.Green}{teamName} 隊伍{ChatColors.Default} 發起了投降投票！({ChatColors.Yellow}{currentVotes}{ChatColors.Default}/{votesNeeded})");
             
-            // 票數達標，結束比賽並跳出結算面板
+            // 票數達標，直接使用你專案原生的 ResetMatch 結束比賽
             if (currentVotes >= votesNeeded)
             {
-                PrintToAllChat($" {ChatColors.Red}{teamName} 隊伍{ChatColors.Default} 已經投降！");
+                PrintToAllChat($" {ChatColors.Red}{teamName} 隊伍{ChatColors.Default} 已經投降！比賽重置中...");
                 
-                // HUD 提示投降成功 (迴圈尋找所有真人玩家發送)
                 foreach (var p in playerData.Values) {
                     if (p != null && p.IsValid) p.PrintToCenter($"{teamName} 隊伍 已經投降！");
                 }
                 
-                Team? playerMatchTeam = playerTeam == CsTeam.CounterTerrorist ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-                Team winnerTeam = (playerMatchTeam == matchzyTeam1) ? matchzyTeam2 : matchzyTeam1;
+                ResetMatch(); // 修正：改用你專案原有的 ResetMatch 方法
+                ResetTechPauseCount(); 
                 
-                EndSeriesWithWinner(winnerTeam); 
-                
-                // 投降成功時，清除計時器與票數
                 if (ggResetTimers.TryGetValue(playerTeam, out var oldTimer)) oldTimer?.Kill();
                 ResetGGVotes();
             }
@@ -925,7 +921,6 @@ namespace MatchZy
                 
                 ggTimerSeconds[playerTeam] = 60; // 設定起始倒數 60 秒
                 
-                // 顯示初始的第一秒 HUD
                 foreach (var p in playerData.Values) {
                     if (p != null && p.IsValid) p.PrintToCenter($"{teamName} 隊伍 投降倒數: 60秒 ({currentVotes}/{votesNeeded})");
                 }
@@ -935,14 +930,12 @@ namespace MatchZy
                     
                     if (ggTimerSeconds[playerTeam] > 0) 
                     {
-                        // 每秒刷新一次 HUD 讓它不會消失
                         foreach (var p in playerData.Values) {
                             if (p != null && p.IsValid) p.PrintToCenter($"{teamName} 隊伍 投降倒數: {ggTimerSeconds[playerTeam]}秒 ({ggVotes[playerTeam].Count}/{votesNeeded})");
                         }
                     }
                     else 
                     {
-                        // 倒數歸零，宣告超時並刪除計時器
                         PrintToAllChat($" {ChatColors.Red}{teamName} 隊伍{ChatColors.Default} 的投降投票已過期 (60秒未達標)。");
                         
                         foreach (var p in playerData.Values) {
@@ -952,7 +945,7 @@ namespace MatchZy
                         ggVotes[playerTeam].Clear();
                         ggResetTimers[playerTeam]?.Kill();
                     }
-                }, TimerFlags.REPEAT);
+                }, TimerFlags.REPEAT); // 這裡需要上方有 using CounterStrikeSharp.API.Modules.Timers;
             }
         }
 
