@@ -29,7 +29,7 @@ public partial class MatchZy
         if (coach is null || !IsPlayerValid(coach)) return;
 
         CsTeam currentCoachTeam = GetCoachTeam(coach);
-        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "[反恐教練]" : "[恐怖教練]";
+        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "反恐教練" : "恐怖教練";
 
         if (coach.Clan != targetTag)
         {
