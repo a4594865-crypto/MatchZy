@@ -646,7 +646,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         }
     }
 
-   // =========================================================================
+  // =========================================================================
     // 分流：防盲目觸發、精準驗證第 10 票、手動寫入紀錄
     // =========================================================================
     if (message == ".r" || message == ".ready") {
@@ -660,8 +660,14 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             
             // 取出發言的玩家
             var chatPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
-            if (chatPlayer != null && chatPlayer.IsValid) {
+            if (chatPlayer is { IsValid: true }) {
                 
+                // ▼ 防呆（.NET 10 零 GC 配置）：若為教練身分，直接攔截 .r 並回傳 Handled，不觸發洗牌也不往下傳遞
+                if (matchzyTeam1.coach.Contains(chatPlayer) || matchzyTeam2.coach.Contains(chatPlayer)) {
+                    PrintToPlayerChat(chatPlayer, $" 你 目 前 為 {ChatColors.Green}教練身分{ChatColors.Default}，無 需 輸 入 {ChatColors.Green}.R{ChatColors.Default} 準 備！");
+                    return HookResult.Handled;
+                }
+
                 int uid = (int)(chatPlayer.UserId ?? -1);
 
                 // 2. 身分驗證：檢查他是不是「已經準備過」了？
@@ -919,19 +925,21 @@ if (message.StartsWith(".asay"))
         // --- 指令函數與核心修正代碼 ---
         // ==========================================
 
-// --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者與離線玩家 ---
+// --- 核心修正：重新定義人數統計邏輯，完全排除觀戰者、離線玩家與教練 ---
         public int GetReadyPlayersCount()
         {
             int count = 0;
-            // 【.NET 10 升級】：字典解構，0二次查詢成本
+            // 【.NET 10 升級】：字典解構 + 原生 HashSet O(1) 查詢，0 GC 額外記憶體配置
             foreach (var (key, value) in playerReadyStatus)
             {
                 if (value == true)
                 {
                     var player = Utilities.GetPlayerFromUserid(key);
-                    // 超強防護網：必須「IsValid 且在線 (PlayerConnected) 且在 T/CT 隊上」才算人數
+                    // 超強防護網：必須「IsValid 且在線 (PlayerConnected) 且在 T/CT 隊上 且非教練」才算人數
                     if (player is { IsValid: true, Connected: PlayerConnectedState.Connected } && 
-                        (player.TeamNum == 2 || player.TeamNum == 3))
+                        (player.TeamNum == 2 || player.TeamNum == 3) &&
+                        !matchzyTeam1.coach.Contains(player) &&
+                        !matchzyTeam2.coach.Contains(player))
                     {
                         count++;
                     }
