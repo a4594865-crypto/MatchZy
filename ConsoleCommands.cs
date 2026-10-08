@@ -4,7 +4,9 @@ using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Modules.Timers;
 using System.Text.RegularExpressions;
+using CounterStrikeSharp.API.Modules.Enums;
 
 namespace MatchZy
 {
@@ -675,9 +677,6 @@ namespace MatchZy
                 SendPlayerNotAdminMessage(player);
                 return;
             }
-            // ▼▼▼ 這裡補上官方的新版安全紀錄與遮蔽 ▼▼▼
-            Log($"[RCON] {player?.PlayerName ?? "Console"} ({player?.SteamID.ToString() ?? "-"}) executed: {MatchZySecurity.RedactConsoleCommand(command.ArgString)}");
-            // ▲▲▲ ▲▲▲ ▲▲▲
             Server.ExecuteCommand(command.ArgString);
             ReplyToUserCommand(player, Localizer["matchzy.cc.rcon"]);
         }
@@ -755,5 +754,226 @@ namespace MatchZy
 
             return HookResult.Stop;
         }
+
+        // ==========================================
+        // ▼ GG 認輸投票系統 (修正編譯與教練權限版) ▼
+        // ==========================================
+        public bool isGGEnabled = true;       // 預設開啟
+        public int ggMinScoreDifference = 6;  // 預設落後 6 分才能投降
+
+        [ConsoleCommand("matchzy_allow_gg", "Enable or disable GG system")]
+        public void OnGGConfigCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (command == null || command.ArgCount < 2) return;
+            if (player != null && !IsPlayerAdmin(player)) return; 
+
+            string arg = command.ArgByIndex(1).ToLower();
+            isGGEnabled = (arg == "true" || arg == "1");
+        }
+
+        [ConsoleCommand("matchzy_gg_min_score_difference", "Minimum score difference to allow GG")]
+        public void OnGGScoreConfigCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (command == null || command.ArgCount < 2) return;
+            if (player != null && !IsPlayerAdmin(player)) return; 
+
+            if (int.TryParse(command.ArgByIndex(1), out int diff))
+            {
+                ggMinScoreDifference = diff;
+            }
+        }
+
+        private Dictionary<CsTeam, HashSet<int>> ggVotes = new() { 
+            { CsTeam.CounterTerrorist, new HashSet<int>() }, 
+            { CsTeam.Terrorist, new HashSet<int>() } 
+        };
+        
+        private readonly Dictionary<CsTeam, CounterStrikeSharp.API.Modules.Timers.Timer?> ggResetTimers = new();
+        private readonly Dictionary<CsTeam, int> ggTimerSeconds = new(); 
+
+        // 本地宣告教練檢查，解決跨檔案 private 存取限制
+        private bool IsPlayerCoach(CCSPlayerController? player)
+        {
+            if (player == null) return false;
+            try {
+                return (matchzyTeam1 != null && matchzyTeam1.coach.Contains(player)) || 
+                       (matchzyTeam2 != null && matchzyTeam2.coach.Contains(player));
+            } catch {
+                return false;
+            }
+        }
+
+        [ConsoleCommand("css_gg", "Vote to surrender the match")]
+        [ConsoleCommand(".gg", "Vote to surrender the match")]
+        public void OnGGCommand(CCSPlayerController? player, CommandInfo? command)
+        {
+            if (player == null || !player.IsValid) return;
+
+            if (!isGGEnabled)
+            {
+                PrintToPlayerChat(player, $" 本 伺 服 器 尚 未 開 放 {ChatColors.Red}投降指令{ChatColors.Default}");
+                return;
+            }
+            
+            if (!isMatchLive)
+            {
+                PrintToPlayerChat(player, $" 比 賽 尚 未 開 始，無 法 使 用 {ChatColors.Red}投降指令{ChatColors.Default}");
+                return;
+            }
+
+            if (IsHalfTimePhase())
+            {
+                PrintToPlayerChat(player, $" 中 場 休 息 期 間，無 法 使 用 {ChatColors.Red}投降指令{ChatColors.Default}");
+                return;
+            }
+
+            var playerTeam = player.Team;
+            if (playerTeam != CsTeam.Terrorist && playerTeam != CsTeam.CounterTerrorist) return;
+
+            if (IsPlayerCoach(player))
+            {
+                PrintToPlayerChat(player, $" 教 練 無 法 使 用 {ChatColors.Red}投降指令{ChatColors.Default}");
+                return;
+            }
+
+            if (isMatchSetup && matchConfig.NumMaps > 1)
+            {
+                PrintToPlayerChat(player, $" 多 圖 系 列 賽 (BO{matchConfig.NumMaps}) 中 不 允 許 投 降");
+                return;
+            }
+
+            (int t1score, int t2score) = GetTeamsScore();
+            int playerTeamScore = (playerTeam == CsTeam.CounterTerrorist && reverseTeamSides["CT"] == matchzyTeam1) || (playerTeam == CsTeam.Terrorist && reverseTeamSides["TERRORIST"] == matchzyTeam1) ? t1score : t2score;
+            int opponentTeamScore = (playerTeamScore == t1score) ? t2score : t1score;
+            
+            if (opponentTeamScore - playerTeamScore < ggMinScoreDifference)
+            {
+                PrintToPlayerChat(player, $" 你的隊伍落後至少 {ChatColors.Red}{ggMinScoreDifference} 分{ChatColors.Default} 才能發起投降");
+                return;
+            }
+
+            if (!player.UserId.HasValue) return;
+            int userId = player.UserId.Value;
+
+            if (ggVotes[playerTeam].Contains(userId))
+            {
+                PrintToPlayerChat(player, $" {ChatColors.Orange}你已經投過票了{ChatColors.Default}");
+                return;
+            }
+
+            ggVotes[playerTeam].Add(userId);
+            
+           int teamSize = 0;
+            foreach (var p in playerData.Values) {
+                if (p != null && p.IsValid && p.Team == playerTeam && !IsPlayerCoach(p)) teamSize++;
+            }
+            
+            int votesNeeded = teamSize <= 2 ? Math.Max(1, teamSize) : teamSize - 1;
+            int currentVotes = ggVotes[playerTeam].Count;
+            
+            string teamName = playerTeam == CsTeam.CounterTerrorist ? "反恐小組" : "恐怖分子";
+
+            PrintToAllChat($" {ChatColors.Green}{teamName} 隊伍{ChatColors.Default} 發起了投降投票({ChatColors.Yellow}{currentVotes}{ChatColors.Default}/{votesNeeded})");
+            
+          if (currentVotes >= votesNeeded)
+            {
+                PrintToAllChat($" {ChatColors.Red}{teamName} 隊伍{ChatColors.Default} 已經投降");
+                
+                foreach (var p in playerData.Values) {
+                    if (p != null && p.IsValid) 
+                    {
+                        if (p.Team == playerTeam)
+                            p.PrintToCenter($"{teamName} 隊伍 已經投降");
+                        else
+                            p.PrintToCenter($"對手 {teamName} 隊伍 已經投降");
+                    }
+                }
+                
+                // ▼▼▼ 完美解法：呼叫 CS2 官方底層的「投降結算」 ▼▼▼
+                CCSGameRules? gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+                
+                if (gameRules != null)
+                {
+                    // 根據投降的隊伍，設定 CS2 原生的投降代碼
+                    RoundEndReason surrenderReason = playerTeam == CsTeam.CounterTerrorist 
+                        ? RoundEndReason.CTSurrender 
+                        : RoundEndReason.TerroristsSurrender;
+
+                    // 自動抓取伺服器官方預設的「回合結束延遲時間」 (對應設定檔的 mp_round_restart_delay)
+                    float defaultDelay = ConVar.Find("mp_round_restart_delay")?.GetPrimitiveValue<float>() ?? 5.0f;
+
+                    // 官方投降參數會自動結束整場比賽，保留當前真實比分，並彈出原生勝利面板
+                    gameRules.TerminateRound(defaultDelay, surrenderReason);
+                }
+                // ▲▲▲ ▲▲▲ ▲▲▲
+                
+                if (ggResetTimers.TryGetValue(playerTeam, out var oldTimer)) oldTimer?.Kill();
+                ResetGGVotes();
+            }
+            else
+            {
+                if (ggResetTimers.TryGetValue(playerTeam, out var oldTimer)) oldTimer?.Kill();
+                
+                ggTimerSeconds[playerTeam] = 60; 
+                
+                // 第一秒的初始 HUD
+                foreach (var p in playerData.Values) {
+                    if (p != null && p.IsValid) 
+                    {
+                        if (p.Team == playerTeam)
+                            p.PrintToCenter($"{teamName} 隊伍 ({currentVotes}/{votesNeeded}) 倒數：60秒");
+                        else
+                            p.PrintToCenter($"對手 {teamName} 發起投降 ({currentVotes}/{votesNeeded}) 倒數：60秒");
+                    }
+                }
+
+                ggResetTimers[playerTeam] = AddTimer(1.0f, () => {
+                    ggTimerSeconds[playerTeam]--; 
+                    
+                    if (ggTimerSeconds[playerTeam] > 0) 
+                    {
+                        // 倒數期間的 HUD 刷新
+                        foreach (var p in playerData.Values) {
+                            if (p != null && p.IsValid) 
+                            {
+                                if (p.Team == playerTeam)
+                                    p.PrintToCenter($"{teamName} 隊伍 ({ggVotes[playerTeam].Count }/ {votesNeeded}) 倒數：{ggTimerSeconds[playerTeam]}秒");
+                                else
+                                    p.PrintToCenter($"{teamName} 發起投降 ({ggVotes[playerTeam].Count} / {votesNeeded}) 倒數：{ggTimerSeconds[playerTeam]}秒");
+                            }
+                        }
+                    }
+                    else 
+                    {
+                        // 投票超時失敗的處理
+                        PrintToAllChat($" {ChatColors.Red}{teamName} 隊伍{ChatColors.Default} 的投降投票已過期");
+                        
+                        foreach (var p in playerData.Values) {
+                            if (p != null && p.IsValid) 
+                            {
+                                if (p.Team == playerTeam)
+                                    p.PrintToCenter($"{teamName} 隊伍的投降投票已過期");
+                                else
+                                    p.PrintToCenter($"對手 {teamName} 的投降投票已過期");
+                            }
+                        }
+                        
+                        ggVotes[playerTeam].Clear();
+                        ggResetTimers[playerTeam]?.Kill();
+                    }
+                }, TimerFlags.REPEAT); 
+            }
+        }
+
+        private void ResetGGVotes()
+        {
+            foreach (var timer in ggResetTimers.Values) timer?.Kill();
+            ggResetTimers.Clear();
+            ggVotes[CsTeam.CounterTerrorist].Clear();
+            ggVotes[CsTeam.Terrorist].Clear();
+        }
+        // ==========================================
+        // ▲ GG 認輸投票系統結束 ▲
+        // ==========================================
     }
 }
