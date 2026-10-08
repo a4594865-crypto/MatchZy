@@ -1177,11 +1177,14 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
     {
         if (!isShufflePending) return;
 
-        // 【優化替換 3】：移除 LINQ .Where().ToList()，改用集合表達式 []
+        // 【優化替換 3】：移除 LINQ .Where().ToList()，改用集合表達式 []，並以 0 GC 方式排除教練
         List<CCSPlayerController> activePlayers = [];
         foreach (var p in Utilities.GetPlayers())
         {
-            if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
+            if (p is { IsValid: true, IsBot: false } &&
+                (p.TeamNum == 2 || p.TeamNum == 3) &&
+                !matchzyTeam1.coach.Contains(p) &&
+                !matchzyTeam2.coach.Contains(p))
             {
                 activePlayers.Add(p);
             }
