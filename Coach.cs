@@ -11,8 +11,8 @@ public partial class MatchZy
 {
     public CounterStrikeSharp.API.Modules.Timers.Timer? coachKillTimer = null;
 
+    // false = 買槍時間浮在高空俯瞰隊友，買槍結束前 1 秒才變灰（推薦搭配高空座標 JSON）
     // true = 開局 0.25 秒瞬間無感變灰（直接看隊友第一人稱）
-    // false = 買槍時間浮在高空俯瞰隊友，買槍結束前 1 秒才變灰
     public bool instantCoachGrayOut = false;
 
     public HashSet<CCSPlayerController> GetAllCoaches()
@@ -129,12 +129,9 @@ public partial class MatchZy
         UpdateCoachClanTag(player);
         Server.NextFrame(EnforceCompetitiveTeammateColors);
 
-        string displayTeamName = string.IsNullOrWhiteSpace(matchZyCoachTeam.teamName)
-            ? (side == "ct" ? "反恐小組" : "恐怖分子")
-            : matchZyCoachTeam.teamName;
-
-        PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{displayTeamName}{ChatColors.Default} 的教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default} 可 退 出 教 練 席");
-        PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{displayTeamName}{ChatColors.Default} 的 教 練");
+        string sideDisplayName = side == "ct" ? "反恐小組" : "恐怖分子";
+        PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default} 可 退 出 教 練 席");
+        PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的 教 練");
 
         if (readyAvailable && !matchStarted)
         {
@@ -167,7 +164,7 @@ public partial class MatchZy
             GetCoachSpawns();
         }
 
-        // 決定變灰時間：instantCoachGrayOut 為 true 時開局 0.25 秒瞬間無感變灰；false 時買槍結束前 1 秒變灰
+        // 決定變灰時間：instantCoachGrayOut 為 false 時買槍結束前 1 秒變灰；true 時開局 0.25 秒瞬間變灰
         float killDelay;
         if (instantCoachGrayOut)
         {
