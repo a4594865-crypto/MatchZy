@@ -13,7 +13,7 @@ public partial class MatchZy
 
     // true = 開局 0.25 秒瞬間無感變灰（直接看隊友第一人稱）
     // false = 買槍時間浮在高空俯瞰隊友，買槍結束前 1 秒才變灰
-    public bool instantCoachGrayOut = true;
+    public bool instantCoachGrayOut = false;
 
     public HashSet<CCSPlayerController> GetAllCoaches()
     {
@@ -29,7 +29,7 @@ public partial class MatchZy
         if (coach is null || !IsPlayerValid(coach)) return;
 
         CsTeam currentCoachTeam = GetCoachTeam(coach);
-        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "[反恐教練]" : "[恐怖教練]";
+        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "反恐教練" : "恐怖教練";
 
         if (coach.Clan != targetTag)
         {
@@ -134,7 +134,7 @@ public partial class MatchZy
             : matchZyCoachTeam.teamName;
 
         PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{displayTeamName}{ChatColors.Default} 的教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default} 可 退 出 教 練 席");
-        PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{displayTeamName}{ChatColors.Default} 的 教 練！");
+        PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{displayTeamName}{ChatColors.Default} 的 教 練");
 
         if (readyAvailable && !matchStarted)
         {
