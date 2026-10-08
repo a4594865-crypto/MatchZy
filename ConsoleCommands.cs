@@ -6,7 +6,7 @@ using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Timers;
 using System.Text.RegularExpressions;
-using CounterStrikeSharp.API.Modules.Entities.Constants;
+using CounterStrikeSharp.API.Modules.Enums;
 
 namespace MatchZy
 {
@@ -863,9 +863,9 @@ namespace MatchZy
 
             ggVotes[playerTeam].Add(userId);
             
-           int teamSize = 0;
+            int teamSize = 0;
             foreach (var p in playerData.Values) {
-                if (p != null && p.IsValid && p.Team == playerTeam && !IsPlayerCoach(p)) teamSize++;
+                if (p != null && p.IsValid && p.Team == playerTeam) teamSize++;
             }
             
             int votesNeeded = teamSize <= 2 ? Math.Max(1, teamSize) : teamSize - 1;
