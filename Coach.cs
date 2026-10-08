@@ -114,6 +114,14 @@ public partial class MatchZy
             matchZyCoachTeam = reverseTeamSides.TryGetValue("CT", out var ctTeam) ? ctTeam : matchzyTeam1;
         }
 
+        // ▼▼▼ 【新增】：限制該隊伍只能有 1 名教練 ▼▼▼
+        if (matchZyCoachTeam.coach.Count >= 1)
+        {
+            PrintToPlayerChat(player, $" 該 隊 已 經 有 {ChatColors.Red}教練{ChatColors.Default} 了，每隊僅限 1 名教練！");
+            return;
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         matchZyCoachTeam.coach.Add(player);
 
         // ★ 核心修正：只把準備狀態設為 false，不從字典 Remove 刪除，這樣打 .uncoach 退出教練時就會自動保有要按 .R 的身分！
