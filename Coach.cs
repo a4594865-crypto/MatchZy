@@ -23,29 +23,6 @@ public partial class MatchZy
         return coaches;
     }
 
-    /// <summary>
-    /// 核心修復：防止 MatchZy.cs 的 ResetTeamDataCaches() 清空字典導致 KeyNotFoundException
-    /// </summary>
-    private void EnsureTeamSidesInitialized()
-    {
-        if (!reverseTeamSides.ContainsKey("CT"))
-        {
-            reverseTeamSides["CT"] = matchzyTeam1;
-        }
-        if (!reverseTeamSides.ContainsKey("TERRORIST"))
-        {
-            reverseTeamSides["TERRORIST"] = matchzyTeam2;
-        }
-        if (!teamSides.ContainsKey(matchzyTeam1))
-        {
-            teamSides[matchzyTeam1] = reverseTeamSides["CT"] == matchzyTeam1 ? "CT" : "TERRORIST";
-        }
-        if (!teamSides.ContainsKey(matchzyTeam2))
-        {
-            teamSides[matchzyTeam2] = reverseTeamSides["TERRORIST"] == matchzyTeam2 ? "TERRORIST" : "CT";
-        }
-    }
-
     // 根據教練目前所在的 CT / T 陣營，顯示 [反恐教練] 或 [恐怖教練]
     public void UpdateCoachClanTag(CCSPlayerController coach)
     {
@@ -75,9 +52,6 @@ public partial class MatchZy
             PrintToPlayerChat(player, $" 搭 檔 模 式 中 無 法 使 用 {ChatColors.Red}教練指令{ChatColors.Default}");
             return;
         }
-
-        // 確保 CT 與 T 字典存在，徹底防止 KeyNotFoundException
-        EnsureTeamSidesInitialized();
 
         // 防止玩家在回合已經開打（非買槍/非熱身）時突然打 .coach 落跑導致錢歸零或少打一人
         CCSGameRules? gameRules = null;
@@ -129,7 +103,16 @@ public partial class MatchZy
             return;
         }
 
-        Team matchZyCoachTeam = side == "t" ? reverseTeamSides["TERRORIST"] : reverseTeamSides["CT"];
+        // ★ 核心安全讀取：只用 TryGetValue 讀取，絕不修改 reverseTeamSides 字典，100% 不影響隨機分隊隊名！
+        Team matchZyCoachTeam;
+        if (side == "t")
+        {
+            matchZyCoachTeam = reverseTeamSides.TryGetValue("TERRORIST", out var tTeam) ? tTeam : matchzyTeam2;
+        }
+        else
+        {
+            matchZyCoachTeam = reverseTeamSides.TryGetValue("CT", out var ctTeam) ? ctTeam : matchzyTeam1;
+        }
 
         matchZyCoachTeam.coach.Add(player);
 
@@ -141,7 +124,7 @@ public partial class MatchZy
 
         if (player.InGameMoneyServices is not null) player.InGameMoneyServices.Account = 0;
 
-        // 若玩家在暖場跨隊打 .coach，自動幫他切換到對應陣營並掛上 [反恐教練] / [恐怖教練]
+        // 切換陣營並套用 [反恐教練] / [恐怖教練]
         HandleCoachTeam(player);
         UpdateCoachClanTag(player);
         Server.NextFrame(EnforceCompetitiveTeammateColors);
@@ -165,8 +148,6 @@ public partial class MatchZy
         coachKillTimer = null;
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
         if (IsWingmanMode() || coaches.Count == 0) return;
-
-        EnsureTeamSidesInitialized();
 
         bool anySpawnsEmpty = false;
         foreach (var list in spawnsData.Values)
@@ -226,7 +207,6 @@ public partial class MatchZy
                 }
                 else if (TryGetBehindTeamCoachSpawn(coach.TeamNum, coachIdx, out Position behindPos))
                 {
-                    // 整合別人改的優點：若該地圖沒有設定教練 JSON，自動計算隊伍出生點正後方的高空俯瞰位置
                     targetCoachPos = behindPos;
                 }
                 else if (pawn.CBodyComponent?.SceneNode is { AbsOrigin: { } origin, AbsRotation: { } rotation })
@@ -257,7 +237,7 @@ public partial class MatchZy
     }
 
     /// <summary>
-    /// 整合別人改的演算法：當該地圖沒有 JSON 座標檔時，自動計算隊伍出生點後方高空俯瞰點
+    /// 當該地圖沒有 JSON 座標檔時，自動計算隊伍出生點後方高空俯瞰點
     /// </summary>
     private bool TryGetBehindTeamCoachSpawn(byte teamNum, int coachIdx, out Position result)
     {
@@ -338,7 +318,6 @@ public partial class MatchZy
 
                 List<Position> remainingSpawns = [.. teamSpawns];
 
-                // 第一階段：已經站在標準出生點 75 單位內的選手直接保留原位，不觸發傳送
                 while (remainingPlayers.Count > 0 && remainingSpawns.Count > 0)
                 {
                     int keepP = -1, keepS = -1;
@@ -367,7 +346,6 @@ public partial class MatchZy
                     remainingSpawns.RemoveAt(keepS);
                 }
 
-                // 第二階段：將被教練擠去非標準出生點的選手，傳送到距離最近的空閒標準出生點
                 while (remainingPlayers.Count > 0 && remainingSpawns.Count > 0)
                 {
                     int bestP = -1, bestS = -1;
@@ -550,15 +528,22 @@ public partial class MatchZy
 
     public CsTeam GetCoachTeam(CCSPlayerController coach)
     {
-        EnsureTeamSidesInitialized();
-
+        // ★ 核心安全讀取：只用 TryGetValue 讀取，絕不修改 teamSides 字典！
         if (matchzyTeam1.coach.Contains(coach))
         {
-            return teamSides.TryGetValue(matchzyTeam1, out var s1) && s1 == "CT" ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+            if (teamSides.TryGetValue(matchzyTeam1, out var s1))
+            {
+                return s1 == "CT" ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+            }
+            return CsTeam.CounterTerrorist;
         }
         if (matchzyTeam2.coach.Contains(coach))
         {
-            return teamSides.TryGetValue(matchzyTeam2, out var s2) && s2 == "CT" ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+            if (teamSides.TryGetValue(matchzyTeam2, out var s2))
+            {
+                return s2 == "CT" ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+            }
+            return CsTeam.Terrorist;
         }
         return CsTeam.Spectator;
     }
