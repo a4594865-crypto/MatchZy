@@ -669,7 +669,7 @@ namespace MatchZy
             StartMatchMode();
         }
 
-        [ConsoleCommand("css_rcon", "Triggers provided command on the server")]
+       [ConsoleCommand("css_rcon", "Triggers provided command on the server")]
         public void OnRconCommand(CCSPlayerController? player, CommandInfo command)
         {
             if (!IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
@@ -677,6 +677,9 @@ namespace MatchZy
                 SendPlayerNotAdminMessage(player);
                 return;
             }
+            // ▼▼▼ 這裡補上官方的新版安全紀錄與遮蔽 ▼▼▼
+            Log($"[RCON] {player?.PlayerName ?? "Console"} ({player?.SteamID.ToString() ?? "-"}) executed: {MatchZySecurity.RedactConsoleCommand(command.ArgString)}");
+            // ▲▲▲ ▲▲▲ ▲▲▲
             Server.ExecuteCommand(command.ArgString);
             ReplyToUserCommand(player, Localizer["matchzy.cc.rcon"]);
         }
