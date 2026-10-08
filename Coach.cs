@@ -10,9 +10,6 @@ namespace MatchZy;
 public partial class MatchZy
 {
     public CounterStrikeSharp.API.Modules.Timers.Timer? coachKillTimer = null;
-
-    // true = 開局 0.25 秒瞬間無感變灰（直接看隊友第一人稱）
-    // false = 買槍時間浮在高空俯瞰隊友，買槍結束前 1 秒才變灰
     public bool instantCoachGrayOut = true;
 
     public HashSet<CCSPlayerController> GetAllCoaches()
@@ -23,13 +20,12 @@ public partial class MatchZy
         return coaches;
     }
 
-    // 根據教練目前所在的 CT / T 陣營，顯示 [反恐教練] 或 [恐怖教練]
     public void UpdateCoachClanTag(CCSPlayerController coach)
     {
         if (coach is null || !IsPlayerValid(coach)) return;
 
         CsTeam currentCoachTeam = GetCoachTeam(coach);
-        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "反恐教練" : "恐怖教練";
+        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "[反恐教練]" : "[恐怖教練]";
 
         if (coach.Clan != targetTag)
         {
@@ -41,69 +37,33 @@ public partial class MatchZy
     public void HandleCoachCommand(CCSPlayerController? player, string side)
     {
         if (player is null || !IsPlayerValid(player)) return;
-
         if (isPractice)
         {
-            PrintToPlayerChat(player, $" 練 習 模 式 中 無 法 使 用 {ChatColors.Red}教練指令{ChatColors.Default}");
+            ReplyToUserCommand(player, "Coach command can only be used in match mode!");
             return;
         }
         if (IsWingmanMode())
         {
-            PrintToPlayerChat(player, $" 搭 檔 模 式 中 無 法 使 用 {ChatColors.Red}教練指令{ChatColors.Default}");
-            return;
-        }
-
-        // 防止玩家在回合已經開打（非買槍/非熱身）時突然打 .coach 落跑導致錢歸零或少打一人
-        CCSGameRules? gameRules = null;
-        foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
-        {
-            if (entity is { GameRules: not null } proxy)
-            {
-                gameRules = proxy.GameRules;
-                break;
-            }
-        }
-        if ((isMatchLive || isKnifeRound) && gameRules is { FreezePeriod: false, WarmupPeriod: false })
-        {
-            PrintToPlayerChat(player, $" 回 合 進 行 中，無 法 切 換 為 {ChatColors.Red}教練身分{ChatColors.Default}");
-            return;
-        }
-
-        if (matchzyTeam1.coach.Contains(player) || matchzyTeam2.coach.Contains(player))
-        {
-            PrintToPlayerChat(player, $" 你 已 經 是 教 練 了！若 要 退 出 請 輸 入 {ChatColors.Green}.uncoach{ChatColors.Default}");
+            ReplyToUserCommand(player, "Coach command cannot be used in wingman!");
             return;
         }
 
         side = side.Trim().ToLower();
 
-        // 若只輸入 .coach 沒帶參數，自動依照玩家目前所在的陣營判別
-        if (string.IsNullOrEmpty(side))
-        {
-            if (player.TeamNum == (byte)CsTeam.Terrorist) side = "t";
-            else if (player.TeamNum == (byte)CsTeam.CounterTerrorist) side = "ct";
-            else
-            {
-                PrintToPlayerChat(player, $" 請 先 加 入 隊 伍，或 輸 入 {ChatColors.Green}.coach t{ChatColors.Default} / {ChatColors.Green}.coach ct{ChatColors.Default}");
-                return;
-            }
-        }
-
         if (side is not "t" and not "ct")
         {
-            PrintToPlayerChat(player, $" 指令格式：{ChatColors.Green}.coach t{ChatColors.Default} 或 {ChatColors.Green}.coach ct{ChatColors.Default}");
+            ReplyToUserCommand(player, "Usage: .coach t or .coach ct");
             return;
         }
 
-        // 比賽開始後，嚴格禁止跨隊去當對面的教練（防偷窺）
-        byte wantedTeam = side == "t" ? (byte)CsTeam.Terrorist : (byte)CsTeam.CounterTerrorist;
-        if (matchStarted && player.TeamNum != wantedTeam)
+        if (matchzyTeam1.coach.Contains(player) || matchzyTeam2.coach.Contains(player))
         {
-            PrintToPlayerChat(player, $" 比 賽 進 行 中，僅 能 擔 任 {ChatColors.Red}自己所屬隊伍{ChatColors.Default} 的教練");
+            ReplyToUserCommand(player, "You are already coaching a team!");
             return;
         }
 
         Team matchZyCoachTeam;
+
         if (side == "t")
         {
             matchZyCoachTeam = reverseTeamSides["TERRORIST"];
@@ -119,7 +79,7 @@ public partial class MatchZy
 
         matchZyCoachTeam.coach.Add(player);
 
-        // 教練不需要按 .R：若他當教練前有在 playerReadyStatus 字典裡，將他移除以免佔用準備名額，並重新檢查是否已達開賽門檻
+        // 教練不需要按 .R：從準備名單中移除
         if (player.UserId is int uid)
         {
             playerReadyStatus.Remove(uid);
@@ -127,15 +87,14 @@ public partial class MatchZy
 
         if (player.InGameMoneyServices is not null) player.InGameMoneyServices.Account = 0;
 
-        // 切換陣營並立刻套用 [反恐教練] / [恐怖教練] 標籤與整理隊友五色
+        // 無縫切換陣營並套用 [反恐教練] / [恐怖教練]
         HandleCoachTeam(player);
         UpdateCoachClanTag(player);
         Server.NextFrame(EnforceCompetitiveTeammateColors);
 
-        PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default} 的教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default} 可 退 出 教 練 席");
-        PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default} 的 教 練！");
+        ReplyToUserCommand(player, $"You are now coaching {matchZyCoachTeam.teamName}! Use .uncoach to stop coaching");
+        PrintToAllChat($"{ChatColors.Green}{player.PlayerName}{ChatColors.Default} is now coaching {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default}!");
 
-        // 如果場上 10 名選手其實已經都按好 .R 了，這個人轉成教練後立刻檢查是否直接觸發開賽
         if (readyAvailable && !matchStarted)
         {
             CheckLiveRequired();
@@ -148,7 +107,7 @@ public partial class MatchZy
         coachKillTimer = null;
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
         if (IsWingmanMode() || coaches.Count == 0) return;
-
+        
         bool anySpawnsEmpty = false;
         foreach (var list in spawnsData.Values)
         {
@@ -160,42 +119,29 @@ public partial class MatchZy
         }
         if (anySpawnsEmpty) GetSpawns();
 
-        // 讀取地圖專屬教練高空座標（若無該地圖 JSON 檔也能照常運作，不會中斷）
-        if (coachSpawns.Count == 0 ||
-            !coachSpawns.TryGetValue((byte)CsTeam.CounterTerrorist, out var ctSpawns) || ctSpawns.Count == 0 ||
+        if (coachSpawns.Count == 0 || 
+            !coachSpawns.TryGetValue((byte)CsTeam.CounterTerrorist, out var ctSpawns) || ctSpawns.Count == 0 || 
             !coachSpawns.TryGetValue((byte)CsTeam.Terrorist, out var tSpawns) || tSpawns.Count == 0)
         {
             GetCoachSpawns();
         }
 
-        // 決定變灰時間：instantCoachGrayOut 為 true 時開局 0.25 秒瞬間無感變灰；false 時買槍結束前 1 秒變灰
-        float killDelay;
-        if (instantCoachGrayOut)
-        {
-            killDelay = 0.25f;
-        }
-        else
-        {
-            int freezeTime = ConVar.Find("mp_freezetime") is { } cvFreeze ? cvFreeze.GetPrimitiveValue<int>() : 15;
-            killDelay = Math.Max(0.5f, freezeTime - 1.0f);
-        }
+        float killDelay = instantCoachGrayOut ? 0.25f : Math.Max(0.5f, (ConVar.Find("mp_freezetime") is { } cvFreeze ? cvFreeze.GetPrimitiveValue<int>() : 15) - 1.0f);
         coachKillTimer ??= AddTimer(killDelay, KillCoaches);
 
         Random random = new();
         foreach (CCSPlayerController coach in coaches)
         {
             if (coach is null || !IsPlayerValid(coach)) continue;
-
             if (coach.InGameMoneyServices is not null) coach.InGameMoneyServices.Account = 0;
 
             AddTimer(0.1f, () => HandleCoachTeam(coach));
             ResetCoachStats(coach);
 
             SetPlayerInvisible(player: coach, setWeaponsInvisible: false);
-
+            
             if (coach.PlayerPawn.Value is { } pawn)
             {
-                // 先鎖定移動與關閉受傷判定（無敵），防止落地發出腳步聲或被隊友揮刀誤傷
                 pawn.MoveType = MoveType_t.MOVETYPE_NONE;
                 pawn.ActualMoveType = MoveType_t.MOVETYPE_NONE;
                 pawn.TakesDamage = false;
@@ -207,7 +153,6 @@ public partial class MatchZy
                 }
                 else if (pawn.CBodyComponent?.SceneNode is { AbsOrigin: { } origin, AbsRotation: { } rotation })
                 {
-                    // 若該地圖沒有設定教練 JSON，自動將教練往上升高 100 單位，避開地面選手
                     targetCoachPos = new Position(new Vector(origin.X, origin.Y, origin.Z + 100.0f), rotation);
                 }
 
@@ -226,14 +171,10 @@ public partial class MatchZy
             }
         }
 
-        // 修正被教練擠歪的正式選手出生點，並歸還五色標記
         AddTimer(0.15f, EnforceCompetitiveSpawns);
         AddTimer(0.3f, EnforceCompetitiveTeammateColors);
     }
 
-    /// <summary>
-    /// 75 單位容錯出生點保護：已站在標準競技出生點上的選手不移動，僅將被教練擠歪的第 5 人拉回空出的標準出生點
-    /// </summary>
     private void EnforceCompetitiveSpawns()
     {
         try
@@ -245,8 +186,7 @@ public partial class MatchZy
 
             foreach (byte side in new[] { (byte)CsTeam.CounterTerrorist, (byte)CsTeam.Terrorist })
             {
-                if (!spawnsData.TryGetValue(side, out var teamSpawns) || teamSpawns.Count == 0)
-                    continue;
+                if (!spawnsData.TryGetValue(side, out var teamSpawns) || teamSpawns.Count == 0) continue;
 
                 List<CCSPlayerController> remainingPlayers = [];
                 foreach (var p in Utilities.GetPlayers())
@@ -259,10 +199,8 @@ public partial class MatchZy
                 }
 
                 if (remainingPlayers.Count == 0) continue;
-
                 List<Position> remainingSpawns = [.. teamSpawns];
 
-                // 第一階段：已經站在標準出生點 75 單位內的選手直接保留原位，不觸發傳送
                 while (remainingPlayers.Count > 0 && remainingSpawns.Count > 0)
                 {
                     int keepP = -1, keepS = -1;
@@ -286,12 +224,10 @@ public partial class MatchZy
                     }
 
                     if (keepP < 0 || keepBest > keepDistSq) break;
-
                     remainingPlayers.RemoveAt(keepP);
                     remainingSpawns.RemoveAt(keepS);
                 }
 
-                // 第二階段：將被教練擠去非標準出生點的選手，傳送到距離最近的空閒標準出生點
                 while (remainingPlayers.Count > 0 && remainingSpawns.Count > 0)
                 {
                     int bestP = -1, bestS = -1;
@@ -335,9 +271,6 @@ public partial class MatchZy
         }
     }
 
-    /// <summary>
-    /// 拔除教練占用的隊伍顏色 (-1)，確保場上 5 名正式隊員完整擁有 5 種代表色
-    /// </summary>
     private void EnforceCompetitiveTeammateColors()
     {
         try
@@ -348,10 +281,7 @@ public partial class MatchZy
                 List<CCSPlayerController> sidePlayers = [];
                 foreach (var p in Utilities.GetPlayers())
                 {
-                    if (p is not null && IsPlayerValid(p) && p.TeamNum == side)
-                    {
-                        sidePlayers.Add(p);
-                    }
+                    if (p is not null && IsPlayerValid(p) && p.TeamNum == side) sidePlayers.Add(p);
                 }
 
                 HashSet<int> usedColors = [];
@@ -370,17 +300,14 @@ public partial class MatchZy
                     }
 
                     int c = p.CompTeammateColor;
-                    if (c >= 0 && c <= 4 && !usedColors.Contains(c))
-                        usedColors.Add(c);
-                    else
-                        needColor.Add(p);
+                    if (c >= 0 && c <= 4 && !usedColors.Contains(c)) usedColors.Add(c);
+                    else needColor.Add(p);
                 }
 
                 int nextColor = 0;
                 foreach (CCSPlayerController p in needColor)
                 {
-                    while (nextColor <= 4 && usedColors.Contains(nextColor))
-                        nextColor++;
+                    while (nextColor <= 4 && usedColors.Contains(nextColor)) nextColor++;
                     if (nextColor > 4) break;
 
                     p.CompTeammateColor = nextColor;
@@ -419,9 +346,6 @@ public partial class MatchZy
         coach.RemoveWeapons();
     }
 
-    /// <summary>
-    /// 跨影格安全轉移 C4：避免在 EventPlayerGivenC4 同步移除實體引發引擎崩潰
-    /// </summary>
     public void TransferCoachBomb(CCSPlayerController coach)
     {
         if (coach is null || !IsPlayerValid(coach) || coach.TeamNum != (byte)CsTeam.Terrorist) return;
@@ -465,7 +389,6 @@ public partial class MatchZy
                 if (IsPlayerValid(finalTarget) && finalTarget.PawnIsAlive && finalTarget.TeamNum == (byte)CsTeam.Terrorist)
                 {
                     finalTarget.GiveNamedItem("weapon_c4");
-                    Log($"[EventPlayerGivenC4 INFO] 已安全將 C4 從教練 {coach.PlayerName} 轉交給 {finalTarget.PlayerName}。");
                 }
             });
         });
@@ -487,17 +410,13 @@ public partial class MatchZy
     private void HandleCoachTeam(CCSPlayerController playerController)
     {
         if (playerController is null || !IsPlayerValid(playerController)) return;
-
-        CsTeam targetTeam = GetCoachTeam(playerController);
-        if (playerController.Team != targetTeam && (targetTeam == CsTeam.Terrorist || targetTeam == CsTeam.CounterTerrorist))
+        CsTeam oldTeam = GetCoachTeam(playerController);
+        if (playerController.Team != oldTeam)
         {
-            // 直接使用 SwitchTeam 無縫切換陣營，不經過觀戰席以防閃爍與偷看敵隊畫面
-            playerController.SwitchTeam(targetTeam);
+            playerController.ChangeTeam(CsTeam.Spectator);
+            AddTimer(0.01f, () => playerController.ChangeTeam(oldTeam));
         }
-
-        // 每回合與下半場換邊時，自動更新為 [反恐教練] 或 [恐怖教練]
         UpdateCoachClanTag(playerController);
-
         if (playerController.InGameMoneyServices is not null) playerController.InGameMoneyServices.Account = 0;
     }
 
@@ -506,8 +425,7 @@ public partial class MatchZy
         if (isPaused || IsTacticalTimeoutActive()) return;
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
         if (IsWingmanMode() || coaches.Count == 0) return;
-
-        // 1. 完整備份所有自殺補償金、少人補償金與死亡鏡頭延遲參數
+        
         string suicidePenalty = ConVar.Find("mp_suicide_penalty") is { } cv1 ? (GetConvarStringValue(cv1) ?? "0") : "0";
         string killDefault = ConVar.Find("cash_player_killed_enemy_default") is { } cv2 ? (GetConvarStringValue(cv2) ?? "300") : "300";
         string killFactor = ConVar.Find("cash_player_killed_enemy_factor") is { } cv3 ? (GetConvarStringValue(cv3) ?? "1") : "1";
@@ -517,10 +435,8 @@ public partial class MatchZy
         string specFreezeTimeLock = ConVar.Find("spec_freeze_time_lock") is { } cv7 ? (GetConvarStringValue(cv7) ?? "2") : "2";
         string specFreezeDeathanim = ConVar.Find("spec_freeze_deathanim_time") is { } cv8 ? (GetConvarStringValue(cv8) ?? "0") : "0";
 
-        // 2. 先下達歸零指令，徹底關閉敵方自殺補償金與死亡黑畫面過渡
         Server.ExecuteCommand("mp_suicide_penalty 0; cash_player_killed_enemy_default 0; cash_player_killed_enemy_factor 0; cash_team_bonus_shorthanded 0; cash_team_loser_bonus_shorthanded 0; spec_freeze_time 0; spec_freeze_time_lock 0; spec_freeze_deathanim_time 0;");
 
-        // 3. 推遲至下一個影格（確保上述歸零指令已在引擎生效）再執行無聲處死轉觀戰
         Server.NextFrame(() =>
         {
             foreach (var coach in coaches)
@@ -532,14 +448,11 @@ public partial class MatchZy
                 {
                     Position coachPosition = new(origin, rotation);
                     pawn.Teleport(new(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new(0, 0, 0));
-                    
-                    // 瞬間解開無敵讓自殺生效
                     pawn.TakesDamage = true;
                     pawn.CommitSuicide(explode: false, force: true);
                 }
             }
 
-            // 4. 等死亡結算完畢後（0.15 秒），還原伺服器原始參數，並將教練計分板戰績洗回 0 殺 0 死
             AddTimer(0.15f, () =>
             {
                 Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; cash_player_killed_enemy_default {killDefault}; cash_player_killed_enemy_factor {killFactor}; cash_team_bonus_shorthanded {bonusShort}; cash_team_loser_bonus_shorthanded {loserShort}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
@@ -558,17 +471,16 @@ public partial class MatchZy
         try
         {
             string spawnsConfigPath = Path.Combine(ModuleDirectory, "spawns", "coach", $"{Server.MapName}.json");
-
+            
             if (!File.Exists(spawnsConfigPath)) return;
-
+            
             string spawnsConfig = File.ReadAllText(spawnsConfigPath);
 
             var jsonDictionary = JsonSerializer.Deserialize<Dictionary<string, List<Dictionary<string, string>>>>(spawnsConfig);
             if (jsonDictionary is null) return;
-
             foreach (var entry in jsonDictionary)
             {
-                if (!byte.TryParse(entry.Key, out byte team)) continue;
+                byte team = byte.Parse(entry.Key);
                 List<Position> positionList = [];
 
                 foreach (var positionData in entry.Value)
@@ -576,22 +488,15 @@ public partial class MatchZy
                     string[] vectorArray = positionData["Vector"].Split(' ');
                     string[] angleArray = positionData["QAngle"].Split(' ');
 
-                    float x = float.Parse(vectorArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float y = float.Parse(vectorArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float z = float.Parse(vectorArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
+                    Vector vector = new(float.Parse(vectorArray[0], CultureInfo.InvariantCulture), float.Parse(vectorArray[1], CultureInfo.InvariantCulture), float.Parse(vectorArray[2], CultureInfo.InvariantCulture));
+                    QAngle qAngle = new(float.Parse(angleArray[0], CultureInfo.InvariantCulture), float.Parse(angleArray[1], CultureInfo.InvariantCulture), float.Parse(angleArray[2], CultureInfo.InvariantCulture));
 
-                    float pitch = float.Parse(angleArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float yaw = float.Parse(angleArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
-
-                    Vector vector = new(x, y, z);
-                    QAngle qAngle = new(pitch, yaw, roll);
-
-                    positionList.Add(new Position(vector, qAngle));
+                    Position position = new(vector, qAngle);
+                    positionList.Add(position);
                 }
                 coachSpawns[team] = positionList;
             }
-            Log($"[GetCoachSpawns] Loaded {coachSpawns.Count} coach spawns for {Server.MapName}");
+            Log($"[GetCoachSpawns] Loaded {coachSpawns.Count} coach spawns");
         }
         catch (Exception ex)
         {
