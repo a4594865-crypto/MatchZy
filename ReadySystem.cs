@@ -66,7 +66,7 @@ namespace MatchZy
             foreach (var (key, pData) in playerData)
             {
                 if (!pData.IsValid) continue;
-                if (pData.TeamNum == team) {
+                if (pData.TeamNum == team && (includeCoaches || (!matchzyTeam1.coach.Contains(pData) && !matchzyTeam2.coach.Contains(pData)))) {
                     playerCount++;
                     if (playerReadyStatus[key] == true) readyCount++;
                 }
@@ -95,7 +95,7 @@ namespace MatchZy
             foreach (var (key, pData) in playerData)
             {
                 if (!pData.IsValid) continue;
-                if (pData.TeamNum == player.TeamNum) {
+                if (pData.TeamNum == player.TeamNum && !matchzyTeam1.coach.Contains(pData) && !matchzyTeam2.coach.Contains(pData)) {
                     playerReadyStatus[key] = true;
                     ReplyToUserCommand(pData, Localizer["matchzy.rs.forcereadiedby", player.PlayerName]);
                 }
@@ -232,7 +232,7 @@ namespace MatchZy
                         // 護甲 1：除了你原本寫的 IsValid，必須再加上 Handle 檢查，直接在第一步過濾掉斷線的鬼魂！
                         if (p is { IsValid: true } && p.Handle != IntPtr.Zero)
                         {
-                            if (!p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3))
+                            if (!p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && !matchzyTeam1.coach.Contains(p) && !matchzyTeam2.coach.Contains(p))
                             {
                                 if (p.UserId != null)
                                 {
