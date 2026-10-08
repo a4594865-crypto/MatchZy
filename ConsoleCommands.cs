@@ -6,7 +6,7 @@ using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Timers;
 using System.Text.RegularExpressions;
-using CounterStrikeSharp.API.Modules.Enums;
+using CounterStrikeSharp.API.Modules.Entities.Constants;
 
 namespace MatchZy
 {
