@@ -29,7 +29,7 @@ public partial class MatchZy
         if (coach is null || !IsPlayerValid(coach)) return;
 
         CsTeam currentCoachTeam = GetCoachTeam(coach);
-        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "反恐教練" : "恐怖教練";
+        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "[反恐教練]" : "[恐怖教練]";
 
         if (coach.Clan != targetTag)
         {
@@ -116,8 +116,7 @@ public partial class MatchZy
 
         matchZyCoachTeam.coach.Add(player);
 
-        // ★ 核心修正：只將狀態設為 false，不從字典 Remove 刪除 Key！
-        // 這樣當玩家輸入 .uncoach 退出教練時，原本的系統就會自動恢復要他輸入 .R 的提示！
+        // ★ 核心修正：只把準備狀態設為 false，不從字典 Remove 刪除，這樣打 .uncoach 退出教練時就會自動保有要按 .R 的身分！
         if (player.UserId is int uid)
         {
             playerReadyStatus[uid] = false;
@@ -131,8 +130,8 @@ public partial class MatchZy
         Server.NextFrame(EnforceCompetitiveTeammateColors);
 
         string sideDisplayName = side == "ct" ? "反恐小組" : "恐怖分子";
-        PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default} 退 出 教 練 席");
-        PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的 教 練");
+        PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default} 可 退 出 教 練 席");
+        PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的 教 練！");
 
         if (readyAvailable && !matchStarted)
         {
