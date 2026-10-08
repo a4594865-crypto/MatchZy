@@ -959,7 +959,7 @@ private void UpdateReadyClanTags()
 
                     if (p.TeamNum != 2 && p.TeamNum != 3)
                     {
-                        if (p.Clan == " ✔ " || p.Clan == " ✖ " || p.Clan == "[反恐教練]" || p.Clan == "[恐怖教練]")
+                        if (p.Clan == " ✔ " || p.Clan == " ✖ " || p.Clan == " 教練 " || p.Clan == " 教練 ")
                         {
                             p.Clan = "";
                             Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
@@ -970,7 +970,7 @@ private void UpdateReadyClanTags()
                     // ▼ 若該玩家是教練，在熱身階段也強制維持 [反恐教練] / [恐怖教練]，不被 ✔ 或 ✖ 覆蓋
                     if (coaches.Contains(p))
                     {
-                        string coachTag = p.TeamNum == 3 ? "[反恐教練]" : "[恐怖教練]";
+                        string coachTag = p.TeamNum == 3 ? " 教練 " : " 教練 ";
                         if (p.Clan != coachTag)
                         {
                             p.Clan = coachTag;
