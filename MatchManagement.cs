@@ -541,13 +541,13 @@ namespace MatchZy
                 ReplyToUserCommand(player, Localizer["matchzy.cc.usage", $"!team{teamNum} <name>"]);
             }
 
-            if (teamNum == 1) {
+       if (teamNum == 1) {
                 matchzyTeam1.teamName = teamName;
                 teamSides[matchzyTeam1] = "CT";
                 reverseTeamSides["CT"] = matchzyTeam1;
                 foreach (var coach in matchzyTeam1.coach)
                 {
-                    coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
+                    coach.Clan = " 教 練 ";
                 }
             } else if (teamNum == 2) {
                 matchzyTeam2.teamName = teamName;
@@ -555,7 +555,7 @@ namespace MatchZy
                 reverseTeamSides["TERRORIST"] = matchzyTeam2;
                 foreach (var coach in matchzyTeam2.coach)
                 {
-                    coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
+                    coach.Clan = " 教 練 ";
                 }
             }
             Server.ExecuteCommand($"mp_teamname_{teamNum} {teamName};");
