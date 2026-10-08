@@ -1,6 +1,7 @@
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Utils;
 using Newtonsoft.Json.Linq;
 using System.Text.Json.Serialization;
 using CounterStrikeSharp.API;
@@ -45,28 +46,38 @@ namespace MatchZy
         {
             if (player == null || !player.PlayerPawn.IsValid) return;
             if (isPractice) {
-                ReplyToUserCommand(player, "Uncoach command can only be used in match mode!");
+                ReplyToUserCommand(player, $" 練 習 模 式 中 無 法 使 用 {ChatColors.Red}教練指令{ChatColors.Default}");
                 return;
             }
 
             if (matchzyTeam1.coach.Contains(player)) {
                 player.Clan = "";
+                Utilities.SetStateChanged(player, "CCSPlayerController", "m_szClan");
                 matchzyTeam1.coach.Remove(player);
                 SetPlayerVisible(player);
             }
             else if (matchzyTeam2.coach.Contains(player)) {
                 player.Clan = "";
+                Utilities.SetStateChanged(player, "CCSPlayerController", "m_szClan");
                 matchzyTeam2.coach.Remove(player);
                 SetPlayerVisible(player);
             }
             else {
-                ReplyToUserCommand(player, "You are not coaching any team!");
+                ReplyToUserCommand(player, $" 你 目 前 並 非 任 何 隊 伍 的 {ChatColors.Red}教練{ChatColors.Default}");
                 return;
             }
 
+            if (player.UserId is int uid)
+            {
+                playerReadyStatus[uid] = false;
+            }
+
+            UpdateReadyClanTags();
+            Server.NextFrame(EnforceCompetitiveTeammateColors);
+
             if (player.InGameMoneyServices != null) player.InGameMoneyServices.Account = 0;
 
-            ReplyToUserCommand(player, "You are now not coaching any team!");
+            ReplyToUserCommand(player, $" 你 已 退 出 {ChatColors.Green}教 練 席{ChatColors.Default}");
         }
 
         [ConsoleCommand("matchzy_addplayer", "Adds player to the provided team")]
