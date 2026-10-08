@@ -50,6 +50,13 @@ namespace MatchZy
                 return;
             }
 
+            // ▼▼▼ 【新增防護】：比賽正式開始後，嚴格禁止打 .uncoach 變回選手造成 6v5 ▼▼▼
+            if (matchStarted || isMatchLive) {
+                ReplyToUserCommand(player, $" 比 賽 已 開 始，無 法 退 出 教 練 席 變 更 為 選 手");
+                return;
+            }
+            // ▲▲▲ ▲▲▲ ▲▲▲
+
             if (matchzyTeam1.coach.Contains(player)) {
                 player.Clan = "";
                 Utilities.SetStateChanged(player, "CCSPlayerController", "m_szClan");
