@@ -29,7 +29,7 @@ public partial class MatchZy
         if (coach is null || !IsPlayerValid(coach)) return;
 
         CsTeam currentCoachTeam = GetCoachTeam(coach);
-        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? " 教練 " : " 教練 ";
+        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? " 教 練 " : " 教 練 ";
 
         if (coach.Clan != targetTag)
         {
@@ -99,7 +99,7 @@ public partial class MatchZy
         byte wantedTeam = side == "t" ? (byte)CsTeam.Terrorist : (byte)CsTeam.CounterTerrorist;
         if (matchStarted && player.TeamNum != wantedTeam)
         {
-            PrintToPlayerChat(player, $" 比 賽 進 行 中，僅 擔 任 {ChatColors.Red}自己所屬隊伍{ChatColors.Default} 教練");
+            PrintToPlayerChat(player, $" 比 賽 進 行 中，僅 擔 任 {ChatColors.Red}自己所屬隊伍{ChatColors.Default} 教 練");
             return;
         }
 
