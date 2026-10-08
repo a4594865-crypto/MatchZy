@@ -896,7 +896,7 @@ namespace MatchZy
                 {
                     // 根據投降的隊伍，設定 CS2 原生的投降代碼
                     RoundEndReason surrenderReason = playerTeam == CsTeam.CounterTerrorist 
-                        ? RoundEndReason.CTSurrender 
+                        ? RoundEndReason.CTsSurrender 
                         : RoundEndReason.TerroristsSurrender;
 
                     // 自動抓取伺服器官方預設的「回合結束延遲時間」 (對應設定檔的 mp_round_restart_delay)
