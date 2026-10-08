@@ -62,6 +62,7 @@ namespace MatchZy
         public void OnPlayerReady(CCSPlayerController? player, CommandInfo? command)
         {
             if (player is null) return;
+            if (matchzyTeam1.coach.Contains(player) || matchzyTeam2.coach.Contains(player)) return;
             Log($"[!ready command] Sent by: {player.UserId} readyAvailable: {readyAvailable} matchStarted: {matchStarted}");
             if (readyAvailable && !matchStarted)
             {
@@ -92,6 +93,7 @@ namespace MatchZy
         public void OnPlayerUnReady(CCSPlayerController? player, CommandInfo? command)
         {
             if (player is null) return;
+            if (matchzyTeam1.coach.Contains(player) || matchzyTeam2.coach.Contains(player)) return;
             Log($"[!unready command] {player.UserId}");
             if (readyAvailable && !matchStarted)
             {
@@ -835,7 +837,7 @@ namespace MatchZy
 
             if (IsPlayerCoach(player))
             {
-                PrintToPlayerChat(player, $" 教 練 無 法 使 用 {ChatColors.Red}投降指令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 教 練 無 法 使 用 {ChatColors.Red}投 降 指 令{ChatColors.Default}");
                 return;
             }
 
