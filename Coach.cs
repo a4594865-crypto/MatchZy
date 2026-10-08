@@ -11,7 +11,7 @@ public partial class MatchZy
 {
     public CounterStrikeSharp.API.Modules.Timers.Timer? coachKillTimer = null;
 
-    // true = 開局 0.2 秒瞬間無感變灰（直接看隊友第一人稱）
+    // true = 開局 0.25 秒瞬間無感變灰（直接看隊友第一人稱）
     // false = 買槍時間浮在高空俯瞰隊友，買槍結束前 1 秒才變灰
     public bool instantCoachGrayOut = true;
 
@@ -21,6 +21,21 @@ public partial class MatchZy
         coaches.UnionWith(matchzyTeam2.coach);
 
         return coaches;
+    }
+
+    // 根據教練目前所在的 CT / T 陣營，顯示 [反恐教練] 或 [恐怖教練]
+    public void UpdateCoachClanTag(CCSPlayerController coach)
+    {
+        if (coach is null || !IsPlayerValid(coach)) return;
+
+        CsTeam currentCoachTeam = GetCoachTeam(coach);
+        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "[反恐教練]" : "[恐怖教練]";
+
+        if (coach.Clan != targetTag)
+        {
+            coach.Clan = targetTag;
+            Utilities.SetStateChanged(coach, "CCSPlayerController", "m_szClan");
+        }
     }
 
     public void HandleCoachCommand(CCSPlayerController? player, string side)
@@ -103,17 +118,28 @@ public partial class MatchZy
         }
 
         matchZyCoachTeam.coach.Add(player);
-        player.Clan = $"[{matchZyCoachTeam.teamName} COACH]";
-        Utilities.SetStateChanged(player, "CCSPlayerController", "m_szClan");
+
+        // 教練不需要按 .R：若他當教練前有在 playerReadyStatus 字典裡，將他移除以免佔用準備名額，並重新檢查是否已達開賽門檻
+        if (player.UserId is int uid)
+        {
+            playerReadyStatus.Remove(uid);
+        }
 
         if (player.InGameMoneyServices is not null) player.InGameMoneyServices.Account = 0;
 
-        // 若在熱身階段跨隊輸入 .coach，自動幫他切換到該陣營並整理隊友五色
+        // 切換陣營並立刻套用 [反恐教練] / [恐怖教練] 標籤與整理隊友五色
         HandleCoachTeam(player);
+        UpdateCoachClanTag(player);
         Server.NextFrame(EnforceCompetitiveTeammateColors);
 
         PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default} 的教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default} 可 退 出 教 練 席");
         PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default} 的 教 練！");
+
+        // 如果場上 10 名選手其實已經都按好 .R 了，這個人轉成教練後立刻檢查是否直接觸發開賽
+        if (readyAvailable && !matchStarted)
+        {
+            CheckLiveRequired();
+        }
     }
 
     public void HandleCoaches()
@@ -421,4 +447,155 @@ public partial class MatchZy
             foreach (var p in Utilities.GetPlayers())
             {
                 if (p is not null && IsPlayerValid(p) &&
-                    !reverseTeamSides["TERRORIST"].coach.
+                    !reverseTeamSides["TERRORIST"].coach.Contains(p) &&
+                    p.TeamNum == (byte)CsTeam.Terrorist &&
+                    p.PawnIsAlive)
+                {
+                    target = p;
+                    break;
+                }
+            }
+
+            if (target is null) return;
+
+            bomb.Remove();
+            CCSPlayerController finalTarget = target;
+            Server.NextFrame(() =>
+            {
+                if (IsPlayerValid(finalTarget) && finalTarget.PawnIsAlive && finalTarget.TeamNum == (byte)CsTeam.Terrorist)
+                {
+                    finalTarget.GiveNamedItem("weapon_c4");
+                    Log($"[EventPlayerGivenC4 INFO] 已安全將 C4 從教練 {coach.PlayerName} 轉交給 {finalTarget.PlayerName}。");
+                }
+            });
+        });
+    }
+
+    public CsTeam GetCoachTeam(CCSPlayerController coach)
+    {
+        if (matchzyTeam1.coach.Contains(coach))
+        {
+            return teamSides[matchzyTeam1] == "CT" ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+        }
+        if (matchzyTeam2.coach.Contains(coach))
+        {
+            return teamSides[matchzyTeam2] == "CT" ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+        }
+        return CsTeam.Spectator;
+    }
+
+    private void HandleCoachTeam(CCSPlayerController playerController)
+    {
+        if (playerController is null || !IsPlayerValid(playerController)) return;
+
+        CsTeam targetTeam = GetCoachTeam(playerController);
+        if (playerController.Team != targetTeam && (targetTeam == CsTeam.Terrorist || targetTeam == CsTeam.CounterTerrorist))
+        {
+            // 直接使用 SwitchTeam 無縫切換陣營，不經過觀戰席以防閃爍與偷看敵隊畫面
+            playerController.SwitchTeam(targetTeam);
+        }
+
+        // 每回合與下半場換邊時，自動更新為 [反恐教練] 或 [恐怖教練]
+        UpdateCoachClanTag(playerController);
+
+        if (playerController.InGameMoneyServices is not null) playerController.InGameMoneyServices.Account = 0;
+    }
+
+    private void KillCoaches()
+    {
+        if (isPaused || IsTacticalTimeoutActive()) return;
+        HashSet<CCSPlayerController> coaches = GetAllCoaches();
+        if (IsWingmanMode() || coaches.Count == 0) return;
+
+        // 1. 完整備份所有自殺補償金、少人補償金與死亡鏡頭延遲參數
+        string suicidePenalty = ConVar.Find("mp_suicide_penalty") is { } cv1 ? (GetConvarStringValue(cv1) ?? "0") : "0";
+        string killDefault = ConVar.Find("cash_player_killed_enemy_default") is { } cv2 ? (GetConvarStringValue(cv2) ?? "300") : "300";
+        string killFactor = ConVar.Find("cash_player_killed_enemy_factor") is { } cv3 ? (GetConvarStringValue(cv3) ?? "1") : "1";
+        string bonusShort = ConVar.Find("cash_team_bonus_shorthanded") is { } cv4 ? (GetConvarStringValue(cv4) ?? "0") : "0";
+        string loserShort = ConVar.Find("cash_team_loser_bonus_shorthanded") is { } cv5 ? (GetConvarStringValue(cv5) ?? "0") : "0";
+        string specFreezeTime = ConVar.Find("spec_freeze_time") is { } cv6 ? (GetConvarStringValue(cv6) ?? "2") : "2";
+        string specFreezeTimeLock = ConVar.Find("spec_freeze_time_lock") is { } cv7 ? (GetConvarStringValue(cv7) ?? "2") : "2";
+        string specFreezeDeathanim = ConVar.Find("spec_freeze_deathanim_time") is { } cv8 ? (GetConvarStringValue(cv8) ?? "0") : "0";
+
+        // 2. 先下達歸零指令，徹底關閉敵方自殺補償金與死亡黑畫面過渡
+        Server.ExecuteCommand("mp_suicide_penalty 0; cash_player_killed_enemy_default 0; cash_player_killed_enemy_factor 0; cash_team_bonus_shorthanded 0; cash_team_loser_bonus_shorthanded 0; spec_freeze_time 0; spec_freeze_time_lock 0; spec_freeze_deathanim_time 0;");
+
+        // 3. 推遲至下一個影格（確保上述歸零指令已在引擎生效）再執行無聲處死轉觀戰
+        Server.NextFrame(() =>
+        {
+            foreach (var coach in coaches)
+            {
+                if (coach is null || !IsPlayerValid(coach) || !coach.PawnIsAlive) continue;
+                if (isPaused || IsTacticalTimeoutActive()) continue;
+
+                if (coach.PlayerPawn.Value is { } pawn && pawn.CBodyComponent?.SceneNode is { AbsOrigin: { } origin, AbsRotation: { } rotation })
+                {
+                    Position coachPosition = new(origin, rotation);
+                    pawn.Teleport(new(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new(0, 0, 0));
+                    
+                    // 瞬間解開無敵讓自殺生效
+                    pawn.TakesDamage = true;
+                    pawn.CommitSuicide(explode: false, force: true);
+                }
+            }
+
+            // 4. 等死亡結算完畢後（0.15 秒），還原伺服器原始參數，並將教練計分板戰績洗回 0 殺 0 死
+            AddTimer(0.15f, () =>
+            {
+                Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; cash_player_killed_enemy_default {killDefault}; cash_player_killed_enemy_factor {killFactor}; cash_team_bonus_shorthanded {bonusShort}; cash_team_loser_bonus_shorthanded {loserShort}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
+
+                foreach (var coach in coaches)
+                {
+                    ResetCoachStats(coach);
+                }
+            });
+        });
+    }
+
+    private void GetCoachSpawns()
+    {
+        coachSpawns = GetEmptySpawnsData();
+        try
+        {
+            string spawnsConfigPath = Path.Combine(ModuleDirectory, "spawns", "coach", $"{Server.MapName}.json");
+
+            if (!File.Exists(spawnsConfigPath)) return;
+
+            string spawnsConfig = File.ReadAllText(spawnsConfigPath);
+
+            var jsonDictionary = JsonSerializer.Deserialize<Dictionary<string, List<Dictionary<string, string>>>>(spawnsConfig);
+            if (jsonDictionary is null) return;
+
+            foreach (var entry in jsonDictionary)
+            {
+                if (!byte.TryParse(entry.Key, out byte team)) continue;
+                List<Position> positionList = [];
+
+                foreach (var positionData in entry.Value)
+                {
+                    string[] vectorArray = positionData["Vector"].Split(' ');
+                    string[] angleArray = positionData["QAngle"].Split(' ');
+
+                    float x = float.Parse(vectorArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
+                    float y = float.Parse(vectorArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
+                    float z = float.Parse(vectorArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
+
+                    float pitch = float.Parse(angleArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
+                    float yaw = float.Parse(angleArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
+                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
+
+                    Vector vector = new(x, y, z);
+                    QAngle qAngle = new(pitch, yaw, roll);
+
+                    positionList.Add(new Position(vector, qAngle));
+                }
+                coachSpawns[team] = positionList;
+            }
+            Log($"[GetCoachSpawns] Loaded {coachSpawns.Count} coach spawns for {Server.MapName}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[GetCoachSpawns - FATAL] Error getting coach spawns. [ERROR]: {ex.Message}");
+        }
+    }
+}
