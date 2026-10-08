@@ -940,10 +940,9 @@ if (message.StartsWith(".asay"))
             return count;
         }
 
-// ▼▼▼ 準備標籤的函式（含全面狀態攔截與自動清除） ▼▼▼
-       private void UpdateReadyClanTags()
+private void UpdateReadyClanTags()
         {
-            // ▼ 核心修正：加入 !isWarmup，只要不是熱身階段（包含勝利結算畫面），絕對不顯示標籤並立刻清空
+            // ▼ 核心修正：加入 !isWarmup，只要不是熱身階段（包含勝利結算畫面），絕對不顯示準備標籤並立刻清空
             if (!isWarmup || !readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
             {
                 ClearReadyClanTags();
@@ -951,6 +950,8 @@ if (message.StartsWith(".asay"))
             }
 
             Server.NextFrame(() => {
+                HashSet<CCSPlayerController> coaches = GetAllCoaches();
+
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
@@ -958,10 +959,22 @@ if (message.StartsWith(".asay"))
 
                     if (p.TeamNum != 2 && p.TeamNum != 3)
                     {
-                        if (p.Clan == " ✔ " || p.Clan == " ✖ ")
+                        if (p.Clan == " ✔ " || p.Clan == " ✖ " || p.Clan == "[反恐教練]" || p.Clan == "[恐怖教練]")
                         {
                             p.Clan = "";
                             Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan"); 
+                        }
+                        continue;
+                    }
+
+                    // ▼ 若該玩家是教練，在熱身階段也強制維持 [反恐教練] / [恐怖教練]，不被 ✔ 或 ✖ 覆蓋
+                    if (coaches.Contains(p))
+                    {
+                        string coachTag = p.TeamNum == 3 ? "[反恐教練]" : "[恐怖教練]";
+                        if (p.Clan != coachTag)
+                        {
+                            p.Clan = coachTag;
+                            Utilities.SetStateChanged(p, "CCSPlayerController", "m_szClan");
                         }
                         continue;
                     }
@@ -996,18 +1009,23 @@ if (message.StartsWith(".asay"))
             });
         }
 
-       // ▼▼▼ 新增：沒收 CS2 引擎修改標籤的權限 ▼▼▼
+        // ▼▼▼ 新增：沒收 CS2 引擎修改標籤的權限 ▼▼▼
         private HookResult OnSetClan(DynamicHook hook)
         {
-            // ▼ 核心修正：加入 isWarmup，只有在「純熱身階段」才攔截引擎。
-            // 結算畫面時會放行 (Continue)，讓 CS2 引擎能順利掛回玩家原本的 Steam 群組名牌！
+            // 1. 如果這名玩家是教練，永遠阻擋 CS2 引擎用他的 Steam 群組標籤蓋掉 [反恐教練] / [恐怖教練]
+            var player = hook.GetParam<CCSPlayerController>(0);
+            if (player is { IsValid: true } && GetAllCoaches().Contains(player))
+            {
+                return HookResult.Handled;
+            }
+
+            // 2. 純熱身階段攔截引擎，保護 ✔ 與 ✖
             if (isWarmup && readyAvailable && !matchStarted && !isCountdownActive && !isKnifeRound && !isSideSelectionPhase && !isMatchLive && !isPractice)
             {
                 return HookResult.Handled;
             }
-            return HookResult.Continue; // 其他時間（如正式開賽後、勝利結算畫面）放行，讓玩家顯示自己的 Steam 群組標籤
+            return HookResult.Continue; 
         }
-        // ▲▲▲ ▲▲▲ ▲▲▲
         // 專門用來擋控制台跨外掛投票的共用函數
         private HookResult BlockVoteInCriticalPhases(CCSPlayerController? player, CommandInfo info)
         {
