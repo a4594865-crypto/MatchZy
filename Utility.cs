@@ -171,12 +171,12 @@ namespace MatchZy
                 // 1. 確保 Key 還在 playerReadyStatus (防止迴圈中途變動)
                 // 2. 確保玩家狀態是 false (未準備)
                 // 3. 確保 playerData 裡真的有這個玩家 (解決 KeyNotFoundException)
-                if (playerReadyStatus.ContainsKey(key) && 
+      if (playerReadyStatus.ContainsKey(key) && 
                     isReady == false && 
                     playerData.TryGetValue(key, out var p))
                 {
                     //  1：不只要有這個人，還必須確保他「有效」且「指標未遺失」，過濾掉剛斷線的鬼魂！
-                    if (p is { IsValid: true, Handle: not 0 })
+                    if (p is { IsValid: true, Handle: not 0 } && !matchzyTeam1.coach.Contains(p) && !matchzyTeam2.coach.Contains(p))
                     {
                         try 
                         {
@@ -211,7 +211,7 @@ namespace MatchZy
                 int countOfReadyPlayers = 0;
                 foreach (var (key, isReady) in playerReadyStatus)
                 {
-                    if (isReady == true && playerData.ContainsKey(key)) countOfReadyPlayers++;
+                    if (isReady == true && playerData.TryGetValue(key, out var rp) && !matchzyTeam1.coach.Contains(rp) && !matchzyTeam2.coach.Contains(rp)) countOfReadyPlayers++;
                 }
                 
                 if (isMatchSetup)
@@ -806,7 +806,7 @@ private void HandleMatchStart()
                 foreach (var (key, player) in playerData)
                 {
                     // 找到了名字正常的 CT 玩家！
-                    if (player.TeamNum == 3 && !string.IsNullOrWhiteSpace(player.PlayerName) && HasValidChar(player.PlayerName.AsSpan()))
+                    if (player.TeamNum == 3 && !matchzyTeam1.coach.Contains(player) && !matchzyTeam2.coach.Contains(player) && !string.IsNullOrWhiteSpace(player.PlayerName) && HasValidChar(player.PlayerName.AsSpan()))
                     {
                         foundName = player.PlayerName;
                         break;
@@ -819,7 +819,7 @@ private void HandleMatchStart()
                 matchzyTeam1.teamName = "隊伍_" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
                 foreach (var coach in matchzyTeam1.coach) {
-                    coach.Clan = $"[{matchzyTeam1.teamName} COACH]";
+                    coach.Clan = " 教 練 ";
                 }
             }
 
@@ -836,7 +836,7 @@ private void HandleMatchStart()
                 foreach (var (key, player) in playerData)
                 {
                     // 找到了名字正常的 T 玩家！
-                    if (player.TeamNum == 2 && !string.IsNullOrWhiteSpace(player.PlayerName) && HasValidChar(player.PlayerName.AsSpan()))
+                    if (player.TeamNum == 2 && !matchzyTeam1.coach.Contains(player) && !matchzyTeam2.coach.Contains(player) && !string.IsNullOrWhiteSpace(player.PlayerName) && HasValidChar(player.PlayerName.AsSpan()))
                     {
                         foundName = player.PlayerName;
                         break;
@@ -848,7 +848,7 @@ private void HandleMatchStart()
                 matchzyTeam2.teamName = "隊伍_" + RemoveSpecialCharacters(foundName.Replace(" ", "_"));
                 
                 foreach (var coach in matchzyTeam2.coach) {
-                    coach.Clan = $"[{matchzyTeam2.teamName} COACH]";
+                    coach.Clan = " 教 練 ";
                 }
             }
 
