@@ -29,7 +29,7 @@ public partial class MatchZy
         if (coach is null || !IsPlayerValid(coach)) return;
 
         CsTeam currentCoachTeam = GetCoachTeam(coach);
-        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? "教練" : "教練";
+        string targetTag = currentCoachTeam == CsTeam.CounterTerrorist ? " 教練 " : " 教練 ";
 
         if (coach.Clan != targetTag)
         {
@@ -99,7 +99,7 @@ public partial class MatchZy
         byte wantedTeam = side == "t" ? (byte)CsTeam.Terrorist : (byte)CsTeam.CounterTerrorist;
         if (matchStarted && player.TeamNum != wantedTeam)
         {
-            PrintToPlayerChat(player, $" 比 賽 進 行 中，僅 能 擔 任 {ChatColors.Red}自己所屬隊伍{ChatColors.Default} 的教練");
+            PrintToPlayerChat(player, $" 比 賽 進 行 中，僅 擔 任 {ChatColors.Red}自己所屬隊伍{ChatColors.Default} 教練");
             return;
         }
 
@@ -130,7 +130,7 @@ public partial class MatchZy
         Server.NextFrame(EnforceCompetitiveTeammateColors);
 
         string sideDisplayName = side == "ct" ? "反恐小組" : "恐怖分子";
-        PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default} 可 退 出 教 練 席");
+        PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default}退 出 教 練 席");
         PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的 教 練");
 
         if (readyAvailable && !matchStarted)
