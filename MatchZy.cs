@@ -287,7 +287,8 @@ namespace MatchZy
                 { ".shuffle", OnShuffleCommand },
                 { ".unshuffle", OnUnshuffleCommand },
                 { ".loadpos", OnLoadPosCommand},
-                { ".hp", OnHpCommand }
+                { ".hp", OnHpCommand },
+                { ".gg", OnGGCommand }
             }.ToFrozenDictionary();
 
             // 1. 強力白名單修正：直接檢查 whitelist.cfg 檔案
