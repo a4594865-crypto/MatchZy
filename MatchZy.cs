@@ -770,22 +770,26 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     {
         HandleRestoreCommand(player, messageCommandArg);
     }
-if (message.StartsWith(".asay"))
+
+    // ▼▼▼ 核心修復：.asay 公告專屬邏輯 (攔截原生打字，僅顯示管理員廣播) ▼▼▼
+    if (message.StartsWith(".asay"))
     {
-        // 判斷發言者是否為管理員
         if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
         {
-            if (messageCommandArg != "")
+            // 去除可能包在最外層的雙引號與多餘空格，讓顯示更乾淨
+            string adminMsg = messageCommandArg.Trim().Trim('"');
+
+            if (!string.IsNullOrEmpty(adminMsg))
             {
-                // 1. 左下角聊天室廣播（管理員身分訊息）
-                Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
+                // 1. 左下角聊天室廣播 (管理員身分)
+                Server.PrintToChatAll($"{adminChatPrefix} {adminMsg}");
                 
-                // 2. 畫面正中央 HUD
+                // 2. 畫面正中央 HUD (維持不變)
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p is { IsValid: true, IsBot: false })
                     {
-                        p.PrintToCenter(messageCommandArg);
+                        p.PrintToCenter(adminMsg);
                     }
                 }
             }
@@ -793,14 +797,17 @@ if (message.StartsWith(".asay"))
             {
                 ReplyToUserCommand(player, Localizer["matchzy.cc.usage", ".asay <message>"]);
             }
-
-            // 「玩家名: .asay 內容」攔截吃掉
-            return HookResult.Handled;
+        }
+        else
+        {
+            SendPlayerNotAdminMessage(player);
         }
 
-        // ★ 非管理員打 .asay 則直接放行
-        return HookResult.Continue;
+        // 核心關鍵：直接回傳 Handled 吃掉指令，徹底攔截原始的「玩家名稱: .asay ...」聊天發送！
+        return HookResult.Handled;
     }
+    // ▲▲▲ ▲▲▲ ▲▲▲
+
     if (message.StartsWith(".savenade") || message.StartsWith(".sn"))
     {
         HandleSaveNadeCommand(player, messageCommandArg);
