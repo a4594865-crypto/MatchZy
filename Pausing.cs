@@ -557,7 +557,7 @@ public partial class MatchZy
         StopAutoPauseCheck();
         autoPausePeakHumans = 0;
 
-        autoPauseMainTimer = AddTimer(1.0f, () =>
+        autoPauseMainTimer = AddTimer(10.0f, () =>
         {
             if (!isMatchLive) return;
             if (!AutoPauseEnabled) return;
