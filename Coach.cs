@@ -78,7 +78,7 @@ public partial class MatchZy
             return;
         }
 
-        // 2. 每隊限 1 名教練的限制（tac 名單防護）
+        // 2. 每隊限 1 名教練的限制（tac 名單防護）[span_8](start_span)[span_8](end_span)
         if (matchZyCoachTeam.coach.Count >= 1)
         {
             ReplyToUserCommand(player, "This team already has a coach! Only 1 coach allowed per team.");
@@ -94,13 +94,13 @@ public partial class MatchZy
         PrintToAllChat($"{ChatColors.Green}{player.PlayerName}{ChatColors.Default} is now coaching {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default}!");
     }
 
-    // 3. 賽事進行中禁止退出教練保護鎖（使用 OnUncoachCommandSafe 避免重複定義衝突）
+    // 3. 賽事進行中禁止退出教練保護鎖（使用 OnUncoachCommandSafe 避免重複定義衝突）[span_9](start_span)[span_9](end_span)
     [ConsoleCommand("css_uncoach", "Exit coach mode safely")]
     public void OnUncoachCommandSafe(CCSPlayerController? player, CommandInfo? command)
     {
         if (player is null || !IsPlayerValid(player)) return;
 
-        // 賽事進行中（含倒數、刀局、選邊、正賽）禁止退出
+        // 賽事進行中（含倒數、刀局、選邊、正賽）禁止退出[span_10](start_span)[span_10](end_span)
         if (isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || matchStarted)
         {
             ReplyToUserCommand(player, "Cannot exit coach mode while match, knife round, or side selection is in progress!");
@@ -274,7 +274,7 @@ public partial class MatchZy
         coach.RemoveWeapons();
     }
 
-    // 4. 官方原版 C4 轉移邏輯 (完全相容官方底層記憶體，避免閃退)[span_3](start_span)[span_3](end_span)
+    // 4. 官方原版 C4 轉移邏輯[span_11](start_span)[span_11](end_span)
     public void TransferCoachBomb(CCSPlayerController coach) {
         if (coach is null || coach.TeamNum != (byte)CsTeam.Terrorist) return; 
 
@@ -341,7 +341,65 @@ public partial class MatchZy
         UpdateCoachClanTag(playerController);
     }
 
-    // 5. 官方原版自殺邏輯 + 自殺經濟隔離防護（不給對手陣營錢）[span_4](start_span)[span_4](end_span)
+    // 補回被漏掉的競技隊友顏色對齊方法，供 Teams.cs 呼叫[span_12](start_span)[span_12](end_span)
+    private void EnforceCompetitiveTeammateColors()
+    {
+        try
+        {
+            HashSet<CCSPlayerController> coaches = GetAllCoaches();
+            foreach (byte side in new[] { (byte)CsTeam.CounterTerrorist, (byte)CsTeam.Terrorist })
+            {
+                List<CCSPlayerController> sidePlayers = [];
+                foreach (var p in Utilities.GetPlayers())
+                {
+                    if (p is not null && IsPlayerValid(p) && p.TeamNum == side)
+                    {
+                        sidePlayers.Add(p);
+                    }
+                }
+
+                HashSet<int> usedColors = [];
+                List<CCSPlayerController> needColor = [];
+
+                foreach (CCSPlayerController p in sidePlayers)
+                {
+                    if (coaches.Contains(p))
+                    {
+                        if (p.CompTeammateColor != -1)
+                        {
+                            p.CompTeammateColor = -1;
+                            Utilities.SetStateChanged(p, "CCSPlayerController", "m_iCompTeammateColor");
+                        }
+                        continue;
+                    }
+
+                    int c = p.CompTeammateColor;
+                    if (c >= 0 && c <= 4 && !usedColors.Contains(c))
+                        usedColors.Add(c);
+                    else
+                        needColor.Add(p);
+                }
+
+                int nextColor = 0;
+                foreach (CCSPlayerController p in needColor)
+                {
+                    while (nextColor <= 4 && usedColors.Contains(nextColor))
+                        nextColor++;
+                    if (nextColor > 4) break;
+
+                    p.CompTeammateColor = nextColor;
+                    Utilities.SetStateChanged(p, "CCSPlayerController", "m_iCompTeammateColor");
+                    usedColors.Add(nextColor);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Log($"[EnforceCompetitiveTeammateColors] Error: {e.Message}");
+        }
+    }
+
+    // 5. 官方原版自殺邏輯 + 自殺經濟隔離防護（不給對手陣營錢）[span_13](start_span)[span_13](end_span)
     private void KillCoaches()
     {
         if (isPaused || IsTacticalTimeoutActive()) return;
