@@ -772,11 +772,12 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     }
 if (message.StartsWith(".asay"))
     {
+        // 判斷發言者是否為管理員
         if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
         {
             if (messageCommandArg != "")
             {
-                // 1. 左下角聊天室廣播
+                // 1. 左下角聊天室廣播（管理員身分訊息）
                 Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
                 
                 // 2. 畫面正中央 HUD
@@ -792,11 +793,13 @@ if (message.StartsWith(".asay"))
             {
                 ReplyToUserCommand(player, Localizer["matchzy.cc.usage", ".asay <message>"]);
             }
+
+            // 「玩家名: .asay 內容」攔截吃掉
+            return HookResult.Handled;
         }
-        else
-        {
-            SendPlayerNotAdminMessage(player);
-        }
+
+        // ★ 非管理員打 .asay 則直接放行
+        return HookResult.Continue;
     }
     if (message.StartsWith(".savenade") || message.StartsWith(".sn"))
     {
