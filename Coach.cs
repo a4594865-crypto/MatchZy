@@ -274,7 +274,6 @@ public partial class MatchZy
         coach.RemoveWeapons();
     }
 
-    // 完美還原官方原版 C4 轉移邏輯 (使用 bomb.Remove() 配合官方標準檢查，避免閃退)
     public void TransferCoachBomb(CCSPlayerController coach) {
         if (coach is null || coach.TeamNum != (byte)CsTeam.Terrorist) return; 
 
@@ -341,6 +340,7 @@ public partial class MatchZy
         UpdateCoachClanTag(playerController);
     }
 
+    // ▼▼▼ 已完美加入：自殺經濟隔離防護（不給對手陣營錢） ▼▼▼
     private void KillCoaches()
     {
         if (isPaused || IsTacticalTimeoutActive()) return;
@@ -348,11 +348,14 @@ public partial class MatchZy
         if (IsWingmanMode() || coaches.Count == 0) return;
         
         string suicidePenalty = ConVar.Find("mp_suicide_penalty") is { } cvPenalty ? (GetConvarStringValue(cvPenalty) ?? "0") : "0";
+        string killDefault = ConVar.Find("cash_player_killed_enemy_default") is { } cv2 ? (GetConvarStringValue(cv2) ?? "300") : "300";
+        string killFactor = ConVar.Find("cash_player_killed_enemy_factor") is { } cv3 ? (GetConvarStringValue(cv3) ?? "1") : "1";
         string specFreezeTime = ConVar.Find("spec_freeze_time") is { } cvFreeze ? (GetConvarStringValue(cvFreeze) ?? "2") : "2";
         string specFreezeTimeLock = ConVar.Find("spec_freeze_time_lock") is { } cvLock ? (GetConvarStringValue(cvLock) ?? "2") : "2";
         string specFreezeDeathanim = ConVar.Find("spec_freeze_deathanim_time") is { } cvAnim ? (GetConvarStringValue(cvAnim) ?? "0") : "0";
 
-        Server.ExecuteCommand("mp_suicide_penalty 0;spec_freeze_time 0; spec_freeze_time_lock 0; spec_freeze_deathanim_time 0;");
+        // 瞬間將自殺罰款與擊殺獎勵設為 0，防止對手拿錢
+        Server.ExecuteCommand("mp_suicide_penalty 0; cash_player_killed_enemy_default 0; cash_player_killed_enemy_factor 0; spec_freeze_time 0; spec_freeze_time_lock 0; spec_freeze_deathanim_time 0;");
 
         foreach (var coach in coaches)
         {
@@ -366,8 +369,22 @@ public partial class MatchZy
                 pawn.CommitSuicide(explode: false, force: true);
             }
         }
-        Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
+
+        // 0.2 秒後還原經濟設定，並將教練金錢歸零
+        AddTimer(0.2f, () =>
+        {
+            Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; cash_player_killed_enemy_default {killDefault}; cash_player_killed_enemy_factor {killFactor}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
+
+            foreach (var coach in coaches)
+            {
+                if (coach is not null && IsPlayerValid(coach) && coach.InGameMoneyServices is not null)
+                {
+                    coach.InGameMoneyServices.Account = 0;
+                }
+            }
+        });
     }
+    // ▲▲▲ ▲▲▲ ▲▲▲
 
     private void GetCoachSpawns()
     {
