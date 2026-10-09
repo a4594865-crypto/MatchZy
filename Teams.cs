@@ -46,13 +46,13 @@ namespace MatchZy
         {
             if (player == null || !player.PlayerPawn.IsValid) return;
             if (isPractice) {
-                ReplyToUserCommand(player, $" 練 習 模 式 中 無 法 使 用 {ChatColors.Red}教練指令{ChatColors.Default}");
+                ReplyToUserCommand(player, $" 練 習 模 式 中 無 法 使 用 {ChatColors.Green}教練指令{ChatColors.Default}");
                 return;
             }
 
             // ▼▼▼ 【新增防護】：比賽正式開始後，嚴格禁止打 .uncoach 變回選手造成 6v5 ▼▼▼
             if (matchStarted || isMatchLive) {
-                ReplyToUserCommand(player, $" 比 賽 已 開 始，無 法 退 出 教 練 席 變 更 為 選 手");
+                ReplyToUserCommand(player, $" 比 賽 已 開 始，無 法 退 出 {ChatColors.Green}教 練 席{ChatColors.Default} 變 更 選 手");
                 return;
             }
             // ▲▲▲ ▲▲▲ ▲▲▲
@@ -70,7 +70,7 @@ namespace MatchZy
                 SetPlayerVisible(player);
             }
             else {
-                ReplyToUserCommand(player, $" 你 目 前 並 非 任 何 隊 伍 的 {ChatColors.Red}教練{ChatColors.Default}");
+                ReplyToUserCommand(player, $" 你 目 前 並 非 任 何 隊 伍 的 {ChatColors.Green}教練{ChatColors.Default}");
                 return;
             }
 
