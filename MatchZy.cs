@@ -420,7 +420,7 @@ AddCommandListener("jointeam", (player, info) =>
     if (isSideSelectionPhase)
     {
         player.PrintToChat($"{chatPrefix} 選 邊 期 間，禁 止 切 換 隊 伍 或 觀 戰");
-        return HookResult.Stop;
+        return HookResult.Stop; 
     }
 
     // 1. 如果是熱身階段（且沒在倒數，也不是在選邊），允許自由換隊、自由去觀戰
@@ -615,6 +615,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 return HookResult.Continue;
             });
 
+           // ▼▼▼ 核心修正 1：明確指定 HookMode.Pre，取得訊息送出前的攔截權限 ▼▼▼
            RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
     // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
@@ -771,12 +772,12 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         HandleRestoreCommand(player, messageCommandArg);
     }
 
-    // ▼▼▼ 核心修復：.asay 公告專屬邏輯 (攔截原生打字，僅顯示管理員廣播) ▼▼▼
+    // ▼▼▼ 核心修正 2：.asay 公告專屬邏輯 (攔截原生打字，僅保留管理員公告與 HUD) ▼▼▼
     if (message.StartsWith(".asay"))
     {
         if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
         {
-            // 去除可能包在最外層的雙引號與多餘空格，讓顯示更乾淨
+            // 去除可能包在最外層的雙引號與前後空白
             string adminMsg = messageCommandArg.Trim().Trim('"');
 
             if (!string.IsNullOrEmpty(adminMsg))
@@ -784,7 +785,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 // 1. 左下角聊天室廣播 (管理員身分)
                 Server.PrintToChatAll($"{adminChatPrefix} {adminMsg}");
                 
-                // 2. 畫面正中央 HUD (維持不變)
+                // 2. 畫面正中央 HUD
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p is { IsValid: true, IsBot: false })
@@ -803,7 +804,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             SendPlayerNotAdminMessage(player);
         }
 
-        // 核心關鍵：直接回傳 Handled 吃掉指令，徹底攔截原始的「玩家名稱: .asay ...」聊天發送！
+        // 徹底吃掉原始發話事件，防止聊天區出現「玩家名稱: .asay ...」
         return HookResult.Handled;
     }
     // ▲▲▲ ▲▲▲ ▲▲▲
@@ -898,7 +899,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     }
 
     return HookResult.Continue;
-});
+}, HookMode.Pre); // <--- 加入 HookMode.Pre 確保 HookResult.Handled 生效！
             RegisterEventHandler<EventPlayerBlind>((@event, info) =>
             {
                 CCSPlayerController? player = @event.Userid;
@@ -1371,7 +1372,7 @@ public void StartSideSelectionTimer()
                         OnTeamSwitch(null, null); 
                     }
                 }
-            }, TimerFlags.REPEAT); // <--- 就是這行剛才不小心被刪掉了！
+            }, TimerFlags.REPEAT); // 
         }
 
         public void CancelSideSelectionTimer()
