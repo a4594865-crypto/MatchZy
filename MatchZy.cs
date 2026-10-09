@@ -780,7 +780,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
             // 去除可能包在最外層的雙引號與前後空白
             string adminMsg = messageCommandArg.Trim().Trim('"');
 
-            if (!string.IsNullOrEmpty(adminMsg))
+            if (adminMsg != "")
             {
                 // 1. 左下角聊天室廣播 (管理員身分)
                 Server.PrintToChatAll($"{adminChatPrefix} {adminMsg}");
@@ -1372,7 +1372,7 @@ public void StartSideSelectionTimer()
                         OnTeamSwitch(null, null); 
                     }
                 }
-            }, TimerFlags.REPEAT); // 
+            }, TimerFlags.REPEAT); // <--- 就是這行剛才不小心被刪掉了！
         }
 
         public void CancelSideSelectionTimer()
