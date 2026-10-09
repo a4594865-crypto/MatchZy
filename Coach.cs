@@ -4,6 +4,8 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Commands;
 
 namespace MatchZy;
 
@@ -131,6 +133,83 @@ public partial class MatchZy
         string sideDisplayName = side == "ct" ? "反恐小組" : "恐怖分子";
         PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default}退 出 教 練 席");
         PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的 教 練");
+
+        if (readyAvailable && !matchStarted)
+        {
+            CheckLiveRequired();
+        }
+    }
+
+    // ==========================================
+    // ▼ 安全接管：完美防崩潰版 .uncoach 指令 ▼
+    // ==========================================
+    [ConsoleCommand("css_uncoach", "Exit coach mode safely")]
+    public void OnUncoachCommandSafe(CCSPlayerController? player, CommandInfo? command)
+    {
+        if (player is null || !IsPlayerValid(player)) return;
+
+        bool isCoach = false;
+        Team? coachTeam = null;
+
+        if (matchzyTeam1.coach.Contains(player))
+        {
+            isCoach = true;
+            coachTeam = matchzyTeam1;
+        }
+        else if (matchzyTeam2.coach.Contains(player))
+        {
+            isCoach = true;
+            coachTeam = matchzyTeam2;
+        }
+
+        if (!isCoach || coachTeam == null)
+        {
+            PrintToPlayerChat(player, $" 你 目 前 不 是 教 練！");
+            return;
+        }
+
+        // 1. 安全移除教練陣列與標籤
+        coachTeam.coach.Remove(player);
+        player.Clan = "";
+        Utilities.SetStateChanged(player, "CCSPlayerController", "m_szClan");
+
+        if (player.UserId is int uid)
+        {
+            playerReadyStatus[uid] = false;
+        }
+
+        PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 已 退 出 教 練 席");
+
+        // 2. 核心防崩潰：跨影格處死與「原生換隊 (ChangeTeam)」
+        if (player.PawnIsAlive)
+        {
+            if (player.PlayerPawn.Value is { } pawn)
+            {
+                // 先解開物理凍結與無敵，防止自殺時 Ragdoll 崩潰
+                pawn.MoveType = MoveType_t.MOVETYPE_WALK;
+                pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
+                pawn.TakesDamage = true;
+                
+                // 強制處死，避開原生 ChangeTeam 對活體玩家剝奪武器引發的崩潰
+                pawn.CommitSuicide(explode: false, force: true);
+            }
+            
+            // 【致命防禦點】推遲一個影格，並使用「原生 ChangeTeam(CsTeam.Spectator)」
+            // 絕對不能使用 SwitchTeam 進入觀戰者，否則凍結時間內缺乏視角指標會引發 100% 閃退！
+            Server.NextFrame(() =>
+            {
+                if (IsPlayerValid(player))
+                {
+                    player.ChangeTeam(CsTeam.Spectator);
+                }
+            });
+        }
+        else
+        {
+            player.ChangeTeam(CsTeam.Spectator);
+        }
+
+        Server.NextFrame(EnforceCompetitiveTeammateColors);
 
         if (readyAvailable && !matchStarted)
         {
@@ -502,8 +581,6 @@ public partial class MatchZy
 
             if (target is null) return;
 
-            // ★ 核心修復：使用 AcceptInput("Kill") 透過引擎底層 IO 系統安全排程銷毀實體
-            // 絕對不能使用 .Remove()，因為強制刪除正持有的武器會導致記憶體陣列崩潰(SIGSEGV)
             bomb.AcceptInput("Kill");
 
             CCSPlayerController finalTarget = target;
@@ -560,6 +637,7 @@ public partial class MatchZy
                 {
                     if (IsPlayerValid(playerController) && playerController.Team != targetTeam)
                     {
+                        // 這裡切換 T 和 CT，使用 SwitchTeam 還是安全的
                         playerController.SwitchTeam(targetTeam);
                     }
                 });
