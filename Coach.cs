@@ -21,7 +21,7 @@ public partial class MatchZy
         return coaches;
     }
 
-    // m_szClan 標籤更新與同步函數
+    // 1. m_szClan 標籤更新與同步函數
     public void UpdateCoachClanTag(CCSPlayerController coach)
     {
         if (coach is null || !IsPlayerValid(coach)) return;
@@ -78,7 +78,7 @@ public partial class MatchZy
             return;
         }
 
-        // 每隊限 1 名教練的限制（tac 名單防護）
+        // 2. 每隊限 1 名教練的限制（tac 名單防護）
         if (matchZyCoachTeam.coach.Count >= 1)
         {
             ReplyToUserCommand(player, "This team already has a coach! Only 1 coach allowed per team.");
@@ -94,13 +94,13 @@ public partial class MatchZy
         PrintToAllChat($"{ChatColors.Green}{player.PlayerName}{ChatColors.Default} is now coaching {ChatColors.Green}{matchZyCoachTeam.teamName}{ChatColors.Default}!");
     }
 
-    // 官方原版 .uncoach 指令 + 賽事進行中保護鎖
+    // 3. 賽事進行中禁止退出教練保護鎖（使用 OnUncoachCommandSafe 避免重複定義衝突）
     [ConsoleCommand("css_uncoach", "Exit coach mode safely")]
-    public void OnUnCoachCommand(CCSPlayerController? player, CommandInfo? command)
+    public void OnUncoachCommandSafe(CCSPlayerController? player, CommandInfo? command)
     {
         if (player is null || !IsPlayerValid(player)) return;
 
-        // 賽事進行中保護鎖：倒數、刀局、選邊、正賽期間禁止退出教練
+        // 賽事進行中（含倒數、刀局、選邊、正賽）禁止退出
         if (isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || matchStarted)
         {
             ReplyToUserCommand(player, "Cannot exit coach mode while match, knife round, or side selection is in progress!");
@@ -274,6 +274,7 @@ public partial class MatchZy
         coach.RemoveWeapons();
     }
 
+    // 4. 官方原版 C4 轉移邏輯 (完全相容官方底層記憶體，避免閃退)[span_3](start_span)[span_3](end_span)
     public void TransferCoachBomb(CCSPlayerController coach) {
         if (coach is null || coach.TeamNum != (byte)CsTeam.Terrorist) return; 
 
@@ -340,7 +341,7 @@ public partial class MatchZy
         UpdateCoachClanTag(playerController);
     }
 
-    // ▼▼▼ 已完美加入：自殺經濟隔離防護（不給對手陣營錢） ▼▼▼
+    // 5. 官方原版自殺邏輯 + 自殺經濟隔離防護（不給對手陣營錢）[span_4](start_span)[span_4](end_span)
     private void KillCoaches()
     {
         if (isPaused || IsTacticalTimeoutActive()) return;
@@ -384,7 +385,6 @@ public partial class MatchZy
             }
         });
     }
-    // ▲▲▲ ▲▲▲ ▲▲▲
 
     private void GetCoachSpawns()
     {
