@@ -250,7 +250,7 @@ namespace MatchZy
                 { ".fastforward", OnFastForwardCommand },
                 { ".clear", OnClearCommand },
                 { ".match", OnMatchCommand },
-                { ".uncoach", OnUnCoachCommand },
+                { ".uncoach", OnUncoachCommandSafe },
                 { ".exitprac", OnMatchCommand },
                 { ".stop", OnStopCommand },
                 { ".help", OnHelpCommand },
