@@ -8,7 +8,6 @@ using CounterStrikeSharp.API.Modules.Timers;
 using System.Text.RegularExpressions;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
 using System;
-using System.Linq;
 
 namespace MatchZy
 {
@@ -757,7 +756,7 @@ namespace MatchZy
         }
 
         // ==========================================
-        // ▼ GG 認輸投票系統 (修正編譯與教練權限版 + 3大神級防護) ▼
+        // ▼ GG 認輸投票系統 ▼
         // ==========================================
         public bool isGGEnabled = true;       // 預設開啟
         public int ggMinScoreDifference = 6;  // 預設落後 6 分才能投降
@@ -815,27 +814,36 @@ namespace MatchZy
 
             if (!isGGEnabled)
             {
-                PrintToPlayerChat(player, $" 伺 服 器 尚 未 開 放 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 本 伺 服 器 尚 未 開 放 {ChatColors.Green}投降指令{ChatColors.Default}");
                 return;
             }
             
             if (!isMatchLive)
             {
-                PrintToPlayerChat(player, $" 比 賽 尚 未 開 始，無 法 使 用 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 比 賽 尚 未 開 始，無 法 使 用 {ChatColors.Green}投降指令{ChatColors.Default}");
                 return;
             }
 
             if (IsHalfTimePhase())
             {
-                PrintToPlayerChat(player, $" 中 場 休 息 期 間，無 法 使 用 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 中 場 休 息 期 間，無 法 使 用 {ChatColors.Green}投降指令{ChatColors.Default}");
                 return;
             }
 
-            // ▼▼▼ 神級防護 1：暫停狀態攔截 ▼▼▼
-            CCSGameRules? gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+            // ▼▼▼ 神級防護 1：暫停狀態攔截 (採用極致效能的傳統 foreach 寫法) ▼▼▼
+            CCSGameRules? gameRules = null;
+            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+            {
+                if (entity is { GameRules: not null } proxy)
+                {
+                    gameRules = proxy.GameRules;
+                    break;
+                }
+            }
+            
             if (isPaused || (gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive)))
             {
-                PrintToPlayerChat(player, $" 比 賽 暫 停 期 間，無 法 發 起 投 降 指 令");
+                PrintToPlayerChat(player, $" 比 賽 暫 停 期 間，無 法 發 起 投 降 投 票");
                 return;
             }
             // ▲▲▲ ▲▲▲ ▲▲▲
@@ -850,7 +858,7 @@ namespace MatchZy
                 if (timePassed.TotalMinutes < 3)
                 {
                     int remainingSeconds = (int)(180 - timePassed.TotalSeconds);
-                    PrintToPlayerChat(player, $" 投 降 指 令 失 敗，請 等 待 {ChatColors.Green}{remainingSeconds}{ChatColors.Default} 秒 後 再 次 發 起");
+                    PrintToPlayerChat(player, $" 投 降 投 票 失 敗，請 等 待 {ChatColors.Green}{remainingSeconds}{ChatColors.Default} 秒 後 再 次 發 起");
                     return;
                 }
             }
@@ -874,7 +882,7 @@ namespace MatchZy
             
             if (opponentTeamScore - playerTeamScore < ggMinScoreDifference)
             {
-                PrintToPlayerChat(player, $" 隊伍落後至少 {ChatColors.Green}{ggMinScoreDifference} 分{ChatColors.Default} 才能發起投降");
+                PrintToPlayerChat(player, $" 你隊伍落後至少 {ChatColors.Green}{ggMinScoreDifference} 分{ChatColors.Default} 才能發起投降");
                 return;
             }
 
@@ -964,7 +972,7 @@ namespace MatchZy
             }
         }
 
-        // ▼▼▼ 將執行投降邏輯獨立封裝，方便多處調用 ▼▼▼
+        // ▼▼▼ 將執行投降邏輯獨立封裝，方便多處調用 (採用極致效能的傳統 foreach 寫法) ▼▼▼
         private void ExecuteSurrender(CsTeam playerTeam, string teamName)
         {
             PrintToAllChat($" {ChatColors.Red}{teamName} 隊伍{ChatColors.Default} 已經投降");
@@ -979,7 +987,15 @@ namespace MatchZy
                 }
             }
             
-            CCSGameRules? gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
+            CCSGameRules? gameRules = null;
+            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+            {
+                if (entity is { GameRules: not null } proxy)
+                {
+                    gameRules = proxy.GameRules;
+                    break;
+                }
+            }
             
             if (gameRules != null)
             {
