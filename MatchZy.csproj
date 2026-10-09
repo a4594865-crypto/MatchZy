@@ -24,7 +24,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 跟隨官方設定：確保編譯時排除不需要的測試檔案，縮小外掛體積 -->
     <Compile Remove="tests\**" />
     <None Remove="tests\**" />
   </ItemGroup>
