@@ -538,6 +538,18 @@ public partial class MatchZy
                     pawn.MoveType = MoveType_t.MOVETYPE_WALK;
                     pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
                     pawn.TakesDamage = true;
+
+                    // ▼▼▼ 防偷看機制：閃白 + 深淵傳送 ▼▼▼
+                    pawn.FlashDuration = 2.0f;
+                    pawn.FlashMaxAlpha = 255.0f;
+                    Utilities.SetStateChanged(pawn, "C_CSPlayerPawnBase", "m_flFlashDuration");
+                    Utilities.SetStateChanged(pawn, "C_CSPlayerPawnBase", "m_flFlashMaxAlpha");
+
+                    if (pawn.CBodyComponent?.SceneNode is { AbsOrigin: { } origin, AbsRotation: { } rotation })
+                    {
+                        pawn.Teleport(new(origin.X, origin.Y, origin.Z - 10000.0f), new QAngle(89.0f, 0.0f, 0.0f), new(0, 0, 0));
+                    }
+
                     pawn.CommitSuicide(explode: false, force: true);
                 }
                 
@@ -590,8 +602,17 @@ public partial class MatchZy
                     pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
                     pawn.TakesDamage = true;
 
+                    // ▼▼▼ 核心修復：防偷看機制 (Anti-Info Leak) ▼▼▼
+                    // 1. 強制閃白螢幕，遮蔽最後一幀的畫面過渡
+                    pawn.FlashDuration = 2.0f;
+                    pawn.FlashMaxAlpha = 255.0f;
+                    Utilities.SetStateChanged(pawn, "C_CSPlayerPawnBase", "m_flFlashDuration");
+                    Utilities.SetStateChanged(pawn, "C_CSPlayerPawnBase", "m_flFlashMaxAlpha");
+
                     Position coachPosition = new(origin, rotation);
-                    pawn.Teleport(new(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 10.0f), coachPosition.PlayerAngle, new(0, 0, 0));
+                    // 2. 將教練實體瞬間傳送到極深地底 (-10000) 並讓視角朝下 (Pitch 89)
+                    // 強制移出敵人的 PVS (可視範圍)，伺服器會瞬間切斷網路封包，徹底防止雷達與死亡視角漏位！
+                    pawn.Teleport(new(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z - 10000.0f), new QAngle(89.0f, 0.0f, 0.0f), new(0, 0, 0));
                     
                     pawn.CommitSuicide(explode: false, force: true);
                 }
