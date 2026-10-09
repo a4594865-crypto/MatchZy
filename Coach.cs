@@ -23,7 +23,6 @@ public partial class MatchZy
         return coaches;
     }
 
-    // 根據教練目前所在的 CT / T 陣營，顯示 [反恐教練] 或 [恐怖教練]
     public void UpdateCoachClanTag(CCSPlayerController coach)
     {
         if (coach is null || !IsPlayerValid(coach)) return;
@@ -53,7 +52,6 @@ public partial class MatchZy
             return;
         }
 
-        // 防止玩家在回合已經開打（非買槍/非熱身）時突然打 .coach 落跑導致錢歸零或少打一人
         CCSGameRules? gameRules = null;
         foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
         {
@@ -77,7 +75,6 @@ public partial class MatchZy
 
         side = side.Trim().ToLower();
 
-        // 支援只打 .coach 自動依玩家目前所在隊伍判別
         if (string.IsNullOrEmpty(side))
         {
             if (player.TeamNum == (byte)CsTeam.Terrorist) side = "t";
@@ -95,7 +92,6 @@ public partial class MatchZy
             return;
         }
 
-        // 比賽開始後，嚴格禁止跨隊去當對面的教練（防偷窺）
         byte wantedTeam = side == "t" ? (byte)CsTeam.Terrorist : (byte)CsTeam.CounterTerrorist;
         if (matchStarted && player.TeamNum != wantedTeam)
         {
@@ -103,7 +99,6 @@ public partial class MatchZy
             return;
         }
 
-        // ★ 核心安全讀取：只用 TryGetValue 讀取，絕不修改 reverseTeamSides 字典，100% 不影響隨機分隊隊名！
         Team matchZyCoachTeam;
         if (side == "t")
         {
@@ -114,17 +109,14 @@ public partial class MatchZy
             matchZyCoachTeam = reverseTeamSides.TryGetValue("CT", out var ctTeam) ? ctTeam : matchzyTeam1;
         }
 
-        // ▼▼▼ 【新增】：限制該隊伍只能有 1 名教練 ▼▼▼
         if (matchZyCoachTeam.coach.Count >= 1)
         {
             PrintToPlayerChat(player, $" 該 隊 已 經 有 {ChatColors.Red}教練{ChatColors.Default} 了，每隊僅限 1 名教練！");
             return;
         }
-        // ▲▲▲ ▲▲▲ ▲▲▲
 
         matchZyCoachTeam.coach.Add(player);
 
-        // ★ 核心修正：只把準備狀態設為 false，不從字典 Remove 刪除，這樣打 .uncoach 退出教練時就會自動保有要按 .R 的身分！
         if (player.UserId is int uid)
         {
             playerReadyStatus[uid] = false;
@@ -132,7 +124,6 @@ public partial class MatchZy
 
         if (player.InGameMoneyServices is not null) player.InGameMoneyServices.Account = 0;
 
-        // 切換陣營並套用 [反恐教練] / [恐怖教練]
         HandleCoachTeam(player);
         UpdateCoachClanTag(player);
         Server.NextFrame(EnforceCompetitiveTeammateColors);
@@ -172,7 +163,6 @@ public partial class MatchZy
             GetCoachSpawns();
         }
 
-        // 決定變灰時間：instantCoachGrayOut 為 false 時買槍結束前 1 秒變灰；true 時開局 0.25 秒瞬間變灰
         float killDelay;
         if (instantCoachGrayOut)
         {
@@ -197,8 +187,7 @@ public partial class MatchZy
             AddTimer(0.1f, () => HandleCoachTeam(coach));
             ResetCoachStats(coach);
 
-            // 【修復致命錯誤】：將實體的修改推遲到 Server.NextFrame，避免在接刀局 Spawn 瞬間發生物理引擎讀寫死鎖！
-            int currentIdx = coachIdx; // 防止閉包捕獲到最後的遞增值
+            int currentIdx = coachIdx; 
             Server.NextFrame(() =>
             {
                 if (!IsPlayerValid(coach)) return;
@@ -207,7 +196,6 @@ public partial class MatchZy
 
                 if (coach.PlayerPawn.Value is { } pawn)
                 {
-                    // 先鎖定移動與關閉受傷判定（無敵），防止落地發出腳步聲或被隊友揮刀誤傷
                     pawn.MoveType = MoveType_t.MOVETYPE_NONE;
                     pawn.ActualMoveType = MoveType_t.MOVETYPE_NONE;
                     pawn.TakesDamage = false;
@@ -243,14 +231,10 @@ public partial class MatchZy
             coachIdx++;
         }
 
-        // 修正被教練擠歪的正式選手出生點，並歸還五色標記
         AddTimer(0.15f, EnforceCompetitiveSpawns);
         AddTimer(0.3f, EnforceCompetitiveTeammateColors);
     }
 
-    /// <summary>
-    /// 當該地圖沒有 JSON 座標檔時，自動計算隊伍出生點後方高空俯瞰點
-    /// </summary>
     private bool TryGetBehindTeamCoachSpawn(byte teamNum, int coachIdx, out Position result)
     {
         result = null!;
@@ -299,9 +283,6 @@ public partial class MatchZy
         }
     }
 
-    /// <summary>
-    /// 75 單位容錯出生點保護：已站在標準競技出生點上的選手不移動，僅將被教練擠歪的第 5 人拉回空出的標準出生點
-    /// </summary>
     private void EnforceCompetitiveSpawns()
     {
         try
@@ -401,9 +382,6 @@ public partial class MatchZy
         }
     }
 
-    /// <summary>
-    /// 拔除教練占用的隊伍顏色 (-1)，確保場上 5 名正式隊員完整擁有 5 種代表色
-    /// </summary>
     private void EnforceCompetitiveTeammateColors()
     {
         try
@@ -485,9 +463,6 @@ public partial class MatchZy
         coach.RemoveWeapons();
     }
 
-    /// <summary>
-    /// 跨影格安全轉移 C4：避免在 EventPlayerGivenC4 同步移除實體引發引擎崩潰
-    /// </summary>
     public void TransferCoachBomb(CCSPlayerController coach)
     {
         if (coach is null || !IsPlayerValid(coach) || coach.TeamNum != (byte)CsTeam.Terrorist) return;
@@ -495,20 +470,24 @@ public partial class MatchZy
         Server.NextFrame(() =>
         {
             if (coach is null || !IsPlayerValid(coach) || coach.TeamNum != (byte)CsTeam.Terrorist) return;
-            if (coach.PlayerPawn.Value?.WeaponServices?.MyWeapons is not { } weapons) return;
 
-            CBasePlayerWeapon? bomb = null;
-            foreach (var weapon in weapons)
+            // 確認教練身上是否真的有 C4
+            bool hasC4 = false;
+            if (coach.PlayerPawn.Value?.WeaponServices?.MyWeapons is { } weapons)
             {
-                if (weapon.Value is { IsValid: true, DesignerName: "weapon_c4" } c4)
+                foreach (var weapon in weapons)
                 {
-                    bomb = c4;
-                    break;
+                    if (weapon.Value is { IsValid: true, DesignerName: "weapon_c4" })
+                    {
+                        hasC4 = true;
+                        break;
+                    }
                 }
             }
 
-            if (bomb is null) return;
+            if (!hasC4) return;
 
+            // 尋找可以接收 C4 的同一陣營玩家
             HashSet<CCSPlayerController> allCoaches = GetAllCoaches();
             CCSPlayerController? target = null;
             foreach (var p in Utilities.GetPlayers())
@@ -523,9 +502,12 @@ public partial class MatchZy
                 }
             }
 
+            // 如果只有教練一個人，找不到玩家，安全退出
             if (target is null) return;
 
-            bomb.Remove();
+            // ★ 核心修復：絕對不能使用實體原生的 bomb.Remove()，改用安全的 MatchZy API
+            RemoveWeaponByName(coach, "weapon_c4");
+
             CCSPlayerController finalTarget = target;
             Server.NextFrame(() =>
             {
@@ -540,7 +522,6 @@ public partial class MatchZy
 
     public CsTeam GetCoachTeam(CCSPlayerController coach)
     {
-        // ★ 核心安全讀取：只用 TryGetValue 讀取，絕不修改 teamSides 字典！
         if (matchzyTeam1.coach.Contains(coach))
         {
             if (teamSides.TryGetValue(matchzyTeam1, out var s1))
@@ -567,12 +548,12 @@ public partial class MatchZy
         CsTeam targetTeam = GetCoachTeam(playerController);
         if (playerController.Team != targetTeam && targetTeam is CsTeam.Terrorist or CsTeam.CounterTerrorist)
         {
-            // 【修復致命錯誤】：對「活著(Alive)」的玩家實體直接執行 SwitchTeam 會立刻引發伺服器 SIGSEGV 崩潰。
-            // 必須先強制清除活體狀態，並將切換隊伍的動作推遲至下一個 Frame 執行。
             if (playerController.PawnIsAlive)
             {
                 if (playerController.PlayerPawn.Value is { } pawn)
                 {
+                    pawn.MoveType = MoveType_t.MOVETYPE_WALK;
+                    pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
                     pawn.TakesDamage = true;
                     pawn.CommitSuicide(explode: false, force: true);
                 }
@@ -591,7 +572,6 @@ public partial class MatchZy
             }
         }
 
-        // 每回合與下半場換邊時，自動更新為 [反恐教練] 或 [恐怖教練]
         UpdateCoachClanTag(playerController);
 
         if (playerController.InGameMoneyServices is not null) playerController.InGameMoneyServices.Account = 0;
@@ -603,7 +583,6 @@ public partial class MatchZy
         HashSet<CCSPlayerController> coaches = GetAllCoaches();
         if (IsWingmanMode() || coaches.Count == 0) return;
 
-        // 1. 完整備份所有自殺補償金、少人補償金與死亡鏡頭延遲參數
         string suicidePenalty = ConVar.Find("mp_suicide_penalty") is { } cv1 ? (GetConvarStringValue(cv1) ?? "0") : "0";
         string killDefault = ConVar.Find("cash_player_killed_enemy_default") is { } cv2 ? (GetConvarStringValue(cv2) ?? "300") : "300";
         string killFactor = ConVar.Find("cash_player_killed_enemy_factor") is { } cv3 ? (GetConvarStringValue(cv3) ?? "1") : "1";
@@ -613,11 +592,9 @@ public partial class MatchZy
         string specFreezeTimeLock = ConVar.Find("spec_freeze_time_lock") is { } cv7 ? (GetConvarStringValue(cv7) ?? "2") : "2";
         string specFreezeDeathanim = ConVar.Find("spec_freeze_deathanim_time") is { } cv8 ? (GetConvarStringValue(cv8) ?? "0") : "0";
 
-        // 2. 先下達歸零指令，徹底關閉敵方自殺補償金與死亡黑畫面過渡
         Server.ExecuteCommand("mp_suicide_penalty 0; cash_player_killed_enemy_default 0; cash_player_killed_enemy_factor 0; cash_team_bonus_shorthanded 0; cash_team_loser_bonus_shorthanded 0; spec_freeze_time 0; spec_freeze_time_lock 0; spec_freeze_deathanim_time 0;");
 
-        // 3. 推遲至下一個影格（確保上述歸零指令已在引擎生效）再執行無聲處死轉觀戰
-        Server.NextFrame(() =>
+        AddTimer(0.1f, () =>
         {
             foreach (var coach in coaches)
             {
@@ -626,17 +603,18 @@ public partial class MatchZy
 
                 if (coach.PlayerPawn.Value is { } pawn && pawn.CBodyComponent?.SceneNode is { AbsOrigin: { } origin, AbsRotation: { } rotation })
                 {
-                    Position coachPosition = new(origin, rotation);
-                    pawn.Teleport(new(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new(0, 0, 0));
-                    
-                    // 瞬間解開無敵讓自殺生效
+                    pawn.MoveType = MoveType_t.MOVETYPE_WALK;
+                    pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
                     pawn.TakesDamage = true;
+
+                    Position coachPosition = new(origin, rotation);
+                    pawn.Teleport(new(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 10.0f), coachPosition.PlayerAngle, new(0, 0, 0));
+                    
                     pawn.CommitSuicide(explode: false, force: true);
                 }
             }
 
-            // 4. 等死亡結算完畢後（0.15 秒），還原伺服器原始參數，並將教練計分板戰績洗回 0 殺 0 死
-            AddTimer(0.15f, () =>
+            AddTimer(0.2f, () =>
             {
                 Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; cash_player_killed_enemy_default {killDefault}; cash_player_killed_enemy_factor {killFactor}; cash_team_bonus_shorthanded {bonusShort}; cash_team_loser_bonus_shorthanded {loserShort}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
 
