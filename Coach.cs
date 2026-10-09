@@ -641,7 +641,7 @@ public partial class MatchZy
         });
     }
 
-    private void GetCoachSpawns()
+private void GetCoachSpawns()
     {
         coachSpawns = GetEmptySpawnsData();
         try
@@ -671,7 +671,7 @@ public partial class MatchZy
 
                     float pitch = float.Parse(angleArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
                     float yaw = float.Parse(angleArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.Println); // 保持你原本的解析
+                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.InvariantCulture); // 已修正
 
                     Vector vector = new(x, y, z);
                     QAngle qAngle = new(pitch, yaw, roll);
