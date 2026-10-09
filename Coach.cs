@@ -43,12 +43,12 @@ public partial class MatchZy
 
         if (isPractice)
         {
-            PrintToPlayerChat(player, $" 練 習 模 式 中 無 法 使 用 {ChatColors.Red}教練指令{ChatColors.Default}");
+            PrintToPlayerChat(player, $" 練 習 模 式 中 無 法 使 用 {ChatColors.Green}教練指令{ChatColors.Default}");
             return;
         }
         if (IsWingmanMode())
         {
-            PrintToPlayerChat(player, $" 搭 檔 模 式 中 無 法 使 用 {ChatColors.Red}教練指令{ChatColors.Default}");
+            PrintToPlayerChat(player, $" 搭 檔 模 式 中 無 法 使 用 {ChatColors.Green}教練指令{ChatColors.Default}");
             return;
         }
 
@@ -63,13 +63,13 @@ public partial class MatchZy
         }
         if ((isMatchLive || isKnifeRound) && gameRules is { FreezePeriod: false, WarmupPeriod: false })
         {
-            PrintToPlayerChat(player, $" 回 合 進 行 中，無 法 切 換 為 {ChatColors.Red}教練身分{ChatColors.Default}");
+            PrintToPlayerChat(player, $" 回 合 進 行 中，無 法 切 換 為 {ChatColors.Green}教 練 身 分{ChatColors.Default}");
             return;
         }
 
         if (matchzyTeam1.coach.Contains(player) || matchzyTeam2.coach.Contains(player))
         {
-            PrintToPlayerChat(player, $" 你 已 經 是 教 練 了！若 要 退 出 請 輸 入 {ChatColors.Green}.uncoach{ChatColors.Default}");
+            PrintToPlayerChat(player, $" 你 已 經 是 教 練 了！若 要 退 出 請 輸 入 {ChatColors.Green} .uncoach {ChatColors.Default}");
             return;
         }
 
@@ -95,7 +95,7 @@ public partial class MatchZy
         byte wantedTeam = side == "t" ? (byte)CsTeam.Terrorist : (byte)CsTeam.CounterTerrorist;
         if (matchStarted && player.TeamNum != wantedTeam)
         {
-            PrintToPlayerChat(player, $" 比 賽 進 行 中，僅 擔 任 {ChatColors.Red}自己所屬隊伍{ChatColors.Default} 教 練");
+            PrintToPlayerChat(player, $" 比 賽 進 行 中，僅 擔 任 {ChatColors.Green}自己所屬隊伍{ChatColors.Default} 教 練");
             return;
         }
 
@@ -111,7 +111,7 @@ public partial class MatchZy
 
         if (matchZyCoachTeam.coach.Count >= 1)
         {
-            PrintToPlayerChat(player, $" 該 隊 已 經 有 {ChatColors.Red}教練{ChatColors.Default} 了，每隊僅限 1 名教練！");
+            PrintToPlayerChat(player, $" 該 隊 已 經 有 {ChatColors.Green}教 練{ChatColors.Default} 了，每隊僅限 1 名教練");
             return;
         }
 
@@ -128,8 +128,8 @@ public partial class MatchZy
         UpdateCoachClanTag(player);
         Server.NextFrame(EnforceCompetitiveTeammateColors);
 
-        string sideDisplayName = side == "ct" ? "反恐小組" : "恐怖分子";
-        PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default}退 出 教 練 席");
+        string sideDisplayName = side == "ct" ? "反恐小組" : "恐怖份子";
+        PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 教練！輸 入{ChatColors.Green} .uncoach {ChatColors.Default}退 出 教 練 席");
         PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的 教 練");
 
         if (readyAvailable && !matchStarted)
