@@ -148,6 +148,14 @@ public partial class MatchZy
     {
         if (player is null || !IsPlayerValid(player)) return;
 
+        // ▼▼▼ 新增：賽事保護鎖！倒數、刀局、選邊、正賽期間，絕對禁止退出教練 ▼▼▼
+        if (isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || matchStarted)
+        {
+            PrintToPlayerChat(player, $" {chatPrefix} {ChatColors.Green}賽 事 進 行 中，禁 止 退 出 教 練 身 分{ChatColors.Default}");
+            return;
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         bool isCoach = false;
         Team? coachTeam = null;
 
@@ -216,7 +224,6 @@ public partial class MatchZy
             CheckLiveRequired();
         }
     }
-
     public void HandleCoaches()
     {
         coachKillTimer?.Kill();
