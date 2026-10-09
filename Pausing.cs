@@ -637,7 +637,7 @@ public partial class MatchZy
         {
             if (!autoPauseLimitAnnounced)
             {
-                PrintToAllChat($" {ChatColors.Red}玩家斷線{ChatColors.Default} 但 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 的戰術暫停已用完，無法自動暫停。");
+                PrintToAllChat($" {ChatColors.Red}玩家斷線{ChatColors.Default} {ChatColors.Green}{currentTeamName}{ChatColors.Default} 的戰術暫停已用完，無法自動暫停。");
                 autoPauseLimitAnnounced = true;
             }
             return;
@@ -689,7 +689,7 @@ public partial class MatchZy
                     {
                         if (p is { IsValid: true, IsBot: false, TeamNum: 2 or 3 })
                         {
-                            p.PrintToCenter($"玩 家 已 全 數 連 回！\n將 在 {autoResumeCountdown} 秒 後 解 除 暫 停");
+                            p.PrintToCenter($"玩 家 已 連 回 將 在 {autoResumeCountdown} 秒 後 解 除 暫 停");
                         }
                     }
                     autoResumeCountdown--;
@@ -702,7 +702,7 @@ public partial class MatchZy
                     unpData["ct"] = false;
                     unpData["t"] = false;
                     isAutoTriggeredTacPause = false;
-                    PrintToAllChat($" {ChatColors.Green}玩 家 已 連 回，自 動 解 除 暫 停！");
+                    PrintToAllChat($" {ChatColors.Green}玩 家 已 連 回，自 動 解 除 暫 停");
                     
                     foreach (var p in Utilities.GetPlayers())
                     {
