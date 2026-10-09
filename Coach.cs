@@ -471,23 +471,21 @@ public partial class MatchZy
         {
             if (coach is null || !IsPlayerValid(coach) || coach.TeamNum != (byte)CsTeam.Terrorist) return;
 
-            // 確認教練身上是否真的有 C4
-            bool hasC4 = false;
+            CBasePlayerWeapon? bomb = null;
             if (coach.PlayerPawn.Value?.WeaponServices?.MyWeapons is { } weapons)
             {
                 foreach (var weapon in weapons)
                 {
-                    if (weapon.Value is { IsValid: true, DesignerName: "weapon_c4" })
+                    if (weapon.Value is { IsValid: true, DesignerName: "weapon_c4" } c4)
                     {
-                        hasC4 = true;
+                        bomb = c4;
                         break;
                     }
                 }
             }
 
-            if (!hasC4) return;
+            if (bomb is null) return;
 
-            // 尋找可以接收 C4 的同一陣營玩家
             HashSet<CCSPlayerController> allCoaches = GetAllCoaches();
             CCSPlayerController? target = null;
             foreach (var p in Utilities.GetPlayers())
@@ -502,11 +500,11 @@ public partial class MatchZy
                 }
             }
 
-            // 如果只有教練一個人，找不到玩家，安全退出
             if (target is null) return;
 
-            // ★ 核心修復：絕對不能使用實體原生的 bomb.Remove()，改用安全的 MatchZy API
-            RemoveWeaponByName(coach, "weapon_c4");
+            // ★ 核心修復：使用 AcceptInput("Kill") 透過引擎底層 IO 系統安全排程銷毀實體
+            // 絕對不能使用 .Remove()，因為強制刪除正持有的武器會導致記憶體陣列崩潰(SIGSEGV)
+            bomb.AcceptInput("Kill");
 
             CCSPlayerController finalTarget = target;
             Server.NextFrame(() =>
