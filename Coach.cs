@@ -15,25 +15,6 @@ public partial class MatchZy
     // true = 開局 0.25 秒瞬間無感變灰（直接看隊友第一人稱）
     public bool instantCoachGrayOut = false;
 
-    /// <summary>
-    /// 檢查教練是否在受限制的賽事階段中嘗試退出（倒數計時、刀局、刀局暖場選邊、Live 正賽）
-    /// </summary>
-    public bool CheckCoachUncoachInterception(CCSPlayerController player)
-    {
-        if (player is null || !IsPlayerValid(player)) return false;
-
-        // isMatchLive = Live 正賽
-        // isKnifeRound = 刀局、刀局暖場、選邊階段
-        // matchStarted = 比賽已經啟動（包含準備就緒後的倒數計時階段、刀局、正賽等）
-        if (isMatchLive || isKnifeRound || matchStarted)
-        {
-            PrintToPlayerChat(player, $" {ChatColors.Red}賽事進行中，無法退出教練席{ChatColors.Default}");
-            return true; // 代表已被攔截
-        }
-
-        return false; // 允許退出
-    }
-
     public HashSet<CCSPlayerController> GetAllCoaches()
     {
         HashSet<CCSPlayerController> coaches = [.. matchzyTeam1.coach];
@@ -130,7 +111,7 @@ public partial class MatchZy
 
         if (matchZyCoachTeam.coach.Count >= 1)
         {
-            PrintToPlayerChat(player, $" 該 隊 已 經 有 {ChatColors.Red}教練{ChatColors.Default} 了，每隊僅限 1 名教練");
+            PrintToPlayerChat(player, $" 該 隊 已 經 有 {ChatColors.Red}教練{ChatColors.Default} 了，每隊僅限 1 名教練！");
             return;
         }
 
@@ -521,6 +502,8 @@ public partial class MatchZy
 
             if (target is null) return;
 
+            // ★ 核心修復：使用 AcceptInput("Kill") 透過引擎底層 IO 系統安全排程銷毀實體
+            // 絕對不能使用 .Remove()，因為強制刪除正持有的武器會導致記憶體陣列崩潰(SIGSEGV)
             bomb.AcceptInput("Kill");
 
             CCSPlayerController finalTarget = target;
@@ -641,7 +624,7 @@ public partial class MatchZy
         });
     }
 
-private void GetCoachSpawns()
+    private void GetCoachSpawns()
     {
         coachSpawns = GetEmptySpawnsData();
         try
@@ -671,7 +654,7 @@ private void GetCoachSpawns()
 
                     float pitch = float.Parse(angleArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
                     float yaw = float.Parse(angleArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.InvariantCulture); // 已修正
+                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
 
                     Vector vector = new(x, y, z);
                     QAngle qAngle = new(pitch, yaw, roll);
