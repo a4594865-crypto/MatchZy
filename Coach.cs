@@ -148,7 +148,7 @@ public partial class MatchZy
     {
         if (player is null || !IsPlayerValid(player)) return;
 
-        // ▼▼▼ 新增：賽事保護鎖！倒數、刀局、選邊、正賽期間，絕對禁止退出教練 ▼▼▼
+        // ▼▼▼ 賽事保護鎖：倒數、刀局、選邊、正賽期間，絕對禁止退出教練 ▼▼▼
         if (isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || matchStarted)
         {
             PrintToPlayerChat(player, $" {chatPrefix} {ChatColors.Green}賽 事 進 行 中，禁 止 退 出 教 練 身 分{ChatColors.Default}");
@@ -172,7 +172,7 @@ public partial class MatchZy
 
         if (!isCoach || coachTeam == null)
         {
-            PrintToPlayerChat(player, $" 你 目 前 不 是 教 練！");
+            PrintToPlayerChat(player, $" 你 目 前 不 是 教 練");
             return;
         }
 
@@ -188,7 +188,7 @@ public partial class MatchZy
 
         PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 已 退 出 教 練 席");
 
-        // 2. 核心防崩潰：跨影格處死與「原生換隊 (ChangeTeam)」
+        // 2. 核心防崩潰：跨影格處死與原生換隊 (ChangeTeam)
         if (player.PawnIsAlive)
         {
             if (player.PlayerPawn.Value is { } pawn)
@@ -198,12 +198,10 @@ public partial class MatchZy
                 pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
                 pawn.TakesDamage = true;
                 
-                // 強制處死，避開原生 ChangeTeam 對活體玩家剝奪武器引發的崩潰
                 pawn.CommitSuicide(explode: false, force: true);
             }
             
-            // 【致命防禦點】推遲一個影格，並使用「原生 ChangeTeam(CsTeam.Spectator)」
-            // 絕對不能使用 SwitchTeam 進入觀戰者，否則凍結時間內缺乏視角指標會引發 100% 閃退！
+            // 使用原生 ChangeTeam 進入觀戰者，安全處理視角指標
             Server.NextFrame(() =>
             {
                 if (IsPlayerValid(player))
@@ -224,6 +222,7 @@ public partial class MatchZy
             CheckLiveRequired();
         }
     }
+
     public void HandleCoaches()
     {
         coachKillTimer?.Kill();
@@ -644,7 +643,6 @@ public partial class MatchZy
                 {
                     if (IsPlayerValid(playerController) && playerController.Team != targetTeam)
                     {
-                        // 這裡切換 T 和 CT，使用 SwitchTeam 還是安全的
                         playerController.SwitchTeam(targetTeam);
                     }
                 });
