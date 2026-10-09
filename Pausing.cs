@@ -54,6 +54,10 @@ public partial class MatchZy
     // ==========================================
     public Dictionary<string, int> techPausesUsed = new() { { "matchzyTeam1", 0 }, { "matchzyTeam2", 0 } };
     public Dictionary<string, int> tacPausesUsed = new() { { "matchzyTeam1", 0 }, { "matchzyTeam2", 0 } };
+    
+    // ▼ 新增：加時賽專屬暫停計數器 ▼
+    public int lastTrackedOT = 0;
+    public Dictionary<string, int> otTacPausesUsed = new() { { "matchzyTeam1", 0 }, { "matchzyTeam2", 0 } };
 
     public CounterStrikeSharp.API.Modules.Timers.Timer? techPauseAutoUnpauseTimer = null;
     public CounterStrikeSharp.API.Modules.Timers.Timer? tacPauseAutoUnpauseTimer = null;
@@ -294,22 +298,32 @@ public partial class MatchZy
         if (string.IsNullOrEmpty(teamKey)) return;
 
         string currentTeamName = playerMatchTeam.teamName;
-        int maxLimit = MaxTacPauses;
+
+        // ▼▼▼ 核心修正：加時賽判斷與動態上限切換 ▼▼▼
+        bool isOvertime = gameRules is not null && gameRules.OvertimePlaying;
+        
+        // 如果是加時賽，改抓 mp_team_timeout_ot_max (預設為 1)
+        int maxLimit = isOvertime ? GetPauseConfig("mp_team_timeout_ot_max", 1) : MaxTacPauses;
         int durationLimit = TacPauseDuration;
 
-        if (!tacPausesUsed.ContainsKey(teamKey)) tacPausesUsed[teamKey] = 0;
+        // 依據是否為加時賽，切換計數用的字典
+        Dictionary<string, int> targetPauseUsedDict = isOvertime ? otTacPausesUsed : tacPausesUsed;
 
-        if (tacPausesUsed[teamKey] >= maxLimit)
+        if (!targetPauseUsedDict.ContainsKey(teamKey)) targetPauseUsedDict[teamKey] = 0;
+
+        if (targetPauseUsedDict[teamKey] >= maxLimit)
         {
-            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 您 的 {ChatColors.Green}戰 術 暫 停 {ChatColors.Default}次 數 已 用 完");
+            string phaseStr = isOvertime ? "加 時 賽 " : "";
+            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 您 的 {ChatColors.Green}{phaseStr}戰 術 暫 停 {ChatColors.Default}次 數 已 用 完");
             return;
         }
+        // ▲▲▲ ▲▲▲ ▲▲▲
 
         string sideName = (player.Team == CsTeam.CounterTerrorist) ? "反恐小組" : "恐怖份子";
         
-        tacPausesUsed[teamKey]++;
-        int remainingCount = maxLimit - tacPausesUsed[teamKey];
-        int currentPauseUsed = tacPausesUsed[teamKey]; 
+        targetPauseUsedDict[teamKey]++;
+        int remainingCount = maxLimit - targetPauseUsedDict[teamKey];
+        int currentPauseUsed = targetPauseUsedDict[teamKey]; 
 
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
@@ -321,7 +335,8 @@ public partial class MatchZy
         int maxS = durationLimit % 60;
         string maxTimeString = maxM > 0 ? $"{maxM}分{maxS:D2}秒" : $"{maxS}秒";
 
-        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
+        string phasePrefix = isOvertime ? "加 時 賽 " : "";
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 {phasePrefix}戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
         PrintToAllChat($" 暫 停 在 \u0004{durationLimit}秒\u0001 自 動 解 除，或 雙 方 輸 入 {ChatColors.Orange}.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
@@ -510,6 +525,12 @@ public partial class MatchZy
     {
         tacPausesUsed["matchzyTeam1"] = 0;
         tacPausesUsed["matchzyTeam2"] = 0;
+        
+        // 加時賽次數也一併歸零
+        otTacPausesUsed["matchzyTeam1"] = 0;
+        otTacPausesUsed["matchzyTeam2"] = 0;
+        lastTrackedOT = 0;
+        
         KillTacPauseTimer();
     }
 
@@ -533,10 +554,65 @@ public partial class MatchZy
     [GameEventHandler(HookMode.Post)]
     public HookResult OnRoundStartAutoPause(EventRoundStart @event, GameEventInfo info)
     {
+        // ▼ 完美修復 1：只要是在熱身階段、刀局，或是尚未進入 LIVE 正式比賽的狀態
+        // 就自動重置雙方所有暫停次數，確保換圖或 .restart 後暫停次數完全乾淨歸零！
+        if (!isMatchLive)
+        {
+            ResetTechPauseCount();
+            ResetTacPauseCount();
+        }
+
+        // ▼▼▼ 核心修正：動態更新加時賽階層，對齊 mp_team_timeout_ot_add_each 機制 ▼▼▼
+        CCSGameRules? gameRules = null;
+        foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+        {
+            if (entity is { GameRules: not null } proxy)
+            {
+                gameRules = proxy.GameRules;
+                break;
+            }
+        }
+
+        if (gameRules != null && gameRules.OvertimePlaying)
+        {
+            int totalRounds = gameRules.TotalRoundsPlayed;
+            int maxRounds = ConVar.Find("mp_maxrounds")?.GetPrimitiveValue<int>() ?? 24;
+            int otMaxRounds = ConVar.Find("mp_overtime_maxrounds")?.GetPrimitiveValue<int>() ?? 6;
+            
+            // 計算目前是第幾個加時賽 (OT1, OT2, OT3...)
+            if (totalRounds >= maxRounds && otMaxRounds > 0)
+            {
+                int otRounds = totalRounds - maxRounds;
+                int currentOT = (otRounds / otMaxRounds) + 1;
+                
+                // 如果進入了「下一個」新的加時賽階段，立刻重置 OT 專屬暫停次數！
+                if (currentOT != lastTrackedOT)
+                {
+                    lastTrackedOT = currentOT;
+                    otTacPausesUsed["matchzyTeam1"] = 0;
+                    otTacPausesUsed["matchzyTeam2"] = 0;
+                }
+            }
+        }
+        else
+        {
+            lastTrackedOT = 0; // 回歸常規賽時清空記錄
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         if (autoPauseMainTimer == null)
         {
             StartAutoPauseCheck();
         }
+        return HookResult.Continue;
+    }
+
+    // ▼ 完美修復 2：在比賽分出勝負（結算畫面出現）的瞬間，立刻清空暫停次數，作為雙重保障
+    [GameEventHandler(HookMode.Post)]
+    public HookResult OnMatchEndAutoPauseReset(EventCsWinPanelMatch @event, GameEventInfo info)
+    {
+        ResetTechPauseCount();
+        ResetTacPauseCount();
         return HookResult.Continue;
     }
 
@@ -607,18 +683,6 @@ public partial class MatchZy
         }, TimerFlags.REPEAT);
     }
 
-    public void StopAutoPauseCheck()
-    {
-        if (autoPauseMainTimer is not null)
-        {
-            autoPauseMainTimer.Kill();
-            autoPauseMainTimer = null;
-        }
-        autoPauseLimitAnnounced = false;
-        autoPausePeakHumans = 0;
-        autoPauseShortAccepted = false;
-    }
-
     private void AutoTriggerTacPause(CsTeam team)
     {
         if (tacPauseAutoUnpauseTimer is not null || techPauseAutoUnpauseTimer is not null) return;
@@ -628,16 +692,32 @@ public partial class MatchZy
         if (string.IsNullOrEmpty(teamKey)) return;
 
         string currentTeamName = matchTeam.teamName;
-        int maxLimit = MaxTacPauses;
+
+        // ▼▼▼ 自動暫停也套用相同的加時賽獨立額度判斷 ▼▼▼
+        CCSGameRules? gameRules = null;
+        foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+        {
+            if (entity is { GameRules: not null } proxy)
+            {
+                gameRules = proxy.GameRules;
+                break;
+            }
+        }
+        
+        bool isOvertime = gameRules is not null && gameRules.OvertimePlaying;
+        int maxLimit = isOvertime ? GetPauseConfig("mp_team_timeout_ot_max", 1) : MaxTacPauses;
         int durationLimit = TacPauseDuration;
 
-        if (!tacPausesUsed.ContainsKey(teamKey)) tacPausesUsed[teamKey] = 0;
+        Dictionary<string, int> targetPauseUsedDict = isOvertime ? otTacPausesUsed : tacPausesUsed;
 
-        if (tacPausesUsed[teamKey] >= maxLimit)
+        if (!targetPauseUsedDict.ContainsKey(teamKey)) targetPauseUsedDict[teamKey] = 0;
+
+        if (targetPauseUsedDict[teamKey] >= maxLimit)
         {
             if (!autoPauseLimitAnnounced)
             {
-                PrintToAllChat($" {ChatColors.Red}玩家斷線{ChatColors.Default} {ChatColors.Green}{currentTeamName}{ChatColors.Default} 的戰術暫停已用完，無法自動暫停。");
+                string phaseStr = isOvertime ? "加時賽 " : "";
+                PrintToAllChat($" {ChatColors.Red}玩家斷線{ChatColors.Default} {ChatColors.Green}{currentTeamName}{ChatColors.Default} 的{phaseStr}戰術暫停已用完，無法自動暫停。");
                 autoPauseLimitAnnounced = true;
             }
             return;
@@ -646,9 +726,9 @@ public partial class MatchZy
         autoPauseLimitAnnounced = false; 
         string sideName = (team == CsTeam.CounterTerrorist) ? "反恐小組" : "恐怖份子";
         
-        tacPausesUsed[teamKey]++;
-        int remainingCount = maxLimit - tacPausesUsed[teamKey];
-        int currentPauseUsed = tacPausesUsed[teamKey]; 
+        targetPauseUsedDict[teamKey]++;
+        int remainingCount = maxLimit - targetPauseUsedDict[teamKey];
+        int currentPauseUsed = targetPauseUsedDict[teamKey]; 
 
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
@@ -656,7 +736,8 @@ public partial class MatchZy
         unpData["t"] = false;
         unpData["ct"] = false;
 
-        PrintToAllChat($" {ChatColors.Red}玩家斷線{ChatColors.Default} 系 統 為 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
+        string phasePrefix = isOvertime ? "加 時 賽 " : "";
+        PrintToAllChat($" {ChatColors.Red}玩家斷線{ChatColors.Default} 系 統 為 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 {phasePrefix}戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
         PrintToAllChat($" 暫 停 在 \u0004{durationLimit}秒\u0001 自 動 解 除，或 雙 方 輸 入 {ChatColors.Orange}.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
