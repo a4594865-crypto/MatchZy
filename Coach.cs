@@ -636,3 +636,62 @@ public partial class MatchZy
             }
 
             // 4. 等死亡結算完畢後（0.15 秒），還原伺服器原始參數，並將教練計分板戰績洗回 0 殺 0 死
+            AddTimer(0.15f, () =>
+            {
+                Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; cash_player_killed_enemy_default {killDefault}; cash_player_killed_enemy_factor {killFactor}; cash_team_bonus_shorthanded {bonusShort}; cash_team_loser_bonus_shorthanded {loserShort}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
+
+                foreach (var coach in coaches)
+                {
+                    ResetCoachStats(coach);
+                }
+            });
+        });
+    }
+
+    private void GetCoachSpawns()
+    {
+        coachSpawns = GetEmptySpawnsData();
+        try
+        {
+            string spawnsConfigPath = Path.Combine(ModuleDirectory, "spawns", "coach", $"{Server.MapName}.json");
+
+            if (!File.Exists(spawnsConfigPath)) return;
+
+            string spawnsConfig = File.ReadAllText(spawnsConfigPath);
+
+            var jsonDictionary = JsonSerializer.Deserialize<Dictionary<string, List<Dictionary<string, string>>>>(spawnsConfig);
+            if (jsonDictionary is null) return;
+
+            foreach (var entry in jsonDictionary)
+            {
+                if (!byte.TryParse(entry.Key, out byte team)) continue;
+                List<Position> positionList = [];
+
+                foreach (var positionData in entry.Value)
+                {
+                    string[] vectorArray = positionData["Vector"].Split(' ');
+                    string[] angleArray = positionData["QAngle"].Split(' ');
+
+                    float x = float.Parse(vectorArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
+                    float y = float.Parse(vectorArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
+                    float z = float.Parse(vectorArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
+
+                    float pitch = float.Parse(angleArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
+                    float yaw = float.Parse(angleArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
+                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
+
+                    Vector vector = new(x, y, z);
+                    QAngle qAngle = new(pitch, yaw, roll);
+
+                    positionList.Add(new Position(vector, qAngle));
+                }
+                coachSpawns[team] = positionList;
+            }
+            Log($"[GetCoachSpawns] Loaded {coachSpawns.Count} coach spawns for {Server.MapName}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[GetCoachSpawns - FATAL] Error getting coach spawns. [ERROR]: {ex.Message}");
+        }
+    }
+}
