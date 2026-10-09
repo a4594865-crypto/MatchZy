@@ -187,6 +187,7 @@ public partial class MatchZy
 
         Random random = new();
         int coachIdx = 0;
+        
         foreach (CCSPlayerController coach in coaches)
         {
             if (coach is null || !IsPlayerValid(coach)) continue;
@@ -196,44 +197,50 @@ public partial class MatchZy
             AddTimer(0.1f, () => HandleCoachTeam(coach));
             ResetCoachStats(coach);
 
-            SetPlayerInvisible(player: coach, setWeaponsInvisible: false);
-
-            if (coach.PlayerPawn.Value is { } pawn)
+            // 【修復致命錯誤】：將實體的修改推遲到 Server.NextFrame，避免在接刀局 Spawn 瞬間發生物理引擎讀寫死鎖！
+            int currentIdx = coachIdx; // 防止閉包捕獲到最後的遞增值
+            Server.NextFrame(() =>
             {
-                // 先鎖定移動與關閉受傷判定（無敵），防止落地發出腳步聲或被隊友揮刀誤傷
-                pawn.MoveType = MoveType_t.MOVETYPE_NONE;
-                pawn.ActualMoveType = MoveType_t.MOVETYPE_NONE;
-                pawn.TakesDamage = false;
+                if (!IsPlayerValid(coach)) return;
+                
+                SetPlayerInvisible(player: coach, setWeaponsInvisible: false);
 
-                Position? targetCoachPos = null;
-                if (coachSpawns.TryGetValue(coach.TeamNum, out var teamSpawns) && teamSpawns.Count > 0)
+                if (coach.PlayerPawn.Value is { } pawn)
                 {
-                    targetCoachPos = teamSpawns[random.Next(0, teamSpawns.Count)];
-                }
-                else if (TryGetBehindTeamCoachSpawn(coach.TeamNum, coachIdx, out Position behindPos))
-                {
-                    targetCoachPos = behindPos;
-                }
-                else if (pawn.CBodyComponent?.SceneNode is { AbsOrigin: { } origin, AbsRotation: { } rotation })
-                {
-                    targetCoachPos = new Position(new Vector(origin.X, origin.Y, origin.Z + 100.0f), rotation);
-                }
+                    // 先鎖定移動與關閉受傷判定（無敵），防止落地發出腳步聲或被隊友揮刀誤傷
+                    pawn.MoveType = MoveType_t.MOVETYPE_NONE;
+                    pawn.ActualMoveType = MoveType_t.MOVETYPE_NONE;
+                    pawn.TakesDamage = false;
 
-                coachIdx++;
-
-                if (targetCoachPos is not null)
-                {
-                    Position finalPos = targetCoachPos;
-                    AddTimer(0.05f, () =>
+                    Position? targetCoachPos = null;
+                    if (coachSpawns.TryGetValue(coach.TeamNum, out var teamSpawns) && teamSpawns.Count > 0)
                     {
-                        HandleCoachWeapons(coach);
-                        if (coach.PlayerPawn.Value is { } validPawn)
+                        targetCoachPos = teamSpawns[random.Next(0, teamSpawns.Count)];
+                    }
+                    else if (TryGetBehindTeamCoachSpawn(coach.TeamNum, currentIdx, out Position behindPos))
+                    {
+                        targetCoachPos = behindPos;
+                    }
+                    else if (pawn.CBodyComponent?.SceneNode is { AbsOrigin: { } origin, AbsRotation: { } rotation })
+                    {
+                        targetCoachPos = new Position(new Vector(origin.X, origin.Y, origin.Z + 100.0f), rotation);
+                    }
+
+                    if (targetCoachPos is not null)
+                    {
+                        Position finalPos = targetCoachPos;
+                        AddTimer(0.05f, () =>
                         {
-                            validPawn.Teleport(finalPos.PlayerPosition, finalPos.PlayerAngle, new(0, 0, 0));
-                        }
-                    });
+                            if (IsPlayerValid(coach) && coach.PlayerPawn.Value is { } validPawn)
+                            {
+                                HandleCoachWeapons(coach);
+                                validPawn.Teleport(finalPos.PlayerPosition, finalPos.PlayerAngle, new(0, 0, 0));
+                            }
+                        });
+                    }
                 }
-            }
+            });
+            coachIdx++;
         }
 
         // 修正被教練擠歪的正式選手出生點，並歸還五色標記
@@ -558,10 +565,30 @@ public partial class MatchZy
         if (playerController is null || !IsPlayerValid(playerController)) return;
 
         CsTeam targetTeam = GetCoachTeam(playerController);
-        if (playerController.Team != targetTeam && (targetTeam == CsTeam.Terrorist || targetTeam == CsTeam.CounterTerrorist))
+        if (playerController.Team != targetTeam && targetTeam is CsTeam.Terrorist or CsTeam.CounterTerrorist)
         {
-            // 直接使用 SwitchTeam 無縫切換陣營，不經過觀戰席以防閃爍與偷看敵隊畫面
-            playerController.SwitchTeam(targetTeam);
+            // 【修復致命錯誤】：對「活著(Alive)」的玩家實體直接執行 SwitchTeam 會立刻引發伺服器 SIGSEGV 崩潰。
+            // 必須先強制清除活體狀態，並將切換隊伍的動作推遲至下一個 Frame 執行。
+            if (playerController.PawnIsAlive)
+            {
+                if (playerController.PlayerPawn.Value is { } pawn)
+                {
+                    pawn.TakesDamage = true;
+                    pawn.CommitSuicide(explode: false, force: true);
+                }
+                
+                Server.NextFrame(() =>
+                {
+                    if (IsPlayerValid(playerController) && playerController.Team != targetTeam)
+                    {
+                        playerController.SwitchTeam(targetTeam);
+                    }
+                });
+            }
+            else
+            {
+                playerController.SwitchTeam(targetTeam);
+            }
         }
 
         // 每回合與下半場換邊時，自動更新為 [反恐教練] 或 [恐怖教練]
@@ -609,62 +636,3 @@ public partial class MatchZy
             }
 
             // 4. 等死亡結算完畢後（0.15 秒），還原伺服器原始參數，並將教練計分板戰績洗回 0 殺 0 死
-            AddTimer(0.15f, () =>
-            {
-                Server.ExecuteCommand($"mp_suicide_penalty {suicidePenalty}; cash_player_killed_enemy_default {killDefault}; cash_player_killed_enemy_factor {killFactor}; cash_team_bonus_shorthanded {bonusShort}; cash_team_loser_bonus_shorthanded {loserShort}; spec_freeze_time {specFreezeTime}; spec_freeze_time_lock {specFreezeTimeLock}; spec_freeze_deathanim_time {specFreezeDeathanim};");
-
-                foreach (var coach in coaches)
-                {
-                    ResetCoachStats(coach);
-                }
-            });
-        });
-    }
-
-    private void GetCoachSpawns()
-    {
-        coachSpawns = GetEmptySpawnsData();
-        try
-        {
-            string spawnsConfigPath = Path.Combine(ModuleDirectory, "spawns", "coach", $"{Server.MapName}.json");
-
-            if (!File.Exists(spawnsConfigPath)) return;
-
-            string spawnsConfig = File.ReadAllText(spawnsConfigPath);
-
-            var jsonDictionary = JsonSerializer.Deserialize<Dictionary<string, List<Dictionary<string, string>>>>(spawnsConfig);
-            if (jsonDictionary is null) return;
-
-            foreach (var entry in jsonDictionary)
-            {
-                if (!byte.TryParse(entry.Key, out byte team)) continue;
-                List<Position> positionList = [];
-
-                foreach (var positionData in entry.Value)
-                {
-                    string[] vectorArray = positionData["Vector"].Split(' ');
-                    string[] angleArray = positionData["QAngle"].Split(' ');
-
-                    float x = float.Parse(vectorArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float y = float.Parse(vectorArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float z = float.Parse(vectorArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
-
-                    float pitch = float.Parse(angleArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float yaw = float.Parse(angleArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
-
-                    Vector vector = new(x, y, z);
-                    QAngle qAngle = new(pitch, yaw, roll);
-
-                    positionList.Add(new Position(vector, qAngle));
-                }
-                coachSpawns[team] = positionList;
-            }
-            Log($"[GetCoachSpawns] Loaded {coachSpawns.Count} coach spawns for {Server.MapName}");
-        }
-        catch (Exception ex)
-        {
-            Log($"[GetCoachSpawns - FATAL] Error getting coach spawns. [ERROR]: {ex.Message}");
-        }
-    }
-}
