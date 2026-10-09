@@ -815,19 +815,19 @@ namespace MatchZy
 
             if (!isGGEnabled)
             {
-                PrintToPlayerChat(player, $" 本 伺 服 器 尚 未 開 放 {ChatColors.Red}投降指令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 伺 服 器 尚 未 開 放 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
                 return;
             }
             
             if (!isMatchLive)
             {
-                PrintToPlayerChat(player, $" 比 賽 尚 未 開 始，無 法 使 用 {ChatColors.Red}投降指令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 比 賽 尚 未 開 始，無 法 使 用 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
                 return;
             }
 
             if (IsHalfTimePhase())
             {
-                PrintToPlayerChat(player, $" 中 場 休 息 期 間，無 法 使 用 {ChatColors.Red}投降指令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 中 場 休 息 期 間，無 法 使 用 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
                 return;
             }
 
@@ -835,7 +835,7 @@ namespace MatchZy
             CCSGameRules? gameRules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
             if (isPaused || (gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive)))
             {
-                PrintToPlayerChat(player, $" 比 賽 暫 停 期 間，無 法 發 起 投 降 投 票！");
+                PrintToPlayerChat(player, $" 比 賽 暫 停 期 間，無 法 發 起 投 降 指 令");
                 return;
             }
             // ▲▲▲ ▲▲▲ ▲▲▲
@@ -850,7 +850,7 @@ namespace MatchZy
                 if (timePassed.TotalMinutes < 3)
                 {
                     int remainingSeconds = (int)(180 - timePassed.TotalSeconds);
-                    PrintToPlayerChat(player, $" 投 降 投 票 失 敗，請 等 待 {ChatColors.Red}{remainingSeconds}{ChatColors.Default} 秒 後 再 次 發 起！");
+                    PrintToPlayerChat(player, $" 投 降 指 令 失 敗，請 等 待 {ChatColors.Green}{remainingSeconds}{ChatColors.Default} 秒 後 再 次 發 起");
                     return;
                 }
             }
@@ -858,7 +858,7 @@ namespace MatchZy
 
             if (IsPlayerCoach(player))
             {
-                PrintToPlayerChat(player, $" 教 練 無 法 使 用 {ChatColors.Red}投 降 指 令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 教 練 無 法 使 用 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
                 return;
             }
 
@@ -874,7 +874,7 @@ namespace MatchZy
             
             if (opponentTeamScore - playerTeamScore < ggMinScoreDifference)
             {
-                PrintToPlayerChat(player, $" 你的隊伍落後至少 {ChatColors.Red}{ggMinScoreDifference} 分{ChatColors.Default} 才能發起投降");
+                PrintToPlayerChat(player, $" 隊伍落後至少 {ChatColors.Green}{ggMinScoreDifference} 分{ChatColors.Default} 才能發起投降");
                 return;
             }
 
