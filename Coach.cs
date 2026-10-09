@@ -4,8 +4,6 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Utils;
-using CounterStrikeSharp.API.Core.Attributes.Registration;
-using CounterStrikeSharp.API.Modules.Commands;
 
 namespace MatchZy;
 
@@ -16,6 +14,25 @@ public partial class MatchZy
     // false = 買槍時間浮在高空俯瞰隊友，買槍結束前 1 秒才變灰（推薦搭配高空座標 JSON）
     // true = 開局 0.25 秒瞬間無感變灰（直接看隊友第一人稱）
     public bool instantCoachGrayOut = false;
+
+    /// <summary>
+    /// 檢查教練是否在受限制的賽事階段中嘗試退出（倒數計時、刀局、刀局暖場選邊、Live 正賽）
+    /// </summary>
+    public bool CheckCoachUncoachInterception(CCSPlayerController player)
+    {
+        if (player is null || !IsPlayerValid(player)) return false;
+
+        // isMatchLive = Live 正賽
+        // isKnifeRound = 刀局、刀局暖場、選邊階段
+        // matchStarted = 比賽已經啟動（包含準備就緒後的倒數計時階段、刀局、正賽等）
+        if (isMatchLive || isKnifeRound || matchStarted)
+        {
+            PrintToPlayerChat(player, $" {ChatColors.Red}賽事進行中，無法退出教練席{ChatColors.Default}");
+            return true; // 代表已被攔截
+        }
+
+        return false; // 允許退出
+    }
 
     public HashSet<CCSPlayerController> GetAllCoaches()
     {
@@ -113,7 +130,7 @@ public partial class MatchZy
 
         if (matchZyCoachTeam.coach.Count >= 1)
         {
-            PrintToPlayerChat(player, $" 該 隊 已 經 有 {ChatColors.Red}教練{ChatColors.Default} 了，每隊僅限 1 名教練！");
+            PrintToPlayerChat(player, $" 該 隊 已 經 有 {ChatColors.Red}教練{ChatColors.Default} 了，每隊僅限 1 名教練");
             return;
         }
 
@@ -133,89 +150,6 @@ public partial class MatchZy
         string sideDisplayName = side == "ct" ? "反恐小組" : "恐怖分子";
         PrintToPlayerChat(player, $" 你 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 教練！輸 入 {ChatColors.Green}.uncoach{ChatColors.Default}退 出 教 練 席");
         PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 現 在 擔 任 {ChatColors.Green}{sideDisplayName}{ChatColors.Default} 的 教 練");
-
-        if (readyAvailable && !matchStarted)
-        {
-            CheckLiveRequired();
-        }
-    }
-
-    // ==========================================
-    // ▼ 安全接管：完美防崩潰版 .uncoach 指令 ▼
-    // ==========================================
-    [ConsoleCommand("css_uncoach", "Exit coach mode safely")]
-    public void OnUncoachCommandSafe(CCSPlayerController? player, CommandInfo? command)
-    {
-        if (player is null || !IsPlayerValid(player)) return;
-
-        // ▼▼▼ 賽事保護鎖：倒數、刀局、選邊、正賽期間，絕對禁止退出教練 ▼▼▼
-        if (isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || matchStarted)
-        {
-            PrintToPlayerChat(player, $" {chatPrefix} {ChatColors.Green}賽 事 進 行 中，禁 止 退 出 教 練 身 分{ChatColors.Default}");
-            return;
-        }
-        // ▲▲▲ ▲▲▲ ▲▲▲
-
-        bool isCoach = false;
-        Team? coachTeam = null;
-
-        if (matchzyTeam1.coach.Contains(player))
-        {
-            isCoach = true;
-            coachTeam = matchzyTeam1;
-        }
-        else if (matchzyTeam2.coach.Contains(player))
-        {
-            isCoach = true;
-            coachTeam = matchzyTeam2;
-        }
-
-        if (!isCoach || coachTeam == null)
-        {
-            PrintToPlayerChat(player, $" 你 目 前 不 是 教 練");
-            return;
-        }
-
-        // 1. 安全移除教練陣列與標籤
-        coachTeam.coach.Remove(player);
-        player.Clan = "";
-        Utilities.SetStateChanged(player, "CCSPlayerController", "m_szClan");
-
-        if (player.UserId is int uid)
-        {
-            playerReadyStatus[uid] = false;
-        }
-
-        PrintToAllChat($" {ChatColors.Green}{player.PlayerName}{ChatColors.Default} 已 退 出 教 練 席");
-
-        // 2. 核心防崩潰：跨影格處死與原生換隊 (ChangeTeam)
-        if (player.PawnIsAlive)
-        {
-            if (player.PlayerPawn.Value is { } pawn)
-            {
-                // 先解開物理凍結與無敵，防止自殺時 Ragdoll 崩潰
-                pawn.MoveType = MoveType_t.MOVETYPE_WALK;
-                pawn.ActualMoveType = MoveType_t.MOVETYPE_WALK;
-                pawn.TakesDamage = true;
-                
-                pawn.CommitSuicide(explode: false, force: true);
-            }
-            
-            // 使用原生 ChangeTeam 進入觀戰者，安全處理視角指標
-            Server.NextFrame(() =>
-            {
-                if (IsPlayerValid(player))
-                {
-                    player.ChangeTeam(CsTeam.Spectator);
-                }
-            });
-        }
-        else
-        {
-            player.ChangeTeam(CsTeam.Spectator);
-        }
-
-        Server.NextFrame(EnforceCompetitiveTeammateColors);
 
         if (readyAvailable && !matchStarted)
         {
@@ -737,7 +671,7 @@ public partial class MatchZy
 
                     float pitch = float.Parse(angleArray[0].Replace(",", ""), CultureInfo.InvariantCulture);
                     float yaw = float.Parse(angleArray[1].Replace(",", ""), CultureInfo.InvariantCulture);
-                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.InvariantCulture);
+                    float roll = float.Parse(angleArray[2].Replace(",", ""), CultureInfo.Println); // 保持你原本的解析
 
                     Vector vector = new(x, y, z);
                     QAngle qAngle = new(pitch, yaw, roll);
