@@ -420,7 +420,7 @@ AddCommandListener("jointeam", (player, info) =>
     if (isSideSelectionPhase)
     {
         player.PrintToChat($"{chatPrefix} 選 邊 期 間，禁 止 切 換 隊 伍 或 觀 戰");
-        return HookResult.Stop;
+        return HookResult.Stop; 
     }
 
     // 1. 如果是熱身階段（且沒在倒數，也不是在選邊），允許自由換隊、自由去觀戰
@@ -491,7 +491,11 @@ AddCommandListener("jointeam", (player, info) =>
             AddCommandListener("css_vshuffle", BlockVoteInCriticalPhases);
             AddCommandListener("css_vunshuffle", BlockVoteInCriticalPhases);
             AddCommandListener("css_slayer_vote_internal", BlockVoteInCriticalPhases);
-            // 這邊結束 
+            
+            // ▼▼▼ 絕對關鍵：利用原生 CommandListener 徹底攔截 .asay 聊天發送 ▼▼▼
+            AddCommandListener("say", OnPlayerChatSay);
+            AddCommandListener("say_team", OnPlayerChatSay);
+            // ▲▲▲ ▲▲▲ ▲▲▲ 
 
             RegisterEventHandler<EventRoundEnd>((@event, info) =>
             {
@@ -615,6 +619,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 return HookResult.Continue;
             });
 
+           // ▼▼▼ 核心修正 1：明確指定 HookMode.Pre，取得訊息送出前的攔截權限 ▼▼▼
            RegisterEventHandler<EventPlayerChat>((@event, info) => {
 
     // --- [第一步修正] 頂端攔截邏輯：隱藏開賽指令與倒數期間雜訊 ---
@@ -770,34 +775,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
     {
         HandleRestoreCommand(player, messageCommandArg);
     }
-if (message.StartsWith(".asay"))
-    {
-        if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
-        {
-            if (messageCommandArg != "")
-            {
-                // 1. 左下角聊天室廣播
-                Server.PrintToChatAll($"{adminChatPrefix} {messageCommandArg}");
-                
-                // 2. 畫面正中央 HUD
-                foreach (var p in Utilities.GetPlayers())
-                {
-                    if (p is { IsValid: true, IsBot: false })
-                    {
-                        p.PrintToCenter(messageCommandArg);
-                    }
-                }
-            }
-            else
-            {
-                ReplyToUserCommand(player, Localizer["matchzy.cc.usage", ".asay <message>"]);
-            }
-        }
-        else
-        {
-            SendPlayerNotAdminMessage(player);
-        }
-    }
+
     if (message.StartsWith(".savenade") || message.StartsWith(".sn"))
     {
         HandleSaveNadeCommand(player, messageCommandArg);
@@ -888,7 +866,7 @@ if (message.StartsWith(".asay"))
     }
 
     return HookResult.Continue;
-});
+}, HookMode.Pre); // <--- 加入 HookMode.Pre 確保 HookResult.Handled 生效！
             RegisterEventHandler<EventPlayerBlind>((@event, info) =>
             {
                 CCSPlayerController? player = @event.Userid;
@@ -920,6 +898,60 @@ if (message.StartsWith(".asay"))
             // ============================
             Console.WriteLine($"[{ModuleName} {ModuleVersion} LOADED] MatchZy by WD- (https://github.com/shobhit-pathak/)");
         } // 結束 Load 函數
+
+        // ▼▼▼ 絕對關鍵：利用原生 CommandListener 徹底攔截 .asay 聊天發送 ▼▼▼
+        private HookResult OnPlayerChatSay(CCSPlayerController? player, CommandInfo info)
+        {
+            if (player == null || !player.IsValid) return HookResult.Continue;
+
+            string message = info.GetArg(1);
+            if (string.IsNullOrWhiteSpace(message)) return HookResult.Continue;
+
+            string messageLower = message.ToLower().Trim();
+
+            // 針對 .asay 進行獨立攔截
+            if (messageLower.StartsWith(".asay"))
+            {
+                if (IsPlayerAdmin(player, "css_asay", "@css/chat"))
+                {
+                    // 擷取 .asay 後面的內容 (擷取5個字元之後的字串)，避免破壞原始大小寫
+                    string adminMsg = "";
+                    if (message.Length > 5)
+                    {
+                        adminMsg = message.Substring(5).Trim().Trim('"');
+                    }
+
+                    if (!string.IsNullOrEmpty(adminMsg))
+                    {
+                        // 1. 左下角聊天室廣播 (管理員身分)
+                        Server.PrintToChatAll($"{adminChatPrefix} {adminMsg}");
+                        
+                        // 2. 畫面正中央 HUD
+                        foreach (var p in Utilities.GetPlayers())
+                        {
+                            if (p is { IsValid: true, IsBot: false })
+                            {
+                                p.PrintToCenter(adminMsg);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        ReplyToUserCommand(player, Localizer["matchzy.cc.usage", ".asay <message>"]);
+                    }
+                }
+                else
+                {
+                    SendPlayerNotAdminMessage(player);
+                }
+
+                // ★ 關鍵：使用 HookResult.Stop 徹底阻斷 CS2 原生 say 指令，玩家聊天框就不會出現原來的打字內容！
+                return HookResult.Stop;
+            }
+
+            return HookResult.Continue;
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲ 
 
         // ==========================================
         // --- 指令函數與核心修正代碼 ---
@@ -1102,7 +1134,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) 
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
         // 1. 真人管理員手手動輸入 ➔ 聊天室廣播給大家聽
-        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 自動 洗 牌");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
