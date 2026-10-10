@@ -1273,8 +1273,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
 
       // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
                 AddTimer(1.0f, () => {
-                    // ▼▼▼ 修正 3：拔除 playerReadyStatus.Count == 0 的限制，讓管理員 .start 直接開賽也能通關 ▼▼▼
-                    if (matchStarted) return;
+                    // ▼▼▼ 終極保險：如果是玩家打 .R 觸發 (!= -1)，維持你原本 100% 的斷線防護；
+                    //               如果是管理員打 .start 觸發 (== -1)，則無視準備人數放行開賽 ▼▼▼
+                    if (matchStarted || (savedUserId != -1 && playerReadyStatus.Count == 0)) return;
                     
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定");
                     Log("[Shuffle] 洗牌同步完成");
