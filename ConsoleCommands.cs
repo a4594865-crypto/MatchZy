@@ -594,10 +594,21 @@ namespace MatchZy
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.cc.startmatchstarted"]);
                 }
-                else
+               else
                 {
                     PrintToAllChat(Localizer["matchzy.cc.gamestarted"]);
-                    StartMatchCountdown();
+                    
+                    // ▼▼▼ 修正 1：攔截開賽指令，檢查是否有預約洗牌 ▼▼▼
+                    if (isShufflePending)
+                    {
+                        ExecuteShuffleLogic(); // 執行洗牌，洗完會在裡面自動呼叫 StartMatchCountdown()
+                    }
+                    else
+                    {
+                        StartMatchCountdown(); // 沒預約洗牌，就正常倒數
+                    }
+                    // ▲▲▲ ▲▲▲ ▲▲▲
+                    
                     ResetTechPauseCount(); 
                 }
             }
