@@ -1198,10 +1198,11 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
             ExecuteShuffleLogicWithReady(null); 
         }
 
-        // =========================================================================
+     // =========================================================================
         // 同步動態洗牌分隊 + 官方原生隊名穩定版 (不自訂隊名，絕不崩潰)
         // =========================================================================
-       public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer) 
+       // ▼ 加入 forceStart 參數，預設為 false (完全不影響原本玩家的 .r 呼叫)
+       public void ExecuteShuffleLogicWithReady(CCSPlayerController? readyPlayer, bool forceStart = false) 
 {
     int savedUserId = (readyPlayer is { IsValid: true }) ? (int)(readyPlayer.UserId ?? -1) : -1;
 
@@ -1222,13 +1223,22 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
             }
         }
 
-        if (activePlayers.Count < 2) 
+       if (activePlayers.Count < 2) 
         {
             Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
             isShufflePending = false; 
             
-            var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
-            if (originalPlayer is { IsValid: true }) OnPlayerReady(originalPlayer, null);
+            // ▼▼▼ 修正 2：只認 forceStart 標籤，完美分離 .start 與 .r ▼▼▼
+            if (forceStart) 
+            {
+                StartMatchCountdown(); // 管理員 .start 人數不足照樣強制開賽
+            }
+            else if (savedUserId != -1) 
+            {
+                var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
+                if (originalPlayer is { IsValid: true }) OnPlayerReady(originalPlayer, null); // 玩家 .r 維持原樣
+            }
+            // ▲▲▲ ▲▲▲ ▲▲▲
             return;
         }
 
@@ -1263,8 +1273,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
 
       // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
                 AddTimer(1.0f, () => {
-                    // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
-                    if (matchStarted || playerReadyStatus.Count == 0) return;
+                    // 如果是強制開賽 (forceStart)，則無視準備人數放行開賽 ▼▼▼
+                    if (matchStarted || (!forceStart && playerReadyStatus.Count == 0)) return;
+                    
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定");
                     Log("[Shuffle] 洗牌同步完成");
                     // 在執行完所有的 ChangeTeam 指令之後
