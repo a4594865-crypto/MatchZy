@@ -573,7 +573,7 @@ public partial class MatchZy
         PrintToAllChat($" {ChatColors.Gold}[管理員]{ChatColors.Default} 已將 斷線自動暫停 {status}");
     }
 
-    [GameEventHandler(HookMode.Post)]
+   [GameEventHandler(HookMode.Post)]
     public HookResult OnRoundStartAutoPause(EventRoundStart @event, GameEventInfo info)
     {
         if (!isMatchLive)
@@ -627,10 +627,32 @@ public partial class MatchZy
             lastTrackedOT = 0;
         }
 
-        if (autoPauseMainTimer == null)
+        // ==========================================
+        // ▼ 升級：回合開始 1 秒瞬間觸發暫停機制 ▼
+        // ==========================================
+        // 1. 強制重置 10 秒常態巡邏 (解決跨回合時間差)
+        StopAutoPauseCheck();
+        StartAutoPauseCheck();
+
+        // 2. 額外加碼：凍結時間第 1 秒派臨時巡邏員點名，瞬間鎖定！
+        AddTimer(1.0f, () => 
         {
-            StartAutoPauseCheck();
-        }
+            if (!isMatchLive || !AutoPauseEnabled || isPaused) return;
+            if (IsHalfTimePhase() || IsPostGamePhase()) return;
+            if (!IsAutoPauseActive()) return;
+
+            int minP = AutoPauseMinPlayers;
+            int ctCount = GetTeamPlayerCount(CsTeam.CounterTerrorist);
+            int tCount = GetTeamPlayerCount(CsTeam.Terrorist);
+
+            int targetCt = autoPauseShortAccepted ? acceptedCtCount : minP;
+            int targetT = autoPauseShortAccepted ? acceptedTCount : minP;
+
+            // 只要第一秒發現少人，直接無情觸發戰術暫停
+            if (ctCount < targetCt) AutoTriggerTacPause(CsTeam.CounterTerrorist);
+            else if (tCount < targetT) AutoTriggerTacPause(CsTeam.Terrorist);
+        });
+
         return HookResult.Continue;
     }
 
