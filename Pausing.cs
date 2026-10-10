@@ -342,8 +342,8 @@ public partial class MatchZy
 
         if (targetPauseUsedDict[teamKey] >= maxLimit)
         {
-            string phaseStr = isOvertime ? "加 時 賽 " : "";
-            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 您 的 {ChatColors.Green}{phaseStr}戰 術 暫 停 {ChatColors.Default}次 數 已 用 完");
+            string phaseStr = isOvertime ? "加時賽 " : "";
+            PrintToPlayerChat(player, $" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 您 的 {ChatColors.Green}{phaseStr}戰術暫停 {ChatColors.Default}次 數 已 用 完");
             return;
         }
 
@@ -359,8 +359,8 @@ public partial class MatchZy
         unpData["t"] = false;
         unpData["ct"] = false;
 
-        string phasePrefix = isOvertime ? "加 時 賽 " : "";
-        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 {phasePrefix}戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
+        string phasePrefix = isOvertime ? "加時賽 " : "";
+        PrintToAllChat($" 隊伍 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開啟{phasePrefix}戰術暫停。剩餘次數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
         PrintToAllChat($" 暫 停 在 \u0004{durationLimit}秒\u0001 自 動 解 除，或 雙 方 輸 入 {ChatColors.Orange}.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
@@ -755,7 +755,7 @@ public partial class MatchZy
             if (!autoPauseLimitAnnounced)
             {
                 string phaseStr = isOvertime ? "加時賽 " : "";
-                PrintToAllChat($" {ChatColors.Red}玩家斷線{ChatColors.Default} {ChatColors.Green}{currentTeamName}{ChatColors.Default} 的{phaseStr}戰術暫停已用完，無法自動暫停。");
+                PrintToAllChat($" {ChatColors.Orange}玩家斷線{ChatColors.Default} {ChatColors.Green}{currentTeamName}{ChatColors.Default} 的{phaseStr}戰術暫停已用完，無法自動暫停");
                 autoPauseLimitAnnounced = true;
             }
             return;
@@ -774,8 +774,8 @@ public partial class MatchZy
         unpData["t"] = false;
         unpData["ct"] = false;
 
-        string phasePrefix = isOvertime ? "加 時 賽 " : "";
-        PrintToAllChat($" {ChatColors.Red}玩家斷線{ChatColors.Default} 系 統 為 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 {phasePrefix}戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
+        string phasePrefix = isOvertime ? "加時賽 " : "";
+        PrintToAllChat($" {ChatColors.Orange}玩家斷線{ChatColors.Default} 系 統 為 {ChatColors.Green}{currentTeamName}{ChatColors.Default} 開 啟 {phasePrefix}戰 術 暫 停。剩 餘 次 數：{ChatColors.Green}{remainingCount} {ChatColors.Default}次");
         PrintToAllChat($" 暫 停 在 \u0004{durationLimit}秒\u0001 自 動 解 除，或 雙 方 輸 入 {ChatColors.Orange}.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
