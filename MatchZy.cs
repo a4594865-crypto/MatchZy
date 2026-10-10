@@ -1222,13 +1222,23 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
             }
         }
 
-        if (activePlayers.Count < 2) 
+       if (activePlayers.Count < 2) 
         {
             Log("[Shuffle] 選手人數不足，無法執行隨機分隊。");
             isShufflePending = false; 
             
-            var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
-            if (originalPlayer is { IsValid: true }) OnPlayerReady(originalPlayer, null);
+            // ▼▼▼ 修正 2：相容管理員 .start 的無人準備狀態 ▼▼▼
+            if (savedUserId != -1) 
+            {
+                var originalPlayer = Utilities.GetPlayerFromUserid(savedUserId);
+                if (originalPlayer is { IsValid: true }) OnPlayerReady(originalPlayer, null);
+            }
+            else
+            {
+                // 如果是管理員用 .start 觸發（沒有具體玩家），且人數不足洗牌，直接正常開賽
+                StartMatchCountdown(); 
+            }
+            // ▲▲▲ ▲▲▲ ▲▲▲
             return;
         }
 
@@ -1263,8 +1273,9 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
 
       // 延遲 0.2 秒：讓 CS2 底層引擎完成非同步網絡封包對齊
                 AddTimer(1.0f, () => {
-                    // 如果剛才有人斷線（導致準備名單被清空為0人），或者比賽已經開了，立刻退出
-                    if (matchStarted || playerReadyStatus.Count == 0) return;
+                    // ▼▼▼ 修正 3：拔除 playerReadyStatus.Count == 0 的限制，讓管理員 .start 直接開賽也能通關 ▼▼▼
+                    if (matchStarted) return;
+                    
                     Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}隨 機 分 隊 完 成！隊 伍 已 鎖 定");
                     Log("[Shuffle] 洗牌同步完成");
                     // 在執行完所有的 ChangeTeam 指令之後
@@ -1276,7 +1287,6 @@ public void OnUnshuffleCommand(CCSPlayerController? player, CommandInfo? command
                 });
             } //  結束 lock (_shuffleLock)
         } //  結束 ExecuteShuffleLogicWithReady 方法
-
         // =========================================================================
         // ▼▼▼ 新增：刀局選邊限時與防呆系統 (支援 config.cfg 讀取) ▼▼▼
         // =========================================================================
