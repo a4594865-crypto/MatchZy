@@ -13,6 +13,15 @@ namespace MatchZy
 {
     public partial class MatchZy
     {
+        // ▼▼▼ 新增：針對熱身時間的跨版本安全檢查器 ▼▼▼
+        private bool IsWarmupPeriodSafe(CCSGameRules? gameRules)
+        {
+            if (gameRules == null) return false;
+            string val = gameRules.WarmupPeriod.ToString() ?? "";
+            return val == "True" || val == "1";
+        }
+        // ▲▲▲ ▲▲▲ ▲▲▲
+
         [ConsoleCommand("css_whitelist", "Toggles Whitelisting of players")]
         [ConsoleCommand("css_wl", "Toggles Whitelisting of players")]
         public void OnWLCommand(CCSPlayerController? player, CommandInfo? command)
@@ -207,7 +216,8 @@ namespace MatchZy
                 }
             }
             
-            if ((gameRules is { TerroristTimeOutActive: true } or { CTTimeOutActive: true }) || isPaused || techPauseAutoUnpauseTimer is not null)
+            // ▼ 修復：替換為跨版本檢查器 IsOfficialTacActiveSafe
+            if (IsOfficialTacActiveSafe(gameRules) || isPaused || techPauseAutoUnpauseTimer is not null)
             {
                 if (player is not null)
                 {
@@ -216,7 +226,8 @@ namespace MatchZy
                 return; 
             }
 
-            if (player is not null && gameRules is { FreezePeriod: false, WarmupPeriod: false })
+            // ▼ 修復：替換為跨版本檢查器 IsFreezePeriodSafe 與 IsWarmupPeriodSafe
+            if (player is not null && !IsFreezePeriodSafe(gameRules) && !IsWarmupPeriodSafe(gameRules))
             {
                 PrintToPlayerChat(player, $" 回 合 已 開 始，無 法 使 用 {ChatColors.Default}技 術 暫 停");
                 return; 
@@ -735,7 +746,17 @@ namespace MatchZy
             if (player is not { PawnIsAlive: true } || player.Team is CsTeam.Spectator or CsTeam.None)
                 return HookResult.Stop;
                 
-            bool cheatsEnabled = ConVar.Find("sv_cheats")!.GetPrimitiveValue<bool>();
+            bool cheatsEnabled = false;
+            var cheatsCvar = ConVar.Find("sv_cheats");
+            if (cheatsCvar != null)
+            {
+                try { cheatsEnabled = cheatsCvar.GetPrimitiveValue<bool>(); }
+                catch {
+                    try { cheatsEnabled = cheatsCvar.GetPrimitiveValue<int>() == 1; }
+                    catch { }
+                }
+            }
+
             if (!cheatsEnabled) {
                 return HookResult.Stop;
             }
@@ -814,23 +835,23 @@ namespace MatchZy
 
             if (!isGGEnabled)
             {
-                PrintToPlayerChat(player, $" 本 伺 服 器 尚 未 開 放 {ChatColors.Green}投降指令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 本 伺 服 器 尚 未 開 放 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
                 return;
             }
             
             if (!isMatchLive)
             {
-                PrintToPlayerChat(player, $" 比 賽 尚 未 開 始，無 法 使 用 {ChatColors.Green}投降指令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 比 賽 尚 未 開 始，無 法 使 用 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
                 return;
             }
 
             if (IsHalfTimePhase())
             {
-                PrintToPlayerChat(player, $" 中 場 休 息 期 間，無 法 使 用 {ChatColors.Green}投降指令{ChatColors.Default}");
+                PrintToPlayerChat(player, $" 中 場 休 息 期 間，無 法 使 用 {ChatColors.Green}投 降 指 令{ChatColors.Default}");
                 return;
             }
 
-            // ▼▼▼ 神級防護 1：暫停狀態攔截 (採用極致效能的傳統 foreach 寫法) ▼▼▼
+            // ▼ 修復：替換為跨版本檢查器 IsOfficialTacActiveSafe
             CCSGameRules? gameRules = null;
             foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
             {
@@ -841,7 +862,7 @@ namespace MatchZy
                 }
             }
             
-            if (isPaused || (gameRules != null && (gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive)))
+            if (isPaused || IsOfficialTacActiveSafe(gameRules))
             {
                 PrintToPlayerChat(player, $" 比 賽 暫 停 期 間，無 法 發 起 投 降 投 票");
                 return;
@@ -1047,7 +1068,7 @@ namespace MatchZy
 
                     int votesNeeded = teamSize <= 2 ? Math.Max(1, teamSize) : teamSize - 1;
                     int currentVotes = ggVotes[team].Count;
-                    string teamName = team == CsTeam.CounterTerrorist ? "反恐小組" : "恐怖分子";
+                    string teamName = team == CsTeam.CounterTerrorist ? "反恐小組" : "恐怖份子";
 
                     // 如果因為玩家退服，導致剩下的同意票已經滿足門檻，直接截斷計時並通過投降！
                     if (currentVotes >= votesNeeded)
