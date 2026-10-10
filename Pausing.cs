@@ -78,13 +78,23 @@ public partial class MatchZy
     public Dictionary<string, bool> unpData = new() { { "ct", false }, { "t", false } };
 
     // ==========================================
-    // ▼ 跨版本安全屬性檢查器 (完美解決 bool 與 int 編譯衝突) ▼
+    // ▼ 跨版本安全屬性檢查器 (已加入局數推算終極防護) ▼
     // ==========================================
     private bool IsOvertimePlayingSafe(CCSGameRules? gameRules)
     {
         if (gameRules == null) return false;
         string val = gameRules.OvertimePlaying.ToString() ?? "";
-        return val == "True" || val == "1";
+        if (val == "True" || val == "1") return true;
+
+        // 加入底層局數推算，防止 CS2 引擎在換邊瞬間標籤延遲
+        int totalRounds = gameRules.TotalRoundsPlayed;
+        int maxRounds = 24;
+        try {
+            var cvar = ConVar.Find("mp_maxrounds");
+            if (cvar != null) maxRounds = cvar.GetPrimitiveValue<int>();
+        } catch { }
+        
+        return totalRounds >= maxRounds;
     }
 
     private bool IsOfficialTacActiveSafe(CCSGameRules? gameRules)
@@ -159,7 +169,13 @@ public partial class MatchZy
         if (player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) return;
 
         Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-        string teamKey = playerMatchTeam == matchzyTeam1 ? "matchzyTeam1" : (playerMatchTeam == matchzyTeam2 ? "matchzyTeam2" : "");
+        
+        // 修正：從記憶體指標比較，改為字串比較，免疫 OT 物件複製 BUG
+        string teamKey = "";
+        if (matchzyTeam1 != null && playerMatchTeam.teamName == matchzyTeam1.teamName) teamKey = "matchzyTeam1";
+        else if (matchzyTeam2 != null && playerMatchTeam.teamName == matchzyTeam2.teamName) teamKey = "matchzyTeam2";
+        else teamKey = playerMatchTeam.teamName; 
+
         if (string.IsNullOrEmpty(teamKey)) return;
 
         string currentTeamName = playerMatchTeam.teamName;
@@ -305,7 +321,13 @@ public partial class MatchZy
         if (player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) return;
 
         Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-        string teamKey = playerMatchTeam == matchzyTeam1 ? "matchzyTeam1" : (playerMatchTeam == matchzyTeam2 ? "matchzyTeam2" : "");
+        
+        // 修正：從記憶體指標比較，改為字串比較，免疫 OT 物件複製 BUG
+        string teamKey = "";
+        if (matchzyTeam1 != null && playerMatchTeam.teamName == matchzyTeam1.teamName) teamKey = "matchzyTeam1";
+        else if (matchzyTeam2 != null && playerMatchTeam.teamName == matchzyTeam2.teamName) teamKey = "matchzyTeam2";
+        else teamKey = playerMatchTeam.teamName; 
+
         if (string.IsNullOrEmpty(teamKey)) return;
 
         string currentTeamName = playerMatchTeam.teamName;
@@ -472,7 +494,7 @@ public partial class MatchZy
                 
                 CheckAndAcceptShortHanded(); 
 
-                PrintToAllChat($" {ChatColors.Orange}雙 方 皆 已 同 意，已 解 解 除 戰 術 暫 停");
+                PrintToAllChat($" {ChatColors.Orange}雙 方 皆 已 同 意，已 解 除 戰 術 暫 停");
                 KillTacPauseTimer();
             }
             else
@@ -514,6 +536,7 @@ public partial class MatchZy
 
     public void ResetTechPauseCount()
     {
+        techPausesUsed.Clear();
         techPausesUsed["matchzyTeam1"] = 0;
         techPausesUsed["matchzyTeam2"] = 0;
         KillTechPauseTimer();
@@ -521,9 +544,11 @@ public partial class MatchZy
 
     public void ResetTacPauseCount()
     {
+        tacPausesUsed.Clear();
         tacPausesUsed["matchzyTeam1"] = 0;
         tacPausesUsed["matchzyTeam2"] = 0;
         
+        otTacPausesUsed.Clear();
         otTacPausesUsed["matchzyTeam1"] = 0;
         otTacPausesUsed["matchzyTeam2"] = 0;
         lastTrackedOT = 0;
@@ -570,8 +595,18 @@ public partial class MatchZy
         if (IsOvertimePlayingSafe(gameRules))
         {
             int totalRounds = gameRules!.TotalRoundsPlayed;
-            int maxRounds = ConVar.Find("mp_maxrounds")?.GetPrimitiveValue<int>() ?? 24;
-            int otMaxRounds = ConVar.Find("mp_overtime_maxrounds")?.GetPrimitiveValue<int>() ?? 6;
+            
+            int maxRounds = 24;
+            try {
+                var cvar = ConVar.Find("mp_maxrounds");
+                if (cvar != null) maxRounds = cvar.GetPrimitiveValue<int>();
+            } catch { }
+
+            int otMaxRounds = 6;
+            try {
+                var cvarOT = ConVar.Find("mp_overtime_maxrounds");
+                if (cvarOT != null) otMaxRounds = cvarOT.GetPrimitiveValue<int>();
+            } catch { }
             
             if (totalRounds >= maxRounds && otMaxRounds > 0)
             {
@@ -581,6 +616,7 @@ public partial class MatchZy
                 if (currentOT != lastTrackedOT)
                 {
                     lastTrackedOT = currentOT;
+                    otTacPausesUsed.Clear(); // 確保清除所有髒資料
                     otTacPausesUsed["matchzyTeam1"] = 0;
                     otTacPausesUsed["matchzyTeam2"] = 0;
                 }
@@ -618,7 +654,7 @@ public partial class MatchZy
         return autoPausePeakHumans >= (2 * Math.Max(1, AutoPauseMinPlayers));
     }
 
-    // 🏆 新增遺漏的停止檢查函數，修復 L633 錯誤
+    // 新增遺漏的停止檢查函數，修復錯誤
     public void StopAutoPauseCheck()
     {
         if (autoPauseMainTimer != null)
@@ -685,7 +721,13 @@ public partial class MatchZy
         if (tacPauseAutoUnpauseTimer is not null || techPauseAutoUnpauseTimer is not null) return;
         
         Team matchTeam = (team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
-        string teamKey = matchTeam == matchzyTeam1 ? "matchzyTeam1" : (matchTeam == matchzyTeam2 ? "matchzyTeam2" : "");
+        
+        // 修正：從記憶體指標比較，改為字串比較，免疫 OT 物件複製 BUG
+        string teamKey = "";
+        if (matchzyTeam1 != null && matchTeam.teamName == matchzyTeam1.teamName) teamKey = "matchzyTeam1";
+        else if (matchzyTeam2 != null && matchTeam.teamName == matchzyTeam2.teamName) teamKey = "matchzyTeam2";
+        else teamKey = matchTeam.teamName; 
+
         if (string.IsNullOrEmpty(teamKey)) return;
 
         string currentTeamName = matchTeam.teamName;
