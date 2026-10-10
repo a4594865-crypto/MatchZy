@@ -594,18 +594,18 @@ namespace MatchZy
                 {
                     ReplyToUserCommand(player, Localizer["matchzy.cc.startmatchstarted"]);
                 }
-               else
+                else
                 {
                     PrintToAllChat(Localizer["matchzy.cc.gamestarted"]);
                     
-                    // ▼▼▼ 修正 1：攔截開賽指令，檢查是否有預約洗牌 ▼▼▼
+                    // ▼▼▼ 修正 1：明確標記這是由 .start 觸發的強制洗牌 ▼▼▼
                     if (isShufflePending)
                     {
-                        ExecuteShuffleLogic(); // 執行洗牌，洗完會在裡面自動呼叫 StartMatchCountdown()
+                        ExecuteShuffleLogicWithReady(null, true); // 帶入 true 表示這是管理員強制的
                     }
                     else
                     {
-                        StartMatchCountdown(); // 沒預約洗牌，就正常倒數
+                        StartMatchCountdown(); 
                     }
                     // ▲▲▲ ▲▲▲ ▲▲▲
                     
