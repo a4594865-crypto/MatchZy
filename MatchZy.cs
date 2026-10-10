@@ -545,6 +545,10 @@ AddCommandListener("jointeam", (player, info) =>
 
 
 RegisterListener<Listeners.OnMapStart>(mapName => {
+    
+    // ▼▼▼ 確保每次換地圖，隨機分隊開關都會強制重置為關閉 ▼▼▼
+    isShufflePending = false; 
+
     AddTimer(1.0f, () => {
         // 核心修正：清理緩存，但不手動指定 CT/T
         ResetTeamDataCaches(); 
