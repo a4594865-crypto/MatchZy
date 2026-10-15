@@ -38,11 +38,15 @@ namespace MatchZy
         public string backupUploadHeaderValue = "";
 
        public void SetupRoundBackupFile()
-        {
-            // 【修復版】：還原回 CS2 官方預設路徑，讓遊戲引擎能夠正常寫入官方 TXT 回合備份檔
-            string backupFilePrefix = $"{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}";
-            Server.ExecuteCommand($"mp_backup_round_file \"{backupFilePrefix}\"");
-        }
+{
+    // 建立並確認 MatchZyTXT 資料夾
+    string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyTXT");
+    if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+
+    // 改用相對於 csgo 資料夾的相對路徑格式
+    string backupFilePrefix = $"MatchZyTXT/{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}";
+    Server.ExecuteCommand($"mp_backup_round_file \"{backupFilePrefix}\"");
+}
 
         // ▼ 新增指令：用來讀取 cfg 設定並更改 TXT 前綴名稱
         [ConsoleCommand("matchzy_txt_prefix", "設定 TXT 備份檔案的開頭名稱")]
