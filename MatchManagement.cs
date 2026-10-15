@@ -13,15 +13,17 @@ namespace MatchZy
 
     public partial class MatchZy
     {
+        // 【0-GC 優化】：靜態唯讀常數陣列，避免每次驗證 JSON 時重複在 Heap 配置新陣列
+        private static readonly string[] _requiredMatchJsonFields = ["maplist", "team1", "team2", "num_maps"];
+        private static readonly string[] _allowedMapSideValues = ["team1_ct", "team1_t", "team2_ct", "team2_t", "knife"];
+
         // --- 核心修正：攔截換隊事件，解決觀戰者卡開賽與暖身洗牌報錯問題 ---
         [GameEventHandler]
         public HookResult EventPlayerTeamHandler(EventPlayerTeam @event, GameEventInfo info)
         {
             CCSPlayerController? player = @event.Userid;
-            // 【.NET 10 升級】：現代化屬性模式匹配
-            if (player is not { IsValid: true }) return HookResult.Continue;
-
-            int userId = (int)player.UserId!.Value;
+            // 【.NET 10 0-GC 安全升級】：一次完成 IsValid 與 UserId 非空拆箱，防止 UserId 為 null 時崩潰
+            if (player is not { IsValid: true, UserId: int userId }) return HookResult.Continue;
 
             // --- 核心修正：觀戰者不應佔用「已準備」名額 ---
             if (@event.Team == 1) // 進入觀戰
@@ -32,10 +34,8 @@ namespace MatchZy
             }
             else if (@event.Team == 2 || @event.Team == 3) // 進入選手隊伍
             {
-                // 當玩家從觀戰回歸選手位，系統才重新把他寫入點名單，預設為未準備 (false)
-                if (!playerReadyStatus.ContainsKey(userId)) {
-                    playerReadyStatus[userId] = false;
-                }
+                // 【0-GC 優化】：使用 TryAdd 單次雜湊查找完成寫入，免除 ContainsKey + 索引賦值的雙重查找
+                playerReadyStatus.TryAdd(userId, false);
             }
 
             // --- 原有的攔截邏輯：禁止比賽中互換隊伍 ---
@@ -142,7 +142,7 @@ namespace MatchZy
             }
             try
             {
-                HttpClient httpClient = new();
+                using HttpClient httpClient = new();
                 if (headerName != "")
                 {
                     httpClient.DefaultRequestHeaders.Add(headerName, headerValue);
@@ -177,10 +177,7 @@ namespace MatchZy
 
         static string ValidateMatchJsonStructure(JObject jsonData)
         {
-            // 【.NET 10 升級】：集合表達式 []
-            string[] requiredFields = ["maplist", "team1", "team2", "num_maps"];
-
-            foreach (string field in requiredFields)
+            foreach (string field in _requiredMatchJsonFields)
             {
                 if (jsonData[field] is null)
                 {
@@ -204,7 +201,8 @@ namespace MatchZy
                         {
                             return $"{field} should be an integer!";
                         }
-                        if (field == "num_maps" && numMaps > jsonData["maplist"]!.ToObject<List<string>>()!.Count)
+                        // 【0-GC 優化】：直接轉型 JArray 讀取 Count，避免 ToObject<List<string>>() 配置整份新 List
+                        if (field == "num_maps" && numMaps > (jsonData["maplist"] is JArray mapArray ? mapArray.Count : jsonData["maplist"]!.ToObject<List<string>>()!.Count))
                         {
                             return $"{field} should be equal to or greater than maplist!";
                         }
@@ -256,15 +254,14 @@ namespace MatchZy
                             return $"{field} should be an Array!";
                         }
                         
-                        // 【.NET 10 升級】：拔除 LINQ .All() 與 .Contains()，改用高速 foreach，0 記憶體分配
-                        string[] allowedValues = ["team1_ct", "team1_t", "team2_ct", "team2_t", "knife"];
+                        // 【.NET 10 升級】：拔除 LINQ .All() 與 .Contains()，改用高速 foreach + 靜態常數陣列，0 記憶體分配
                         bool allElementsValid = true;
                         
                         foreach (var element in jsonData[field]!)
                         {
                             bool isValid = false;
                             string elementStr = element.ToString();
-                            foreach (var allowed in allowedValues)
+                            foreach (var allowed in _allowedMapSideValues)
                             {
                                 if (elementStr == allowed)
                                 {
@@ -283,7 +280,8 @@ namespace MatchZy
                             return $"{field} should be \"team1_ct\", \"team1_t\", or \"knife\"!";
                         }
                         
-                        if (jsonData[field]!.ToObject<List<string>>()!.Count < jsonData["num_maps"]!.Value<int>()) {
+                        int mapSidesCount = jsonData[field] is JArray sidesArray ? sidesArray.Count : jsonData[field]!.ToObject<List<string>>()!.Count;
+                        if (mapSidesCount < jsonData["num_maps"]!.Value<int>()) {
                             return $"{field} should be equal to or greater than num_maps!";
                         }
                         break;
@@ -382,7 +380,8 @@ namespace MatchZy
                         if (matchConfig.MatchSideType == "standard" || matchConfig.MatchSideType == "always_knife") {
                             matchConfig.MapSides.Add("knife");
                         } else if (matchConfig.MatchSideType == "random") {
-                            matchConfig.MapSides.Add(new Random().Next(0, 2) == 0 ? "team1_ct" : "team1_t");
+                            // 【0-GC 優化】：使用 Random.Shared 免除迴圈內重複 new Random()
+                            matchConfig.MapSides.Add(Random.Shared.Next(0, 2) == 0 ? "team1_ct" : "team1_t");
                         } else {
                             matchConfig.MapSides.Add("team1_ct");
                         }
@@ -452,8 +451,10 @@ namespace MatchZy
 
         public void SetTeamNames()
         {
-            Server.ExecuteCommand($"mp_teamname_1 {reverseTeamSides["CT"].teamName}");
-            Server.ExecuteCommand($"mp_teamname_2 {reverseTeamSides["TERRORIST"].teamName}");
+            if (reverseTeamSides.TryGetValue("CT", out var ctTeam))
+                Server.ExecuteCommand($"mp_teamname_1 {ctTeam.teamName}");
+            if (reverseTeamSides.TryGetValue("TERRORIST", out var tTeam))
+                Server.ExecuteCommand($"mp_teamname_2 {tTeam.teamName}");
         }
 
         public void GetCvarValues(JObject jsonDataObject)
@@ -541,7 +542,7 @@ namespace MatchZy
                 ReplyToUserCommand(player, Localizer["matchzy.cc.usage", $"!team{teamNum} <name>"]);
             }
 
-       if (teamNum == 1) {
+            if (teamNum == 1) {
                 matchzyTeam1.teamName = teamName;
                 teamSides[matchzyTeam1] = "CT";
                 reverseTeamSides["CT"] = matchzyTeam1;
@@ -631,8 +632,8 @@ namespace MatchZy
         }
 
         public string GetTeamNameFromSide(int teamNum) {
-            if (teamNum == 3) return reverseTeamSides["CT"].teamName;
-            if (teamNum == 2) return reverseTeamSides["TERRORIST"].teamName;
+            if (teamNum == 3 && reverseTeamSides.TryGetValue("CT", out var ctTeam)) return ctTeam.teamName;
+            if (teamNum == 2 && reverseTeamSides.TryGetValue("TERRORIST", out var tTeam)) return tTeam.teamName;
             return "Unknown";
         } // 結束 GetTeamNameFromSide 函數
     } // 結束 public partial class MatchZy
