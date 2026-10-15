@@ -70,7 +70,6 @@ namespace MatchZy
                 if (!pData.IsValid) continue;
                 if (pData.TeamNum == team && (includeCoaches || (!matchzyTeam1.coach.Contains(pData) && !matchzyTeam2.coach.Contains(pData)))) {
                     playerCount++;
-                    // 【修正 1】：改用 TryGetValue 防止清空準備狀態時產生 KeyNotFoundException
                     if (playerReadyStatus.TryGetValue(key, out bool isReady) && isReady) readyCount++;
                 }
             }
@@ -113,7 +112,6 @@ namespace MatchZy
         {
             if (matchStartCountdownTimer != null) return;
 
-            // 【修正 2】：在同一幀內只抓取一次玩家清單共用，省去重複跨底層掃描與 List 配置
             List<CCSPlayerController> currentPlayers = Utilities.GetPlayers();
 
             // 倒數第 1 秒立刻全體回巢重生 (雙重重生就在這裡發生，但無傷大雅)
@@ -240,16 +238,17 @@ namespace MatchZy
                         {
                             if (!p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && !matchzyTeam1.coach.Contains(p) && !matchzyTeam2.coach.Contains(p))
                             {
-                                if (p.UserId is int uid)
+                                if (p.UserId != null)
                                 {
                                     // 1. 維持你原本精準的 UID 檢查
-                                    if (playerData.ContainsKey(uid))
+                                    if (playerData.ContainsKey((int)p.UserId))
                                     {
                                         // 2. 維持你改對的 UID 查字典邏輯
+                                        bool isReady = false;
                                         bool shouldAdd = true;
-                                        if (playerReadyStatus.TryGetValue(uid, out bool isReady) && isReady) 
+                                        if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) 
                                         {
-                                            shouldAdd = false;
+                                            if (isReady) shouldAdd = false;
                                         }
                                         
                                         if (shouldAdd)
@@ -301,9 +300,6 @@ namespace MatchZy
         [GameEventHandler]
         public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
         {
-            // 【修正 3】：若重置計時器已在運作中，直接擋掉不重複建立多餘的 3 秒計時器
-            if (isAutoResetTimerActive) return HookResult.Continue;
-
             // 防線一：等 3 秒讓伺服器同步人數
             AddTimer(3.0f, () => {
                 
@@ -335,7 +331,7 @@ namespace MatchZy
                         // 點燃重置引信，鎖上全域鎖
                         isAutoResetTimerActive = true; 
 
-                        AddTimer(120.0f, () => {
+                       AddTimer(120.0f, () => {
                             
                             isAutoResetTimerActive = false;
 
