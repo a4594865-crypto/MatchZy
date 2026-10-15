@@ -70,6 +70,7 @@ namespace MatchZy
                 if (!pData.IsValid) continue;
                 if (pData.TeamNum == team && (includeCoaches || (!matchzyTeam1.coach.Contains(pData) && !matchzyTeam2.coach.Contains(pData)))) {
                     playerCount++;
+                    // 【0-GC 優化】：改用 TryGetValue 防止清空準備狀態時產生 KeyNotFoundException
                     if (playerReadyStatus.TryGetValue(key, out bool isReady) && isReady) readyCount++;
                 }
             }
@@ -107,14 +108,15 @@ namespace MatchZy
             CheckLiveRequired();
         }
 
-        // --- 直接開始 7 秒音效倒數（修正版：絕不提前點火 + 兼容隨機秒開不重生 + 完美同步置中 UI） ---
+        // --- 直接開始 7 秒音效倒數（0-GC 優化版：絕不提前點火 + 兼容隨機秒開不重生 + 完美同步置中 UI） ---
         public void StartMatchCountdown()
         {
             if (matchStartCountdownTimer != null) return;
 
+            // 【0-GC 優化】：共用同一份清單抓取，消除倒數啟動時的多餘記憶體分配
             List<CCSPlayerController> currentPlayers = Utilities.GetPlayers();
 
-            // 倒數第 1 秒立刻全體回巢重生 (雙重重生就在這裡發生，但無傷大雅)
+            // 倒數第 1 秒立刻全體回巢重生
             foreach (var p in currentPlayers)
             {
                 if (p is { IsValid: true, IsBot: false } && (p.TeamNum == 2 || p.TeamNum == 3))
@@ -126,7 +128,6 @@ namespace MatchZy
             isCountdownActive = true; 
             countdownRemaining = 7; // 精準設定為 7 秒
 
-            // ▼▼▼ 新增：手動補發第 0 秒 (倒數 7 秒) 的狀態，與音效、UI 完美同步！ ▼▼▼
             string initialColor = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
             PrintToAllChat($"倒數：{initialColor}{countdownRemaining}");
             
@@ -139,26 +140,22 @@ namespace MatchZy
                 }
             }
             
-            // 印完第 7 秒後，立刻減 1，讓 1 秒後的計時器從 6 秒開始接手
             countdownRemaining--; 
 
             matchStartCountdownTimer = AddTimer(1.0f, () => {
                 Server.NextFrame(() => {
-                    // ▼▼▼ 終極防禦：攔截「殘留的 NextFrame 幽靈呼叫」 ▼▼▼
                     if (!isCountdownActive || matchStartCountdownTimer == null) return;
 
                     if (countdownRemaining > 0)
                     {
-                        // 3, 2, 1 秒顯示紅色，7, 6, 5, 4 秒顯示綠色
                         string color = (countdownRemaining <= 3) ? $"{ChatColors.Red}" : $"{ChatColors.Green}";
                         
                         PrintToAllChat($"倒數：{color}{countdownRemaining}");
 
-                        foreach (var p in Utilities.GetPlayers())
+                        foreach (var p in currentPlayers)
                         {
                             if (p is { IsValid: true, IsBot: false })
                             {
-                                // 畫面置中純文字提示
                                 p.PrintToCenter($"比 賽 開 始 倒 數：{countdownRemaining} 秒");
                                 p.ExecuteClientCommand("play sounds/ui/panorama/popup_reveal_01.vsnd");
                             }
@@ -168,13 +165,11 @@ namespace MatchZy
                     }
                     else
                     {
-                        // 當 countdownRemaining 減到 0 時，關閉計時器
                         matchStartCountdownTimer?.Kill();
                         matchStartCountdownTimer = null;
                         isCountdownActive = false; 
 
-                        // 【新增】：瞬間清除畫面上的「1 秒」殘影！避免視覺卡頓
-                        foreach (var p in Utilities.GetPlayers())
+                        foreach (var p in currentPlayers)
                         {
                             if (p is { IsValid: true, IsBot: false })
                             {
@@ -182,7 +177,6 @@ namespace MatchZy
                             }
                         }
 
-                        // 在這裡才把隨機洗牌的標記安全關閉
                         if (isShufflePending) 
                         {
                             isShufflePending = false;
@@ -190,10 +184,8 @@ namespace MatchZy
 
                         if (matchStarted) return;
                         
-                        // 強制在開賽前 0 毫秒重新點名
                         UpdatePlayersMap(); 
-                        
-                        HandleMatchStart(); // 安全在 0 秒點火開賽
+                        HandleMatchStart(); 
                     }
                 });
             }, TimerFlags.REPEAT);
@@ -207,16 +199,13 @@ namespace MatchZy
                 matchStartCountdownTimer = null;
                 isCountdownActive = false; 
 
-                // --- 核心改動 ---
                 Server.PrintToChatAll($"{reason}");
-
                 PrintUnreadyPlayers();
             }
         }
 
         public void PrintUnreadyPlayers()
         {
-            // 只要在倒數，就攔截所有準備訊息
             if (isCountdownActive) return; 
 
             try
@@ -229,26 +218,22 @@ namespace MatchZy
                 }
                 else if (readyAvailable && !matchStarted)
                 {
-                    // 找出還沒準備的玩家名單
+                    // 【0-GC 優化】：使用結構化走訪，過濾未準備名單
                     List<string> unreadyPlayers = [];
                     foreach (var p in Utilities.GetPlayers())
                     {
-                        // 護甲 1：除了你原本寫的 IsValid，必須再加上 Handle 檢查，直接在第一步過濾掉斷線的鬼魂！
                         if (p is { IsValid: true } && p.Handle != IntPtr.Zero)
                         {
                             if (!p.IsBot && (p.TeamNum == 2 || p.TeamNum == 3) && !matchzyTeam1.coach.Contains(p) && !matchzyTeam2.coach.Contains(p))
                             {
-                                if (p.UserId != null)
+                                if (p.UserId is int uid)
                                 {
-                                    // 1. 維持你原本精準的 UID 檢查
-                                    if (playerData.ContainsKey((int)p.UserId))
+                                    if (playerData.ContainsKey(uid))
                                     {
-                                        // 2. 維持你改對的 UID 查字典邏輯
-                                        bool isReady = false;
                                         bool shouldAdd = true;
-                                        if (playerReadyStatus.TryGetValue((int)p.UserId, out isReady)) 
+                                        if (playerReadyStatus.TryGetValue(uid, out bool isReady) && isReady) 
                                         {
-                                            if (isReady) shouldAdd = false;
+                                            shouldAdd = false;
                                         }
                                         
                                         if (shouldAdd)
@@ -256,7 +241,6 @@ namespace MatchZy
                                             string name = string.Empty;
                                             try 
                                             {
-                                                // 2：雙重防禦，避免在撈名字的極限瞬間指針死掉
                                                 name = (p is { IsValid: true } && p.Handle != IntPtr.Zero) ? p.PlayerName : string.Empty;
                                             } 
                                             catch 
@@ -264,10 +248,9 @@ namespace MatchZy
                                                 name = string.Empty;
                                             }
 
-                                            // 過濾掉空字串
                                             if (!string.IsNullOrEmpty(name))
                                             {
-                                                unreadyPlayers.Add(name); //  3：強迫 LINQ 在 try 的保護範圍內「立刻執行」，徹底拆除延遲執行的炸彈！
+                                                unreadyPlayers.Add(name); 
                                             }
                                         }
                                     }
@@ -290,20 +273,15 @@ namespace MatchZy
             }
             catch (Exception)
             {
-                //  終極消音防線：萬一有極限時間差漏網之魚，直接吞掉錯誤，死死保住伺服器絕對不卡死！
+                // 終極消音防線
             }
         }
 
-        // =========================================================================
-        // 終極修正版：伺服器完全 0 人時自動重置 (完美相容賽後結算面板)
-        // =========================================================================
         [GameEventHandler]
         public HookResult AutoReset_GhostMatchHandler(EventPlayerDisconnect @event, GameEventInfo info)
         {
-            // 防線一：等 3 秒讓伺服器同步人數
             AddTimer(3.0f, () => {
                 
-                // 1. 全域鎖防護：擋掉重複計時器
                 if (isAutoResetTimerActive) return;
 
                 int initialPlayerCount = 0;
@@ -312,26 +290,19 @@ namespace MatchZy
                     if (p is { IsValid: true, IsBot: false }) initialPlayerCount++;
                 }
 
-                // 2. 如果場上完全沒人 (0人)
                 if (initialPlayerCount == 0)
                 {
-                    // 【核心修正】：讀取 MatchZy 的底層階段，如果在「結算計分板 (PostGame)」，直接放行不處置！
-                    // 這代表比賽已經打完在等換圖了，這時候大家退服是正常的！
                     if (IsPostGamePhase()) return; 
-
-                    // 如果是 JSON 賽事，也不自動處置
                     if (isMatchSetup || mapReloadRequired) return;
 
-                    // 3. 死局狀態判定 (此時排除掉結算畫面了，代表是真的打到一半出事)
                     bool isGhostMatch = (!isWarmup && (isMatchLive || isKnifeRequired));
                     bool isStuckInSideSelection = isSideSelectionPhase;
 
                     if (isGhostMatch || isStuckInSideSelection)
                     {
-                        // 點燃重置引信，鎖上全域鎖
                         isAutoResetTimerActive = true; 
 
-                       AddTimer(120.0f, () => {
+                        AddTimer(120.0f, () => {
                             
                             isAutoResetTimerActive = false;
 
@@ -341,7 +312,6 @@ namespace MatchZy
                                 if (p is { IsValid: true, IsBot: false }) finalPlayerCount++;
                             }
 
-                            //  修正盲點：如果 120 秒後 0 人，且 (不是熱身 或是 卡在選邊)，且不是在結算畫面，才重開！
                             if (finalPlayerCount == 0 && (!isWarmup || isSideSelectionPhase) && !IsPostGamePhase())
                             {
                                 Server.ExecuteCommand("css_restart"); 
