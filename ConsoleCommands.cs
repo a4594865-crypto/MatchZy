@@ -13,12 +13,10 @@ namespace MatchZy
 {
     public partial class MatchZy
     {
-        // ▼▼▼ 新增：針對熱身時間的跨版本安全檢查器 ▼▼▼
+       // ▼▼▼ 新增：針對熱身時間的跨版本安全檢查器 (0-GC 原生布林讀取) ▼▼▼
         private bool IsWarmupPeriodSafe(CCSGameRules? gameRules)
         {
-            if (gameRules == null) return false;
-            string val = gameRules.WarmupPeriod.ToString() ?? "";
-            return val == "True" || val == "1";
+            return gameRules is { WarmupPeriod: true };
         }
         // ▲▲▲ ▲▲▲ ▲▲▲
 
@@ -201,20 +199,13 @@ namespace MatchZy
             SideSwitchCommand(player, CsTeam.CounterTerrorist);
         }
 
-        [ConsoleCommand("css_tech", "Pause the match")]
+       [ConsoleCommand("css_tech", "Pause the match")]
         public void OnTechCommand(CCSPlayerController? player, CommandInfo? command)
         {
             if (!isMatchLive) return;
 
-            CCSGameRules? gameRules = null;
-            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
-            {
-                if (entity is { GameRules: not null } proxy)
-                {
-                    gameRules = proxy.GameRules;
-                    break;
-                }
-            }
+            // 【0-GC 優化】：直接讀取已快取的 GetGameRules()，免除全圖實體掃描
+            CCSGameRules? gameRules = GetGameRules();
             
             // ▼ 修復：替換為跨版本檢查器 IsOfficialTacActiveSafe
             if (IsOfficialTacActiveSafe(gameRules) || isPaused || techPauseAutoUnpauseTimer is not null)
@@ -264,16 +255,8 @@ namespace MatchZy
                     return;
                 }
                 
-                CCSGameRules? gameRules = null;
-                foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
-                {
-                    if (entity is { GameRules: not null } proxy)
-                    {
-                        gameRules = proxy.GameRules;
-                        break;
-                    }
-                }
-
+                // 【0-GC 優化】：直接讀取已快取的 GetGameRules()
+                CCSGameRules? gameRules = GetGameRules();
                 if (gameRules is null) return;
 
                 if (player.TeamNum == 2)
@@ -733,6 +716,8 @@ namespace MatchZy
             }
         }
 
+       private static readonly Regex _serverVersionRegex = new(@"ServerVersion=(\d+)", RegexOptions.Compiled);
+
         [ConsoleCommand("version", "Returns server version")]
         public void OnVersionCommand(CCSPlayerController? player, CommandInfo? command)
         {
@@ -745,8 +730,7 @@ namespace MatchZy
             }
             var steamInfContent = File.ReadAllText(steamInfFilePath);
 
-            Regex regex = new(@"ServerVersion=(\d+)");
-            Match match = regex.Match(steamInfContent);
+            Match match = _serverVersionRegex.Match(steamInfContent);
 
             string? serverVersion = match.Success ? match.Groups[1].Value : null;
 
@@ -799,8 +783,9 @@ namespace MatchZy
             if (command == null || command.ArgCount < 2) return;
             if (player != null && !IsPlayerAdmin(player)) return; 
 
-            string arg = command.ArgByIndex(1).ToLower();
-            isGGEnabled = (arg == "true" || arg == "1");
+            // 【0-GC 優化】：使用 ReadOnlySpan 忽略大小寫比對，免除 .ToLower() 字串配置
+            ReadOnlySpan<char> argSpan = command.ArgByIndex(1).AsSpan().Trim();
+            isGGEnabled = argSpan.Equals("true", StringComparison.OrdinalIgnoreCase) || argSpan.SequenceEqual("1");
         }
 
         [ConsoleCommand("matchzy_gg_min_score_difference", "Minimum score difference to allow GG")]
@@ -862,16 +847,8 @@ namespace MatchZy
                 return;
             }
 
-            // ▼ 修復：替換為跨版本檢查器 IsOfficialTacActiveSafe
-            CCSGameRules? gameRules = null;
-            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
-            {
-                if (entity is { GameRules: not null } proxy)
-                {
-                    gameRules = proxy.GameRules;
-                    break;
-                }
-            }
+            // ▼ 修復：替換為快取的 GetGameRules() 與跨版本檢查器 IsOfficialTacActiveSafe
+            CCSGameRules? gameRules = GetGameRules();
             
             if (isPaused || IsOfficialTacActiveSafe(gameRules))
             {
@@ -963,18 +940,31 @@ namespace MatchZy
                 }
 
                 ggResetTimers[playerTeam] = AddTimer(1.0f, () => {
-                    ggTimerSeconds[playerTeam]--; 
-                    
-                    if (ggTimerSeconds[playerTeam] > 0) 
+                    // 安全防護：若比賽已結束或被重開 (.rr)，立即停止投降倒數計時器，防止熱身殘留刷屏
+                    if (!isMatchLive)
                     {
+                        ResetGGVotes();
+                        return;
+                    }
+
+                    ggTimerSeconds[playerTeam]--; 
+                    int activeVotes = ggVotes[playerTeam].Count;
+                    int secLeft = ggTimerSeconds[playerTeam];
+                    
+                    if (secLeft > 0) 
+                    {
+                        // 【0-GC 優化】：每秒只組裝 1 次字串供迴圈共用，不在迴圈內對每個玩家重複格式化字串
+                        string teamHudMsg = $"{teamName} 隊伍 ({activeVotes}/ {votesNeeded}) 倒數：{secLeft}秒";
+                        string oppHudMsg = $"{teamName} 發起投降 ({activeVotes} / {votesNeeded}) 倒數：{secLeft}秒";
+
                         // 倒數期間的 HUD 刷新
                         foreach (var p in playerData.Values) {
                             if (p != null && p.IsValid) 
                             {
                                 if (p.Team == playerTeam)
-                                    p.PrintToCenter($"{teamName} 隊伍 ({ggVotes[playerTeam].Count }/ {votesNeeded}) 倒數：{ggTimerSeconds[playerTeam]}秒");
+                                    p.PrintToCenter(teamHudMsg);
                                 else
-                                    p.PrintToCenter($"{teamName} 發起投降 ({ggVotes[playerTeam].Count} / {votesNeeded}) 倒數：{ggTimerSeconds[playerTeam]}秒");
+                                    p.PrintToCenter(oppHudMsg);
                             }
                         }
                     }
@@ -983,18 +973,22 @@ namespace MatchZy
                         // 投票超時失敗的處理
                         PrintToAllChat($" {ChatColors.Red}{teamName} 隊伍{ChatColors.Default} 的投降投票已過期");
                         
+                        string expTeamMsg = $"{teamName} 隊伍的投降投票已過期";
+                        string expOppMsg = $"對手 {teamName} 的投降投票已過期";
+
                         foreach (var p in playerData.Values) {
                             if (p != null && p.IsValid) 
                             {
                                 if (p.Team == playerTeam)
-                                    p.PrintToCenter($"{teamName} 隊伍的投降投票已過期");
+                                    p.PrintToCenter(expTeamMsg);
                                 else
-                                    p.PrintToCenter($"對手 {teamName} 的投降投票已過期");
+                                    p.PrintToCenter(expOppMsg);
                             }
                         }
                         
                         ggVotes[playerTeam].Clear();
                         ggResetTimers[playerTeam]?.Kill();
+                        ggResetTimers[playerTeam] = null;
                         ggTimerSeconds[playerTeam] = 0;
                         
                         // ▼ 投票失敗時，記錄失敗時間，該隊伍進入 3 分鐘冷卻期 ▼
@@ -1009,25 +1003,21 @@ namespace MatchZy
         {
             PrintToAllChat($" {ChatColors.Red}{teamName} 隊伍{ChatColors.Default} 已經投降");
             
+            string surTeamMsg = $"{teamName} 隊伍 已經投降";
+            string surOppMsg = $"對手 {teamName} 隊伍 已經投降";
+
             foreach (var p in playerData.Values) {
                 if (p != null && p.IsValid) 
                 {
                     if (p.Team == playerTeam)
-                        p.PrintToCenter($"{teamName} 隊伍 已經投降");
+                        p.PrintToCenter(surTeamMsg);
                     else
-                        p.PrintToCenter($"對手 {teamName} 隊伍 已經投降");
+                        p.PrintToCenter(surOppMsg);
                 }
             }
             
-            CCSGameRules? gameRules = null;
-            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
-            {
-                if (entity is { GameRules: not null } proxy)
-                {
-                    gameRules = proxy.GameRules;
-                    break;
-                }
-            }
+            // 【0-GC 優化】：直接讀取已快取的 GetGameRules()
+            CCSGameRules? gameRules = GetGameRules();
             
             if (gameRules != null)
             {
@@ -1055,14 +1045,12 @@ namespace MatchZy
             var team = player.Team;
             if (team != CsTeam.CounterTerrorist && team != CsTeam.Terrorist) return HookResult.Continue;
 
+            int disconnectingUid = player.UserId ?? -1;
+
             // 1. 如果該玩家有參與投票，將他的票從陣列移除
-            if (player.UserId.HasValue)
+            if (disconnectingUid != -1)
             {
-                int uid = player.UserId.Value;
-                if (ggVotes[team].Contains(uid))
-                {
-                    ggVotes[team].Remove(uid);
-                }
+                ggVotes[team].Remove(disconnectingUid);
             }
 
             // 2. 如果該隊伍正在進行 60 秒倒數，則重新計算門檻
@@ -1072,7 +1060,8 @@ namespace MatchZy
                 Server.NextFrame(() => {
                     int teamSize = 0;
                     foreach (var p in playerData.Values) {
-                        if (p != null && p.IsValid && p.Team == team && !IsPlayerCoach(p)) teamSize++;
+                        if (p != null && p.IsValid && p.Connected == PlayerConnectedState.Connected && p.UserId != disconnectingUid && p.Team == team && !IsPlayerCoach(p))
+                            teamSize++;
                     }
                     
                     if (teamSize == 0) return; // 全部退光就不管了
@@ -1097,6 +1086,8 @@ namespace MatchZy
         {
             foreach (var timer in ggResetTimers.Values) timer?.Kill();
             ggResetTimers.Clear();
+            ggTimerSeconds.Clear();
+            lastFailedGGVote.Clear();
             ggVotes[CsTeam.CounterTerrorist].Clear();
             ggVotes[CsTeam.Terrorist].Clear();
         }
