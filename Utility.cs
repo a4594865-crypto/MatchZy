@@ -335,8 +335,8 @@ namespace MatchZy
             ExecWarmupCfg();
             knifeWinnerName = knifeWinner == 3 ? reverseTeamSides["CT"].teamName : reverseTeamSides["TERRORIST"].teamName;
             
-            // 【0 GC 優化】：改用原生 IgnoreCase Replace 取代 Regex.Replace，結果 100% 相同
-            string cleanKnifeWinnerName = knifeWinnerName.Replace("隊伍_", "", StringComparison.OrdinalIgnoreCase).Trim();
+            // 將刀局贏家的隊伍名稱強制洗乾淨（不分大小寫洗掉 team_）
+            string cleanKnifeWinnerName = System.Text.RegularExpressions.Regex.Replace(knifeWinnerName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
             
             // 在名字的最後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
             if (!cleanKnifeWinnerName.EndsWith("隊伍")) cleanKnifeWinnerName += " 隊伍";
@@ -476,10 +476,13 @@ namespace MatchZy
 
                 HandleClanTags();
 
-                // Reset unpause data (直接重置現有字典，避免重新 new 區域變數產生 GC)
-                unpauseData["ct"] = false;
-                unpauseData["t"] = false;
-                unpauseData["pauseTeam"] = "";
+                // Reset unpause data
+                Dictionary<string, object> unpauseData = new()
+                {
+                    { "ct", false },
+                    { "t", false },
+                    { "pauseTeam", "" }
+                };
 
                 // Reset stop data
                 stopData["ct"] = false;
@@ -498,14 +501,9 @@ namespace MatchZy
                 matchzyTeam1.teamPlayers = null;
                 matchzyTeam2.teamPlayers = null;
 
-                // 【0 GC 優化】：直接走訪兩隊教練名單，省去 GetAllCoaches() 的 new HashSet 配置
-                foreach (var coach in matchzyTeam1.coach)
-                {
-                    if (!IsPlayerValid(coach)) continue;
-                    coach.Clan = "";
-                    SetPlayerVisible(coach);
-                }
-                foreach (var coach in matchzyTeam2.coach)
+                HashSet<CCSPlayerController> coaches = GetAllCoaches();
+
+                foreach (var coach in coaches)
                 {
                     if (!IsPlayerValid(coach)) continue;
                     coach.Clan = "";
@@ -973,20 +971,20 @@ private void HandleMatchStart()
 
             if (matchzyTeam1.seriesScore > matchzyTeam2.seriesScore)
             {
-                // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」（改用 0 Regex 原生替換）
-                string cleanTeamName1 = matchzyTeam1.teamName.Replace("隊伍_", "", StringComparison.OrdinalIgnoreCase).Trim();
-                if (!cleanTeamName1.EndsWith("隊伍")) cleanTeamName1 += " 隊伍";
+             // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
+            string cleanTeamName1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            if (!cleanTeamName1.EndsWith("隊伍")) cleanTeamName1 += " 隊伍";
                 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
-            }
-            else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
-            {
-                // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」（改用 0 Regex 原生替換）
-                string cleanTeamName2 = matchzyTeam2.teamName.Replace("隊伍_", "", StringComparison.OrdinalIgnoreCase).Trim();
-                if (!cleanTeamName2.EndsWith("隊伍")) cleanTeamName2 += " 隊伍";
+           Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName1}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam1.seriesScore} - {matchzyTeam2.seriesScore}{ChatColors.Default}");
+        }
+        else if (matchzyTeam2.seriesScore > matchzyTeam1.seriesScore)
+        {
+            // 大局：自動洗掉開頭的 "Team_" 並加上「 隊伍」
+            string cleanTeamName2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            if (!cleanTeamName2.EndsWith("隊伍")) cleanTeamName2 += " 隊伍";
                 
-                Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
-            }
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Lime}{cleanTeamName2}{ChatColors.Default} 目前系列賽比分 {ChatColors.Default}{matchzyTeam2.seriesScore} - {matchzyTeam1.seriesScore}{ChatColors.Default}");
+        }
 
             matchConfig.CurrentMapNumber += 1;
             string nextMap = matchConfig.Maplist[matchConfig.CurrentMapNumber];
@@ -1088,7 +1086,7 @@ private void HandleMatchStart()
             UpdateHostname();
         }
 
-private void HandlePostRoundEndEvent(EventRoundEnd @event)
+       private void HandlePostRoundEndEvent(EventRoundEnd @event)
         {
             try
             {
@@ -1097,11 +1095,10 @@ private void HandlePostRoundEndEvent(EventRoundEnd @event)
                     coachKillTimer?.Kill();
                     coachKillTimer = null;
                     (int t1score, int t2score) = GetTeamsScore();
-                    int currentRoundNum = t1score + t2score; // 【效能優化】：直接相加，省去後面重複呼叫 2 次 GetRoundNumer() 掃描實體
 
-                    // 小局：在這裡自動洗掉雙方隊伍開頭的 "Team_"（改用原生替換，免除 Regex 開銷）
-                    string cleanRoundTeam1 = matchzyTeam1.teamName.Replace("隊伍_", "", StringComparison.OrdinalIgnoreCase).Trim();
-                    string cleanRoundTeam2 = matchzyTeam2.teamName.Replace("隊伍_", "", StringComparison.OrdinalIgnoreCase).Trim();
+                    // 小局：在這裡自動洗掉雙方隊伍開頭的 "Team_"
+                    string cleanRoundTeam1 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam1.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                    string cleanRoundTeam2 = System.Text.RegularExpressions.Regex.Replace(matchzyTeam2.teamName, "隊伍_", "", System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
 
                     // 在名字的後面加上 " 隊伍" 兩個字（安全檢查：若本來就有就不重複加）
                     if (!cleanRoundTeam1.EndsWith("隊伍")) cleanRoundTeam1 += " 隊伍";
@@ -1124,7 +1121,7 @@ private void HandlePostRoundEndEvent(EventRoundEnd @event)
                     {
                         MatchId = liveMatchId,
                         MapNumber = matchConfig.CurrentMapNumber,
-                        RoundNumber = currentRoundNum,
+                        RoundNumber = GetRoundNumer(),
                         Reason = @event.Reason,
                         RoundTime = 0,
                         Winner = winner,
@@ -1139,7 +1136,7 @@ private void HandlePostRoundEndEvent(EventRoundEnd @event)
                         await database.UpdateMapStatsAsync(matchId, currentMapNumber, t1score, t2score);
                     });
 
-                    string round = currentRoundNum.ToString("D2");
+                    string round = GetRoundNumer().ToString("D2");
                     lastBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.txt";
                     lastMatchZyBackupFileName = $"matchzy_{liveMatchId}_{matchConfig.CurrentMapNumber}_round{round}.json";
                     Log($"[HandlePostRoundEndEvent] Setting lastBackupFileName to {lastBackupFileName} and lastMatchZyBackupFileName to {lastMatchZyBackupFileName}");
@@ -1395,30 +1392,19 @@ private void HandlePostRoundEndEvent(EventRoundEnd @event)
             ReplyToUserCommand(player, Localizer["matchzy.utility.dontpermission"]);
         }
 
-       private static readonly (string Pattern, string Replacement)[] _colorReplacements = InitColorReplacements();
-
-        private static (string Pattern, string Replacement)[] InitColorReplacements()
-        {
-            var fields = typeof(ChatColors).GetFields();
-            List<(string, string)> list = new(fields.Length);
-            foreach (var field in fields)
-            {
-                string? val = field.GetValue(null)?.ToString();
-                if (val is not null)
-                {
-                    list.Add(($"{{{field.Name}}}", val));
-                }
-            }
-            return [.. list];
-        }
-
         private string GetColorTreatedString(string message)
         {
             if (message.StartsWith('{')) message = " " + message;
 
-            foreach (var (pattern, replacement) in _colorReplacements)
+            foreach (var field in typeof(ChatColors).GetFields())
             {
-                message = message.Replace(pattern, replacement, StringComparison.OrdinalIgnoreCase);
+                string pattern = $"{{{field.Name}}}";
+                string? replacement = field.GetValue(null)?.ToString();
+
+                if (replacement is null) return message;
+
+                string patternIgnoreCase = Regex.Escape(pattern);
+                message = Regex.Replace(message, patternIgnoreCase, replacement, RegexOptions.IgnoreCase);
             }
 
             return message;
@@ -1628,23 +1614,12 @@ private void HandlePostRoundEndEvent(EventRoundEnd @event)
             Server.ExecuteCommand($"hostname {formattedHostname}");
         }
 
-      private CCSGameRulesProxy? _cachedGameRulesProxy = null;
-
         public CCSGameRules GetGameRules()
         {
-            // 【核心效能優化】：快取 CCSGameRulesProxy，避免每秒重複呼叫 FindAllEntitiesByDesignerName 掃描全圖實體
-            if (_cachedGameRulesProxy is { IsValid: true, GameRules: { } cachedRules })
-            {
-                return cachedRules;
-            }
-
+            // 拔除 LINQ .First()
             foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
             {
-                if (entity is { IsValid: true, GameRules: { } rules })
-                {
-                    _cachedGameRulesProxy = entity;
-                    return rules;
-                }
+                if (entity.GameRules is { } rules) return rules;
             }
             return null!;
         }
@@ -1828,11 +1803,10 @@ private void HandlePostRoundEndEvent(EventRoundEnd @event)
             return (playerStatsDictionary, playerStatsListTeam1, playerStatsListTeam2);
         }
 
-       private static readonly Regex _specialCharRegex = new("[^\\p{L}0-9 _-]", RegexOptions.Compiled);
-
         static string RemoveSpecialCharacters(string input)
         {
-            return _specialCharRegex.Replace(input, "");
+            Regex regex = new("[^\\p{L}0-9 _-]");
+            return regex.Replace(input, "");
         }
 
         private void Log(string message)
