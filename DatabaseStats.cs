@@ -426,16 +426,7 @@ namespace MatchZy
             }
         });
 
-        public Task UpdatePlayerStatsAsync(long matchId, int mapNumber, Dictionary<ulong, Dictionary<string, object>> playerStatsDictionary) => EnqueueWrite("UpdatePlayerStats", async connection =>
-        {
-            try
-            {
-                // 【.NET 10 升級】：字典迴圈解構保留，並完美融合進官方排隊非同步系統
-                foreach (var (steamid64, playerStats) in playerStatsDictionary)
-                {
-                    Log($"[UpdatePlayerStats] Going to update data for Match: {matchId}, MapNumber: {mapNumber}, Player: {steamid64}");
-
-                    string sqlQuery = $@"
+       private const string MySqlUpdatePlayerStatsQuery = @"
                     INSERT INTO matchzy_stats_players (
                         matchid, mapnumber, steamid64, team, name, kills, deaths, damage, assists,
                         enemy5ks, enemy4ks, enemy3ks, enemy2ks, utility_count, utility_damage,
@@ -467,8 +458,7 @@ namespace MatchZy
                         kill_reward = @kill_reward, live_time = @live_time, head_shot_kills = @head_shot_kills,
                         cash_earned = @cash_earned, enemies_flashed = @enemies_flashed";
 
-                    if (isSqlite) {
-                        sqlQuery = @"
+        private const string SqliteUpdatePlayerStatsQuery = @"
                         INSERT OR REPLACE INTO matchzy_stats_players (
                             matchid, mapnumber, steamid64, team, name, kills, deaths, damage, assists,
                             enemy5ks, enemy4ks, enemy3ks, enemy2ks, utility_count, utility_damage,
@@ -485,7 +475,18 @@ namespace MatchZy
                             @shots_on_target_total, @v1_count, @v1_wins, @v2_count, @v2_wins, @entry_count,
                             @entry_wins, @equipment_value, @money_saved, @kill_reward, @live_time,
                             @head_shot_kills, @cash_earned, @enemies_flashed)";
-                    }
+
+        public Task UpdatePlayerStatsAsync(long matchId, int mapNumber, Dictionary<ulong, Dictionary<string, object>> playerStatsDictionary) => EnqueueWrite("UpdatePlayerStats", async connection =>
+        {
+            try
+            {
+                // 【0-GC 優化】：直接取用編譯期常數 SQL 字串，不在迴圈內對每位玩家重複宣告
+                string sqlQuery = isSqlite ? SqliteUpdatePlayerStatsQuery : MySqlUpdatePlayerStatsQuery;
+
+                // 【.NET 10 升級】：字典迴圈解構保留，並完美融合進官方排隊非同步系統
+                foreach (var (steamid64, playerStats) in playerStatsDictionary)
+                {
+                    Log($"[UpdatePlayerStats] Going to update data for Match: {matchId}, MapNumber: {mapNumber}, Player: {steamid64}");
 
                     try
                     {
@@ -632,8 +633,8 @@ namespace MatchZy
                 string jsonContent = File.ReadAllText(configFile);
                 config = JsonSerializer.Deserialize<DatabaseConfig>(jsonContent);
                 
-                // 【.NET 10 升級】：模式匹配保留
-                if (config is { DatabaseType: not null } && config.DatabaseType.Trim().ToLower() == "mysql") {
+                // 【.NET 10 0-GC 優化】：使用 ReadOnlySpan 忽略大小寫比對，消除 .Trim().ToLower() 的雙重字串分配
+                if (config is { DatabaseType: not null } && config.DatabaseType.AsSpan().Trim().Equals("mysql", StringComparison.OrdinalIgnoreCase)) {
                     databaseType = DatabaseType.MySQL;
                 } else {
                     databaseType = DatabaseType.SQLite;
