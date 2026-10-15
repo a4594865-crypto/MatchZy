@@ -69,6 +69,10 @@ public partial class MatchZy
     public bool isAutoTriggeredTacPause = false;
     public int autoResumeCountdown = -1;
     public int autoPausePeakHumans = 0;
+
+    // ★ 綁定隊伍實體的最高人數紀錄（支援 4v5 / 6v4 開賽與半場換邊自動跟隨）
+    public Dictionary<string, int> teamPeakHumans = new() { { "matchzyTeam1", 0 }, { "matchzyTeam2", 0 } };
+    public Dictionary<string, int> teamAcceptedCount = new() { { "matchzyTeam1", -1 }, { "matchzyTeam2", -1 } };
     
     public bool autoPauseShortAccepted = false;
     public int acceptedCtCount = 5;
@@ -110,6 +114,46 @@ public partial class MatchZy
         if (gameRules == null) return false;
         string val = gameRules.FreezePeriod.ToString() ?? "";
         return val == "True" || val == "1";
+    }
+
+    // 取得目前 CT 或 T 對應的是 matchzyTeam1 還是 matchzyTeam2
+    private string GetTeamKeyBySide(CsTeam side)
+    {
+        try
+        {
+            string sideStr = side == CsTeam.CounterTerrorist ? "CT" : "TERRORIST";
+            if (reverseTeamSides != null && reverseTeamSides.TryGetValue(sideStr, out var matchTeam) && matchTeam != null)
+            {
+                if (matchzyTeam1 != null && matchTeam.teamName == matchzyTeam1.teamName) return "matchzyTeam1";
+                if (matchzyTeam2 != null && matchTeam.teamName == matchzyTeam2.teamName) return "matchzyTeam2";
+            }
+        }
+        catch { }
+        return side == CsTeam.CounterTerrorist ? "matchzyTeam1" : "matchzyTeam2";
+    }
+
+    // 計算該陣營目前應該維持的目標人數（完美相容 5v5、4v5、6v4 與少人同意繼續）
+    private int GetSideTargetPlayers(CsTeam side)
+    {
+        int minP = Math.Max(1, AutoPauseMinPlayers);
+        string key = GetTeamKeyBySide(side);
+        int peak = teamPeakHumans.TryGetValue(key, out int p) ? p : 0;
+
+        // 若該隊開賽至今從未達 2 人（如 0 人或 1 人跑圖），不啟用該隊的自動暫停
+        if (peak < 2 && peak < minP) return 0;
+
+        // 基準門檻：取「該隊曾達到的最高人數」與「設定的 minplayers」兩者較小值
+        // 例如設定 minplayers 5：
+        // - 4v5 開賽：4人隊伍基準為 4（4人不暫停，掉到3人立刻暫停）；5人隊伍基準為 5
+        // - 6v4 開賽：6人隊伍基準上限為 5（掉到4人才暫停）；4人隊伍基準為 4（掉到3人才暫停）
+        int baseTarget = Math.Min(peak, minP);
+
+        if (teamAcceptedCount.TryGetValue(key, out int accepted) && accepted != -1)
+        {
+            return accepted;
+        }
+
+        return baseTarget;
     }
 
     // ==========================================
@@ -422,14 +466,26 @@ public partial class MatchZy
     // ==========================================
     public void CheckAndAcceptShortHanded()
     {
-        int minP = AutoPauseMinPlayers;
+        int minP = Math.Max(1, AutoPauseMinPlayers);
         int currentCt = GetTeamPlayerCount(CsTeam.CounterTerrorist);
         int currentT = GetTeamPlayerCount(CsTeam.Terrorist);
 
-        if (currentCt < minP || currentT < minP)
+        string ctKey = GetTeamKeyBySide(CsTeam.CounterTerrorist);
+        string tKey = GetTeamKeyBySide(CsTeam.Terrorist);
+
+        int ctBase = Math.Min(teamPeakHumans.TryGetValue(ctKey, out int pCt) ? pCt : 0, minP);
+        int tBase = Math.Min(teamPeakHumans.TryGetValue(tKey, out int pT) ? pT : 0, minP);
+
+        if (currentCt < ctBase)
         {
+            teamAcceptedCount[ctKey] = currentCt;
             autoPauseShortAccepted = true;
             acceptedCtCount = currentCt;
+        }
+        if (currentT < tBase)
+        {
+            teamAcceptedCount[tKey] = currentT;
+            autoPauseShortAccepted = true;
             acceptedTCount = currentT;
         }
     }
@@ -552,6 +608,14 @@ public partial class MatchZy
         otTacPausesUsed["matchzyTeam1"] = 0;
         otTacPausesUsed["matchzyTeam2"] = 0;
         lastTrackedOT = 0;
+
+        autoPausePeakHumans = 0;
+        teamPeakHumans["matchzyTeam1"] = 0;
+        teamPeakHumans["matchzyTeam2"] = 0;
+        teamAcceptedCount["matchzyTeam1"] = -1;
+        teamAcceptedCount["matchzyTeam2"] = -1;
+        autoPauseShortAccepted = false;
+        autoPauseLimitAnnounced = false;
         
         KillTacPauseTimer();
     }
@@ -573,14 +637,19 @@ public partial class MatchZy
         PrintToAllChat($" {ChatColors.Gold}[管理員]{ChatColors.Default} 已將 斷線自動暫停 {status}");
     }
 
-   [GameEventHandler(HookMode.Post)]
+    [GameEventHandler(HookMode.Post)]
     public HookResult OnRoundStartAutoPause(EventRoundStart @event, GameEventInfo info)
     {
         if (!isMatchLive)
         {
             ResetTechPauseCount();
             ResetTacPauseCount();
+            StopAutoPauseCheck();
+            return HookResult.Continue;
         }
+
+        // 正賽回合開始時立刻更新各隊人數紀錄
+        IsAutoPauseActive();
 
         CCSGameRules? gameRules = null;
         foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
@@ -616,7 +685,7 @@ public partial class MatchZy
                 if (currentOT != lastTrackedOT)
                 {
                     lastTrackedOT = currentOT;
-                    otTacPausesUsed.Clear(); // 確保清除所有髒資料
+                    otTacPausesUsed.Clear();
                     otTacPausesUsed["matchzyTeam1"] = 0;
                     otTacPausesUsed["matchzyTeam2"] = 0;
                 }
@@ -628,29 +697,14 @@ public partial class MatchZy
         }
 
         // ==========================================
-        // ▼ 升級：回合開始 1 秒瞬間觸發暫停機制 ▼
+        // ▼ 升級：僅在回合凍結時間內每秒巡邏，開打自動停止 ▼
         // ==========================================
-        // 1. 強制重置 10 秒常態巡邏 (解決跨回合時間差)
         StopAutoPauseCheck();
         StartAutoPauseCheck();
 
-        // 2. 額外加碼：凍結時間第 1 秒派臨時巡邏員點名，瞬間鎖定！
         AddTimer(1.0f, () => 
         {
-            if (!isMatchLive || !AutoPauseEnabled || isPaused) return;
-            if (IsHalfTimePhase() || IsPostGamePhase()) return;
-            if (!IsAutoPauseActive()) return;
-
-            int minP = AutoPauseMinPlayers;
-            int ctCount = GetTeamPlayerCount(CsTeam.CounterTerrorist);
-            int tCount = GetTeamPlayerCount(CsTeam.Terrorist);
-
-            int targetCt = autoPauseShortAccepted ? acceptedCtCount : minP;
-            int targetT = autoPauseShortAccepted ? acceptedTCount : minP;
-
-            // 只要第一秒發現少人，直接無情觸發戰術暫停
-            if (ctCount < targetCt) AutoTriggerTacPause(CsTeam.CounterTerrorist);
-            else if (tCount < targetT) AutoTriggerTacPause(CsTeam.Terrorist);
+            EvaluateAutoPauseCondition();
         });
 
         return HookResult.Continue;
@@ -661,22 +715,84 @@ public partial class MatchZy
     {
         ResetTechPauseCount();
         ResetTacPauseCount();
+        StopAutoPauseCheck();
         return HookResult.Continue;
     }
 
     public bool IsAutoPauseActive()
     {
-        int totalPlayers = GetTeamPlayerCount(CsTeam.CounterTerrorist) + GetTeamPlayerCount(CsTeam.Terrorist);
+        int ctCount = GetTeamPlayerCount(CsTeam.CounterTerrorist);
+        int tCount = GetTeamPlayerCount(CsTeam.Terrorist);
+        int totalPlayers = ctCount + tCount;
         
-        if (totalPlayers > autoPausePeakHumans)
-        {
-            autoPausePeakHumans = totalPlayers;
-        }
-        
-        return autoPausePeakHumans >= (2 * Math.Max(1, AutoPauseMinPlayers));
+        if (totalPlayers > autoPausePeakHumans) autoPausePeakHumans = totalPlayers;
+
+        string ctKey = GetTeamKeyBySide(CsTeam.CounterTerrorist);
+        string tKey = GetTeamKeyBySide(CsTeam.Terrorist);
+
+        if (!teamPeakHumans.ContainsKey(ctKey) || ctCount > teamPeakHumans[ctKey])
+            teamPeakHumans[ctKey] = ctCount;
+        if (!teamPeakHumans.ContainsKey(tKey) || tCount > teamPeakHumans[tKey])
+            teamPeakHumans[tKey] = tCount;
+
+        int minP = Math.Max(1, AutoPauseMinPlayers);
+        int ctBase = Math.Min(teamPeakHumans[ctKey], minP);
+        int tBase = Math.Min(teamPeakHumans[tKey], minP);
+
+        // 若少人同意繼續後，斷線玩家又連回來補滿基準人數，自動解除「少人妥協狀態」恢復正常保護
+        if (teamAcceptedCount.TryGetValue(ctKey, out int accCt) && accCt != -1 && ctCount >= ctBase)
+            teamAcceptedCount[ctKey] = -1;
+        if (teamAcceptedCount.TryGetValue(tKey, out int accT) && accT != -1 && tCount >= tBase)
+            teamAcceptedCount[tKey] = -1;
+
+        // 只要任一隊伍曾經達到 2 人以上（或達到 minP），即啟動自動暫停系統
+        return teamPeakHumans["matchzyTeam1"] >= Math.Min(2, minP) || 
+               teamPeakHumans["matchzyTeam2"] >= Math.Min(2, minP);
     }
 
-    // 新增遺漏的停止檢查函數，修復錯誤
+    private void EvaluateAutoPauseCondition()
+    {
+        if (!isMatchLive || !AutoPauseEnabled) return;
+        if (IsHalfTimePhase() || IsPostGamePhase()) return;
+
+        CCSGameRules? gameRules = null;
+        foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
+        {
+            if (entity is { GameRules: not null } proxy)
+            {
+                gameRules = proxy.GameRules;
+                break;
+            }
+        }
+
+        // ★ 核心：一旦買槍凍結時間結束（回合正式開打），立刻關掉計時器下班，交戰期間 0 負載！
+        if (gameRules != null && !IsFreezePeriodSafe(gameRules))
+        {
+            StopAutoPauseCheck();
+            return;
+        }
+
+        if (!IsAutoPauseActive()) return;
+
+        int ctCount = GetTeamPlayerCount(CsTeam.CounterTerrorist);
+        int tCount = GetTeamPlayerCount(CsTeam.Terrorist);
+
+        int targetCt = GetSideTargetPlayers(CsTeam.CounterTerrorist);
+        int targetT = GetSideTargetPlayers(CsTeam.Terrorist);
+
+        if (ctCount >= targetCt && tCount >= targetT)
+        {
+            autoPauseLimitAnnounced = false;
+            return;
+        }
+
+        if (isPaused) return;
+        if (IsOfficialTacActiveSafe(gameRules)) return;
+
+        if (targetCt > 0 && ctCount < targetCt) AutoTriggerTacPause(CsTeam.CounterTerrorist);
+        else if (targetT > 0 && tCount < targetT) AutoTriggerTacPause(CsTeam.Terrorist);
+    }
+
     public void StopAutoPauseCheck()
     {
         if (autoPauseMainTimer != null)
@@ -689,52 +805,10 @@ public partial class MatchZy
     public void StartAutoPauseCheck()
     {
         StopAutoPauseCheck();
-        autoPausePeakHumans = 0;
-
-        autoPauseMainTimer = AddTimer(10.0f, () =>
+        // 僅在回合凍結時間內每 1.0 秒檢查一次，凍結結束後由 EvaluateAutoPauseCondition 自動關閉
+        autoPauseMainTimer = AddTimer(1.0f, () =>
         {
-            if (!isMatchLive) return;
-            if (!AutoPauseEnabled) return;
-            if (IsHalfTimePhase() || IsPostGamePhase()) return;
-
-            if (!IsAutoPauseActive()) return; 
-
-            int minP = AutoPauseMinPlayers;
-            int ctCount = GetTeamPlayerCount(CsTeam.CounterTerrorist);
-            int tCount = GetTeamPlayerCount(CsTeam.Terrorist);
-
-            if (autoPauseShortAccepted && ctCount >= minP && tCount >= minP)
-            {
-                autoPauseShortAccepted = false;
-            }
-
-            int targetCt = autoPauseShortAccepted ? acceptedCtCount : minP;
-            int targetT = autoPauseShortAccepted ? acceptedTCount : minP;
-
-            if (ctCount >= targetCt && tCount >= targetT)
-            {
-                autoPauseLimitAnnounced = false; 
-                return;
-            }
-
-            if (isPaused) return;
-
-            CCSGameRules? gameRules = null;
-            foreach (var entity in Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules"))
-            {
-                if (entity is { GameRules: not null } proxy)
-                {
-                    gameRules = proxy.GameRules;
-                    break;
-                }
-            }
-            
-            if (gameRules != null && !IsFreezePeriodSafe(gameRules)) return;
-            if (IsOfficialTacActiveSafe(gameRules)) return;
-
-            if (ctCount < targetCt) AutoTriggerTacPause(CsTeam.CounterTerrorist);
-            else if (tCount < targetT) AutoTriggerTacPause(CsTeam.Terrorist);
-
+            EvaluateAutoPauseCondition();
         }, TimerFlags.REPEAT);
     }
 
@@ -744,7 +818,6 @@ public partial class MatchZy
         
         Team matchTeam = (team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         
-        // 修正：從記憶體指標比較，改為字串比較，免疫 OT 物件複製 BUG
         string teamKey = "";
         if (matchzyTeam1 != null && matchTeam.teamName == matchzyTeam1.teamName) teamKey = "matchzyTeam1";
         else if (matchzyTeam2 != null && matchTeam.teamName == matchzyTeam2.teamName) teamKey = "matchzyTeam2";
@@ -812,12 +885,12 @@ public partial class MatchZy
                 return;
             }
 
-            int minP = AutoPauseMinPlayers;
+            IsAutoPauseActive();
             int ctCount = GetTeamPlayerCount(CsTeam.CounterTerrorist);
             int tCount = GetTeamPlayerCount(CsTeam.Terrorist);
 
-            int targetCt = autoPauseShortAccepted ? acceptedCtCount : minP;
-            int targetT = autoPauseShortAccepted ? acceptedTCount : minP;
+            int targetCt = GetSideTargetPlayers(CsTeam.CounterTerrorist);
+            int targetT = GetSideTargetPlayers(CsTeam.Terrorist);
 
             if (isAutoTriggeredTacPause && ctCount >= targetCt && tCount >= targetT)
             {
