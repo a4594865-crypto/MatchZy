@@ -850,7 +850,7 @@ public partial class MatchZy
             if (!autoPauseLimitAnnounced)
             {
                 string phaseStr = isOvertime ? " 加時賽 " : "";
-                PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 因 {ChatColors.Orange}人員離線{ChatColors.Default} 戰術暫停已用完 ({phaseStr})"
+                PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 因 {ChatColors.Orange}人員離線{ChatColors.Default} 戰術暫停已用完 ({phaseStr})");
                 autoPauseLimitAnnounced = true;
             }
             return;
@@ -870,7 +870,7 @@ public partial class MatchZy
         unpData["ct"] = false;
 
         string phasePrefix = isOvertime ? " 加時賽 " : "";
-        PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} {ChatColors.Orange}人員離線{ChatColors.Default} 觸發 {phasePrefix}暫停 剩餘：{ChatColors.Green}{remainingCount}{ChatColors.Default}次"
+        PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} {ChatColors.Orange}人員離線{ChatColors.Default} 觸發 {phasePrefix}暫停 剩餘：{ChatColors.Green}{remainingCount}{ChatColors.Default}次");
         PrintToAllChat($" 暫 停 在 \u0004{durationLimit}秒\u0001 自 動 解 除，或 雙 方 輸 入 {ChatColors.Orange}.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
