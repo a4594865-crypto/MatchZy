@@ -11,13 +11,13 @@ namespace MatchZy
     public partial class MatchZy
     {
         // ==========================================
-        // 核心數據區 (極致輕量，純整數儲存)
+        // 核心數據區 (極致輕量，純整數儲存 + 預先配置容量)
         // ==========================================
-        public Dictionary<int, Dictionary<int, int>> playerDamageInfo = new Dictionary<int, Dictionary<int, int>>();
-        public Dictionary<int, int> playerKillers = new Dictionary<int, int>();
-        public Dictionary<int, int> playerLastHealth = new Dictionary<int, int>();
+        public Dictionary<int, Dictionary<int, int>> playerDamageInfo = new(64);
+        public Dictionary<int, int> playerKillers = new(64);
+        public Dictionary<int, int> playerLastHealth = new(64);
         
-        public Dictionary<int, Dictionary<int, int>> playerHitInfo = new Dictionary<int, Dictionary<int, int>>();
+        public Dictionary<int, Dictionary<int, int>> playerHitInfo = new(64);
 
         // 【新增】回合狀態追蹤，精準阻斷回合結算畫面後的無效記錄
         private bool _isRoundLive = false;
@@ -45,10 +45,27 @@ namespace MatchZy
         // ==========================================
         public void InitPlayerDamageInfo()
         {
-            playerDamageInfo.Clear();
+            // 【核心 0-GC 優化】：保留內層字典實例並僅清空內部數值，徹底消滅對槍開火瞬間的 new Dictionary 記憶體配置！
+            if (playerDamageInfo.Count > 64)
+            {
+                playerDamageInfo.Clear();
+            }
+            else
+            {
+                foreach (var dict in playerDamageInfo.Values) dict.Clear();
+            }
+
+            if (playerHitInfo.Count > 64)
+            {
+                playerHitInfo.Clear();
+            }
+            else
+            {
+                foreach (var dict in playerHitInfo.Values) dict.Clear();
+            }
+
             playerKillers.Clear();
             playerLastHealth.Clear();
-            playerHitInfo.Clear(); 
         }
 
         public void ShowDamageInfo()
@@ -69,12 +86,13 @@ namespace MatchZy
 
             if (!IsPlayerValidDamage(attacker) || !IsPlayerValidDamage(victim)) return HookResult.Continue;
             
-            if (attacker!.UserId == null || victim!.UserId == null) return HookResult.Continue;
+            // 【0-GC 優化】：單次讀取 UserId 並轉為純整數，省去重複 6 次跨 C++ 底層查詢
+            if (attacker!.UserId is not int attackerId || victim!.UserId is not int victimId) return HookResult.Continue;
             
-            if (attacker.UserId == victim.UserId) return HookResult.Continue;
+            if (attackerId == victimId) return HookResult.Continue;
             if (attacker.TeamNum == victim.TeamNum) return HookResult.Continue;
 
-            playerKillers[(int)victim.UserId] = (int)attacker.UserId;
+            playerKillers[victimId] = attackerId;
             return HookResult.Continue;
         }
 
@@ -87,21 +105,17 @@ namespace MatchZy
             if (!_isRoundLive || isWarmup || isKnifeRound) return;
 
             CCSPlayerController? attacker = @event.Attacker;
-            if (attacker == null) return;
-            
-            if (attacker.UserId == null) return;
-            
-            int attackerId = (int)attacker.UserId;
+            if (attacker?.UserId is not int attackerId) return;
 
             if (!playerDamageInfo.TryGetValue(attackerId, out var attackerInfo))
             {
-                attackerInfo = new Dictionary<int, int>();
+                attackerInfo = new Dictionary<int, int>(16);
                 playerDamageInfo[attackerId] = attackerInfo;
             }
 
             if (!playerHitInfo.TryGetValue(attackerId, out var hitInfo))
             {
-                hitInfo = new Dictionary<int, int>();
+                hitInfo = new Dictionary<int, int>(16);
                 playerHitInfo[attackerId] = hitInfo;
             }
 
@@ -134,9 +148,7 @@ namespace MatchZy
             // 【核心阻斷】：加上暖身與刀戰的雙重保險防呆
             if (!_isRoundLive || isWarmup || isKnifeRound) return;
 
-            if (player.UserId == null) return;
-            
-            int callerId = (int)player.UserId;
+            if (player.UserId is not int callerId) return;
 
             if (!playerKillers.TryGetValue(callerId, out int killerId)) return;
 
