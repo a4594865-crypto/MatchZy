@@ -61,7 +61,6 @@ namespace MatchZy
 
         // ▼▼▼ 準備階段記分板標籤計時器 ▼▼▼
         public CounterStrikeSharp.API.Modules.Timers.Timer? clanTagTimer = null;
-        private bool _readyClanTagsCleared = false;
 
         // ▼▼▼ 新增：阻擋 CS2 引擎洗掉標籤的記憶體攔截器 ▼▼▼
         public MemoryFunctionVoid<CCSPlayerController, uint, string> SetClanFunc = new("CCSPlayerController::SetClan");
@@ -157,7 +156,6 @@ namespace MatchZy
 
             // ▼▼▼ 啟動記分板標籤計時器 ▼▼▼
             clanTagTimer?.Kill();
-            _readyClanTagsCleared = false;
             clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
 
             // ▼▼▼ 新增：啟動記憶體攔截盾牌，防止引擎覆蓋準備標籤 ▼▼▼
@@ -365,7 +363,6 @@ namespace MatchZy
 
                     // ▼▼▼ Clan Tag 修復：斷線重置時同步清除標籤並重啟計時器 ▼▼▼
                     clanTagTimer?.Kill();
-                    _readyClanTagsCleared = false;
                     clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
                     ClearReadyClanTags();
                     // ▲▲▲ ▲▲▲ ▲▲▲
@@ -558,7 +555,6 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
 
         // ▼▼▼ 啟動記分板標籤計時器 ▼▼▼
         clanTagTimer?.Kill();
-        _readyClanTagsCleared = false;
         clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
         // ▲▲▲ ▲▲▲ ▲▲▲
 
@@ -597,6 +593,9 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 return HookResult.Continue;
             });
 
+            AddCommandListener("noclip", OnConsoleNoClip);
+
+            
             RegisterEventHandler<EventPlayerHurt>((@event, info) =>
             {
                 CCSPlayerController? attacker = @event.Attacker;
@@ -990,17 +989,13 @@ private void UpdateReadyClanTags()
             // ▼ 核心修正：加入 !isWarmup，只要不是熱身階段（包含勝利結算畫面），絕對不顯示準備標籤並立刻清空
             if (!isWarmup || !readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
             {
-                if (!_readyClanTagsCleared)
-                {
-                    _readyClanTagsCleared = true;
-                    ClearReadyClanTags();
-                }
+                ClearReadyClanTags();
                 return;
             }
 
-            _readyClanTagsCleared = false;
-
             Server.NextFrame(() => {
+                HashSet<CCSPlayerController> coaches = GetAllCoaches();
+
                 foreach (var p in Utilities.GetPlayers())
                 {
                     if (p is not { IsValid: true, IsBot: false, IsHLTV: false } || !p.UserId.HasValue) 
@@ -1017,7 +1012,7 @@ private void UpdateReadyClanTags()
                     }
 
                     // ▼ 若該玩家是教練，在熱身階段也強制維持 [反恐教練] / [恐怖教練]，不被 ✔ 或 ✖ 覆蓋
-                    if (matchzyTeam1.coach.Contains(p) || matchzyTeam2.coach.Contains(p))
+                    if (coaches.Contains(p))
                     {
                         string coachTag = p.TeamNum == 3 ? " 教 練 " : " 教 練 ";
                         if (p.Clan != coachTag)
@@ -1063,7 +1058,7 @@ private void UpdateReadyClanTags()
         {
             // 1. 如果這名玩家是教練，永遠阻擋 CS2 引擎用他的 Steam 群組標籤蓋掉 [反恐教練] / [恐怖教練]
             var player = hook.GetParam<CCSPlayerController>(0);
-            if (player is { IsValid: true } && (matchzyTeam1.coach.Contains(player) || matchzyTeam2.coach.Contains(player)))
+            if (player is { IsValid: true } && GetAllCoaches().Contains(player))
             {
                 return HookResult.Handled;
             }
@@ -1143,7 +1138,7 @@ public void OnShuffleCommand(CCSPlayerController? player, CommandInfo? command) 
     // 完美修正：把廣播包起來，判斷是誰下達的指令！
     if (player != null) {
         // 1. 真人管理員手手動輸入 ➔ 聊天室廣播給大家聽
-        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 動 洗 牌");
+        Server.PrintToChatAll($"{chatPrefix} 管 理 員「 {ChatColors.Lime}已 開 啟 隨 機 隊 伍 分 配 {ChatColors.Default}」 將 自 自動 洗 牌");
         
         // 2. ★ 修正：使用 PrintToCenter 來顯示畫面下方提示 ★
         foreach (var p in Utilities.GetPlayers())
