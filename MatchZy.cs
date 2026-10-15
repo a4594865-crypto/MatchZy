@@ -673,7 +673,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
                 
                 // ▼ 防呆（.NET 10 零 GC 配置）：若為教練身分，直接攔截 .r 並回傳 Handled，不觸發洗牌也不往下傳遞
                 if (matchzyTeam1.coach.Contains(chatPlayer) || matchzyTeam2.coach.Contains(chatPlayer)) {
-                    PrintToPlayerChat(chatPlayer, $" 你 目 前 為 {ChatColors.Green}教練身分{ChatColors.Default}，無 需 輸 入 {ChatColors.Green}.R{ChatColors.Default} 準 備！");
+                    PrintToPlayerChat(chatPlayer, $" 你 目 前 為 {ChatColors.Green}教練身分{ChatColors.Default}，無 需 輸 入 {ChatColors.Green}.R{ChatColors.Default} 準 備");
                     return HookResult.Handled;
                 }
 
@@ -769,7 +769,7 @@ RegisterListener<Listeners.OnMapStart>(mapName => {
         // 把 isSideSelectionPhase 一併加入鎖定條件
         if (isMatchSetup || isSideSelectionPhase)
         {
-            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}正 式 比 賽 或 選 邊 期 間{ChatColors.Default}，禁止更換！");
+            Server.PrintToChatAll($"{chatPrefix} {ChatColors.Orange}正 式 比 賽 或 選 邊 期 間{ChatColors.Default}，禁止更換");
             return HookResult.Continue;
         }
         HandleMapChangeCommand(player, messageCommandArg);
