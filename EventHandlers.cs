@@ -6,6 +6,9 @@ namespace MatchZy;
 
 public partial class MatchZy
 {
+    // 【0-GC 優化】：靜態共用零向量，避免在教練傳送時重複 new Vector(0, 0, 0)
+    private static readonly Vector _zeroVector = new(0, 0, 0);
+
     public HookResult EventPlayerConnectFullHandler(EventPlayerConnectFull @event, GameEventInfo info)
     {
         try
@@ -73,16 +76,17 @@ public partial class MatchZy
             // 【修正】：直接使用 is not int 攔截 null
             if (player!.UserId is not int userId) return HookResult.Continue;
 
-            // 斷開連線時立刻釋放 UserId 佔用的 Slot 資源
-            if (playerReadyStatus.ContainsKey(userId))
+            // 【0-GC 優化】：單次雜湊查找完成移除與判斷，免除 ContainsKey + Remove 雙重查找
+            if (playerReadyStatus.Remove(userId))
             {
-                playerReadyStatus.Remove(userId);
                 connectedPlayers--;
             }
             playerData.Remove(userId);
 
-            if (matchzyTeam1.coach.Contains(player)) matchzyTeam1.coach.Remove(player);
-            else if (matchzyTeam2.coach.Contains(player)) matchzyTeam2.coach.Remove(player);
+            if (!matchzyTeam1.coach.Remove(player))
+            {
+                matchzyTeam2.coach.Remove(player);
+            }
             
             noFlashList.Remove(userId);
             lastGrenadesData.Remove(userId);
@@ -136,21 +140,34 @@ public partial class MatchZy
         try
         {
             if (!matchStarted) return HookResult.Continue;
+
+            // 【0-GC 優化】：若兩隊皆無教練，直接跳出，避免每局凍結結束瞬間呼叫 GetAllCoaches() 配置新 HashSet
+            if (matchzyTeam1.coach.Count == 0 && matchzyTeam2.coach.Count == 0) return HookResult.Continue;
+
             HashSet<CCSPlayerController> coaches = GetAllCoaches();
 
             foreach (var coach in coaches)
             {
                 if (!IsPlayerValid(coach)) continue;
-                if (coach.PlayerPawn.Value?.LifeState != (byte)LifeState_t.LIFE_ALIVE) continue;
+                var pawn = coach.PlayerPawn.Value;
+                if (pawn == null || pawn.LifeState != (byte)LifeState_t.LIFE_ALIVE) continue;
+                var sceneNode = pawn.CBodyComponent?.SceneNode;
+                if (sceneNode == null) continue;
 
-                Position coachPosition = new(coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsOrigin, coach.PlayerPawn.Value!.CBodyComponent!.SceneNode!.AbsRotation);
-                coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
+                Position coachPosition = new(sceneNode.AbsOrigin, sceneNode.AbsRotation);
+                Vector elevatedPos = new(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f);
+                pawn.Teleport(elevatedPos, coachPosition.PlayerAngle, _zeroVector);
+
                 AddTimer(1.5f, () =>
                 {
-                    coach!.PlayerPawn.Value!.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, new Vector(0, 0, 0));
+                    if (!IsPlayerValid(coach) || coach.PlayerPawn.Value == null) return;
+                    coach.PlayerPawn.Value.Teleport(new Vector(coachPosition.PlayerPosition.X, coachPosition.PlayerPosition.Y, coachPosition.PlayerPosition.Z + 20.0f), coachPosition.PlayerAngle, _zeroVector);
                     CsTeam oldTeam = GetCoachTeam(coach);
                     coach.ChangeTeam(CsTeam.Spectator);
-                    AddTimer(0.01f, () => coach.ChangeTeam(oldTeam));
+                    AddTimer(0.01f, () =>
+                    {
+                        if (IsPlayerValid(coach)) coach.ChangeTeam(oldTeam);
+                    });
                 });
             }
             return HookResult.Continue;
@@ -165,11 +182,12 @@ public partial class MatchZy
     public HookResult EventPlayerGivenC4(EventPlayerGivenC4 @event, GameEventInfo info) {
         try {
             if (!matchStarted) return HookResult.Continue;
-            if (@event.Userid is null) return HookResult.Continue;
-            var recv = @event.Userid;
+            if (!reverseTeamSides.TryGetValue("TERRORIST", out var tTeam) || tTeam.coach.Count == 0) return HookResult.Continue;
 
-            var coaches = reverseTeamSides["TERRORIST"].coach;
-            if (coaches.Contains(recv)) {
+            var recv = @event.Userid;
+            if (recv is null) return HookResult.Continue;
+
+            if (tTeam.coach.Contains(recv)) {
                 TransferCoachBomb(recv);
             }
         } catch (Exception e) {
@@ -183,9 +201,11 @@ public partial class MatchZy
         try
         {
             if (!isPractice || entity is not { Entity: not null }) return;
-            if (!Constants.ProjectileTypeMap.ContainsKey(entity.Entity.DesignerName)) return;
+            // 【0-GC 優化】：單次 TryGetValue 取得 nadeType，避免在 NextFrame 內重複跨 C++ 轉換 DesignerName 字串與二次查表
+            if (!Constants.ProjectileTypeMap.TryGetValue(entity.Entity.DesignerName, out string? nadeType)) return;
 
             Server.NextFrame(() => {
+                if (!entity.IsValid) return;
                 CBaseCSGrenadeProjectile projectile = new(entity.Handle);
 
                 if (projectile is not { IsValid: true, Thrower: { IsValid: true, Value.Controller.Value: not null }, Globalname: not "custom" }) return;
@@ -193,20 +213,21 @@ public partial class MatchZy
                 CCSPlayerController player = new(projectile.Thrower.Value.Controller.Value.Handle);
                 
                 if (player is not { IsValid: true, PlayerPawn: { IsValid: true, Value: not null } }) return;
-                int client = player.UserId!.Value;
+                if (player.UserId is not int client) return;
                 
                 Vector position = new(projectile.AbsOrigin!.X, projectile.AbsOrigin.Y, projectile.AbsOrigin.Z);
                 QAngle angle = new(projectile.AbsRotation!.X, projectile.AbsRotation.Y, projectile.AbsRotation.Z);
                 Vector velocity = new(projectile.AbsVelocity.X, projectile.AbsVelocity.Y, projectile.AbsVelocity.Z);
-                string nadeType = Constants.ProjectileTypeMap[entity.Entity.DesignerName];
 
-                if (!lastGrenadesData.ContainsKey(client)) {
-                    lastGrenadesData[client] = [];
+                if (!lastGrenadesData.TryGetValue(client, out var playerLastGrenades)) {
+                    playerLastGrenades = [];
+                    lastGrenadesData[client] = playerLastGrenades;
                 }
 
-                if (!nadeSpecificLastGrenadeData.ContainsKey(client))
+                if (!nadeSpecificLastGrenadeData.TryGetValue(client, out var playerNadeSpecific))
                 {
-                    nadeSpecificLastGrenadeData[client] = [];
+                    playerNadeSpecific = [];
+                    nadeSpecificLastGrenadeData[client] = playerNadeSpecific;
                 }
 
                 GrenadeThrownData lastGrenadeThrown = new(
@@ -220,21 +241,22 @@ public partial class MatchZy
                     projectile.ItemIndex
                 );
 
-                nadeSpecificLastGrenadeData[client][nadeType] = lastGrenadeThrown;
-                lastGrenadesData[client].Add(lastGrenadeThrown);
+                playerNadeSpecific[nadeType] = lastGrenadeThrown;
+                playerLastGrenades.Add(lastGrenadeThrown);
 
-                if (maxLastGrenadesSavedLimit != 0 && lastGrenadesData[client].Count > maxLastGrenadesSavedLimit)
+                if (maxLastGrenadesSavedLimit != 0 && playerLastGrenades.Count > maxLastGrenadesSavedLimit)
                 {
-                    lastGrenadesData[client].RemoveAt(0);
+                    playerLastGrenades.RemoveAt(0);
                 }
 
                 lastGrenadeThrownTime[(int)projectile.Index] = DateTime.Now;
                 if (smokeColorEnabled.Value && nadeType == "smoke")
                 {
                     CSmokeGrenadeProjectile smokeProjectile = new(entity.Handle);
-                    smokeProjectile.SmokeColor.X = GetPlayerTeammateColor(player).R;
-                    smokeProjectile.SmokeColor.Y = GetPlayerTeammateColor(player).G;
-                    smokeProjectile.SmokeColor.Z = GetPlayerTeammateColor(player).B;
+                    var teamColor = GetPlayerTeammateColor(player);
+                    smokeProjectile.SmokeColor.X = teamColor.R;
+                    smokeProjectile.SmokeColor.Y = teamColor.G;
+                    smokeProjectile.SmokeColor.Z = teamColor.B;
                 }
             });
         }
@@ -249,10 +271,13 @@ public partial class MatchZy
         try
         {
             if (!matchStarted) return HookResult.Continue;
+            // 【核心 0-GC 優化】：若場上無任何教練，直接返回，免除每次擊殺時跨 C++ 底層包裝 @event.Attacker 與 @event.Userid 物件！
+            if (matchzyTeam1.coach.Count == 0 && matchzyTeam2.coach.Count == 0) return HookResult.Continue;
 
-            if (@event.Attacker == @event.Userid)
+            CCSPlayerController? attacker = @event.Attacker;
+            if (attacker != null && attacker == @event.Userid)
             {
-                if (matchzyTeam1.coach.Contains(@event.Attacker!) || matchzyTeam2.coach.Contains(@event.Attacker!))
+                if (matchzyTeam1.coach.Contains(attacker) || matchzyTeam2.coach.Contains(attacker))
                 {
                     info.DontBroadcast = true;
                 }
