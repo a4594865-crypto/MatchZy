@@ -37,14 +37,10 @@ namespace MatchZy
         public string backupUploadHeaderKey = "";
         public string backupUploadHeaderValue = "";
 
-        public void SetupRoundBackupFile()
+       public void SetupRoundBackupFile()
         {
-            // 建立並確認 MatchZyTXT 資料夾
-            string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyTXT");
-            if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
-
-            // 使用絕對路徑強制寫入 MatchZyTXT (將 \ 轉 / 確保引擎讀取正常)
-            string backupFilePrefix = Path.Combine(backupDir, $"{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}").Replace("\\", "/");
+            // 【修復版】：還原回 CS2 官方預設路徑，讓遊戲引擎能夠正常寫入官方 TXT 回合備份檔
+            string backupFilePrefix = $"{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}";
             Server.ExecuteCommand($"mp_backup_round_file \"{backupFilePrefix}\"");
         }
 
