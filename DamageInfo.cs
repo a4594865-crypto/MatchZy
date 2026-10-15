@@ -72,30 +72,7 @@ namespace MatchZy
         {
         }
 
-        // ==========================================
-        // 擊殺者追蹤 (獨立攔截玩家死亡事件)
-        // ==========================================
-        [GameEventHandler(HookMode.Post)]
-        public HookResult OnPlayerDeath_DamageInfo(EventPlayerDeath @event, GameEventInfo info)
-        {
-            // 【終極效能優化】：如果回合已結束，或處於暖身/刀戰期間，直接拒絕寫入記憶體！
-            if (!_isRoundLive || isWarmup || isKnifeRound) return HookResult.Continue;
-
-            CCSPlayerController? attacker = @event.Attacker;
-            CCSPlayerController? victim = @event.Userid;
-
-            if (!IsPlayerValidDamage(attacker) || !IsPlayerValidDamage(victim)) return HookResult.Continue;
-            
-            // 【0-GC 優化】：單次讀取 UserId 並轉為純整數，省去重複 6 次跨 C++ 底層查詢
-            if (attacker!.UserId is not int attackerId || victim!.UserId is not int victimId) return HookResult.Continue;
-            
-            if (attackerId == victimId) return HookResult.Continue;
-            if (attacker.TeamNum == victim.TeamNum) return HookResult.Continue;
-
-            playerKillers[victimId] = attackerId;
-            return HookResult.Continue;
-        }
-
+       
         // ==========================================
         // 核心算法區：血量追蹤與傷害計算
         // ==========================================
