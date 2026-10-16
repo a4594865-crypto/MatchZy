@@ -14,6 +14,11 @@ namespace MatchZy
 {
     public partial class MatchZy
     {
+        // 【0-GC 核心優化】：靜態共用 JsonSerializerOptions，避免每回合備份重複建立反射快取 (CA1869)
+        private static readonly JsonSerializerOptions _jsonAllowTrailingCommasOptions = new() { AllowTrailingCommas = true };
+        private static readonly JsonSerializerOptions _jsonWriteIndentedOptions = new() { WriteIndented = true };
+        private static readonly char[] _pathSeparators = ['\\', '/'];
+
         // ▼ 新增變數：TXT 備份檔名前綴，預設保持為 matchzy
         public string txtBackupPrefix = "matchzy";
 
@@ -37,16 +42,16 @@ namespace MatchZy
         public string backupUploadHeaderKey = "";
         public string backupUploadHeaderValue = "";
 
-       public void SetupRoundBackupFile()
-{
-    // 建立並確認 MatchZyTXT 資料夾
-    string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyTXT");
-    if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
+        public void SetupRoundBackupFile()
+        {
+            // 建立並確認 MatchZyTXT 資料夾
+            string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyTXT");
+            if (!Directory.Exists(backupDir)) Directory.CreateDirectory(backupDir);
 
-    // 改用相對於 csgo 資料夾的相對路徑格式
-    string backupFilePrefix = $"MatchZyTXT/{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}";
-    Server.ExecuteCommand($"mp_backup_round_file \"{backupFilePrefix}\"");
-}
+            // 改用相對於 csgo 資料夾的相對路徑格式
+            string backupFilePrefix = $"MatchZyTXT/{txtBackupPrefix}_{liveMatchId}_{matchConfig.CurrentMapNumber}";
+            Server.ExecuteCommand($"mp_backup_round_file \"{backupFilePrefix}\"");
+        }
 
         // ▼ 新增指令：用來讀取 cfg 設定並更改 TXT 前綴名稱
         [ConsoleCommand("matchzy_txt_prefix", "設定 TXT 備份檔案的開頭名稱")]
@@ -98,19 +103,13 @@ namespace MatchZy
                 {
                     stopTeamName = reverseTeamSides["TERRORIST"].teamName;
                     remainingStopTeam = reverseTeamSides["CT"].teamName;
-                    if (!stopData["t"])
-                    {
-                        stopData["t"] = true;
-                    }
+                    stopData["t"] = true;
                 }
                 else if (player.TeamNum == 3)
                 {
                     stopTeamName = reverseTeamSides["CT"].teamName;
                     remainingStopTeam = reverseTeamSides["TERRORIST"].teamName;
-                    if (!stopData["ct"])
-                    {
-                        stopData["ct"] = true;
-                    }
+                    stopData["ct"] = true;
                 }
                 else
                 {
@@ -191,7 +190,7 @@ namespace MatchZy
             int jsonIndex = input.IndexOf(".json", StringComparison.OrdinalIgnoreCase);
             if (jsonIndex != -1)
             {
-                int startIndex = input.LastIndexOfAny(['\\', '/'], jsonIndex);
+                int startIndex = input.LastIndexOfAny(_pathSeparators, jsonIndex);
 
                 if (startIndex >= 0)
                 {
@@ -246,8 +245,7 @@ namespace MatchZy
                     string jsonContent = fileReader.ReadToEnd();
                     if (!string.IsNullOrEmpty(jsonContent))
                     {
-                        JsonSerializerOptions options = new() { AllowTrailingCommas = true };
-                        backupData = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? [];
+                        backupData = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, _jsonAllowTrailingCommasOptions) ?? [];
                     }
                 }
 
@@ -424,13 +422,15 @@ namespace MatchZy
                 string team2ConfigStr = GetTeamConfig("team2");
                 string matchConfigStr = GetMatchConfig();
 
-                // 準備寫入路徑
+                // 準備寫入路徑，同時更新類別欄位確保 .stop 指令能找到最新備份檔
                 string backupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyTXT");
-                string lastBackupFileName = $"{txtBackupPrefix}_{currentMatchId}_{currentMapNumber}_round{round}.txt";
-                string lastBackupFilePath = Path.Combine(backupDir, lastBackupFileName);
+                string currentTxtBackupFileName = $"{txtBackupPrefix}_{currentMatchId}_{currentMapNumber}_round{round}.txt";
+                lastBackupFileName = currentTxtBackupFileName;
+                string lastBackupFilePath = Path.Combine(backupDir, currentTxtBackupFileName);
 
                 string jsonBackupDir = Path.Combine(Server.GameDirectory, "csgo", "MatchZyDataBackup");
                 string matchZyBackupFileName = $"matchzy_{currentMatchId}_{currentMapNumber}_round{round}.json";
+                lastMatchZyBackupFileName = matchZyBackupFileName;
                 string jsonFilePath = Path.Combine(jsonBackupDir, matchZyBackupFileName);
 
                 string bUploadURL = backupUploadURL;
@@ -450,7 +450,7 @@ namespace MatchZy
                             ? await File.ReadAllTextAsync(lastBackupFilePath) 
                             : "";
 
-                        Dictionary<string, string> roundData = new()
+                        Dictionary<string, string> roundData = new(24)
                         {
                             { "matchid", currentMatchId.ToString() },
                             { "timestamp", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") },
@@ -478,9 +478,8 @@ namespace MatchZy
                             { "valve_backup", valveBackupContent }
                         };
 
-                        // 非同步寫入 JSON，徹底解放主執行緒
-                        JsonSerializerOptions options = new() { WriteIndented = true };
-                        string defaultJson = JsonSerializer.Serialize(roundData, options);
+                        // 非同步寫入 JSON，使用靜態共用 Options 徹底解放主執行緒與反射快取
+                        string defaultJson = JsonSerializer.Serialize(roundData, _jsonWriteIndentedOptions);
 
                         await File.WriteAllTextAsync(jsonFilePath, defaultJson);
 
@@ -507,17 +506,13 @@ namespace MatchZy
             if (!Directory.Exists(backupDir)) return [];
 
             var directoryInfo = new DirectoryInfo(backupDir);
-            var files = directoryInfo.GetFiles();
-
             var pattern = $"matchzy_{matchID}_";
-            List<string> backups = []; // 【.NET 10】: 集合表達式 []
+            List<string> backups = [];
 
-            foreach (var file in files)
+            // 【0-GC 優化】：使用 EnumerateFiles 在作業系統層級過濾，避免 GetFiles() 一次性配置所有歷史備份檔的 FileInfo 陣列
+            foreach (var file in directoryInfo.EnumerateFiles($"*{pattern}*"))
             {
-                if (file.Name.Contains(pattern))
-                {
-                    backups.Add(file.FullName);
-                }
+                backups.Add(file.FullName);
             }
 
             backups.Sort((x, y) => string.Compare(y, x, StringComparison.Ordinal));
@@ -541,12 +536,15 @@ namespace MatchZy
                     }
                     else
                     {
-                        JsonSerializerOptions options = new() { AllowTrailingCommas = true };
-                        backupData = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, options) ?? [];
+                        backupData = JsonSerializer.Deserialize<Dictionary<string, string>>(jsonContent, _jsonAllowTrailingCommasOptions) ?? [];
                     }
                 }
 
-                info = $"{filePath.Split("/")[^1]} {backupData["timestamp"]} {backupData["team1_name"]} {backupData["team2_name"]} {backupData["map_name"]} {backupData["team1_score"]} {backupData["team2_score"]}";
+                // 【0-GC 優化】：消除 filePath.Split("/")[^1] 產生的 string[] 陣列垃圾
+                int lastSlash = filePath.LastIndexOf('/');
+                string fileNameOnly = lastSlash >= 0 ? filePath[(lastSlash + 1)..] : filePath;
+
+                info = $"{fileNameOnly} {backupData["timestamp"]} {backupData["team1_name"]} {backupData["team2_name"]} {backupData["map_name"]} {backupData["team1_score"]} {backupData["team2_score"]}";
             }
             catch (Exception e)
             {
@@ -603,7 +601,7 @@ namespace MatchZy
             }
             try
             {
-                HttpClient httpClient = new();
+                using HttpClient httpClient = new();
                 if (headerName != "")
                 {
                     httpClient.DefaultRequestHeaders.Add(headerName, headerValue);
