@@ -890,30 +890,30 @@ namespace MatchZy
                 {
                     HandleCoachCommand(player, messageCommandArg);
                 }
-                if (message.StartsWith(".ban"))
-                {
-                    HandeMapBanCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".pick"))
-                {
-                    HandeMapPickCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".back"))
-                {
-                    HandleBackCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".delay"))
-                {
-                    HandleDelayCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".throwindex"))
-                {
-                    HandleThrowIndexCommand(player, messageCommandArg);
-                }
-                if (message.StartsWith(".throwidx"))
-                {
-                    HandleThrowIndexCommand(player, messageCommandArg);
-                }
+           if (message.StartsWith(".ban"))
+    {
+        if (player != null) HandeMapBanCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".pick"))
+    {
+        if (player != null) HandeMapPickCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".back"))
+    {
+        if (player != null) HandleBackCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".delay"))
+    {
+        if (player != null) HandleDelayCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".throwindex"))
+    {
+        if (player != null) HandleThrowIndexCommand(player, messageCommandArg);
+    }
+    if (message.StartsWith(".throwidx"))
+    {
+        if (player != null) HandleThrowIndexCommand(player, messageCommandArg);
+    }
 
                 return HookResult.Continue;
             }, HookMode.Pre); // <--- 加入 HookMode.Pre 確保 HookResult.Handled 生效！
