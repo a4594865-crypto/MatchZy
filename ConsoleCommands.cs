@@ -914,7 +914,7 @@ namespace MatchZy
             int votesNeeded = teamSize <= 2 ? Math.Max(1, teamSize) : teamSize - 1;
             int currentVotes = ggVotes[playerTeam].Count;
             
-            string teamName = playerTeam == CsTeam.CounterTerrorist ? "反恐小組" : "恐怖分子";
+            string teamName = playerTeam == CsTeam.CounterTerrorist ? "反恐小組" : "恐怖份子";
 
             PrintToAllChat($" {ChatColors.Green}{teamName} 隊伍{ChatColors.Default} 發起了投降投票({ChatColors.Yellow}{currentVotes}{ChatColors.Default}/{votesNeeded})");
             
