@@ -1,3 +1,4 @@
+using System;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
@@ -44,7 +45,7 @@ namespace MatchZy
         [ConsoleCommand("css_uncoach", "Sets coach for the requested team")]
         public void OnUnCoachCommand(CCSPlayerController? player, CommandInfo? command)
         {
-            if (player == null || !player.PlayerPawn.IsValid) return;
+            if (player is not { IsValid: true, PlayerPawn.IsValid: true }) return;
             if (isPractice) {
                 ReplyToUserCommand(player, $" 練 習 模 式 中 無 法 使 用 {ChatColors.Green}教練指令{ChatColors.Default}");
                 return;
@@ -57,16 +58,15 @@ namespace MatchZy
             }
             // ▲▲▲ ▲▲▲ ▲▲▲
 
-            if (matchzyTeam1.coach.Contains(player)) {
+            // 【0-GC 優化】：使用 HashSet.Remove 單次雜湊查找完成判斷與移除，免除 Contains + Remove 雙重查找
+            if (matchzyTeam1.coach.Remove(player)) {
                 player.Clan = "";
                 Utilities.SetStateChanged(player, "CCSPlayerController", "m_szClan");
-                matchzyTeam1.coach.Remove(player);
                 SetPlayerVisible(player);
             }
-            else if (matchzyTeam2.coach.Contains(player)) {
+            else if (matchzyTeam2.coach.Remove(player)) {
                 player.Clan = "";
                 Utilities.SetStateChanged(player, "CCSPlayerController", "m_szClan");
-                matchzyTeam2.coach.Remove(player);
                 SetPlayerVisible(player);
             }
             else {
@@ -197,7 +197,8 @@ namespace MatchZy
 
         public bool RemovePlayerFromTeam(string steamId)
         {
-            List<JToken?> teams = [matchzyTeam1.teamPlayers, matchzyTeam2.teamPlayers, matchConfig.Spectators];
+            // 【0-GC 優化】：改用 Stack 配置的 ReadOnlySpan，消除每次呼叫時在 Heap 建立新 List<JToken?> 的垃圾配置
+            ReadOnlySpan<JToken?> teams = [matchzyTeam1.teamPlayers, matchzyTeam2.teamPlayers, matchConfig.Spectators];
 
             foreach (var team in teams)
             {
