@@ -1456,12 +1456,13 @@ namespace MatchZy
                         }
                     }
                 }
-                // ==========================================
-                // 3. 超時邏輯：時間歸零，隨機執行 .stay 或 .switch
+               // ==========================================
+                // 3. 超時邏輯：時間歸零，隨機執行保留或交換陣營
                 // ==========================================
                 if (sideSelectionRemainingSeconds <= 0)
                 {
                     CancelSideSelectionTimer();
+                    isSideSelectionPhase = false; // 關閉選邊階段鎖定
                     
                     // 產生 0 或 1 的隨機亂數 (0-GC Random.Shared)
                     int randomChoice = Random.Shared.Next(0, 2); 
@@ -1469,12 +1470,21 @@ namespace MatchZy
                     if (randomChoice == 0)
                     {
                         Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 隨 機 決 定：{ChatColors.Lime}保 留 原 陣 營");
-                        OnTeamStay(null, null); 
+                        
+                        // 直接執行保留陣營邏輯並解除暫停開賽
+                        isKnifeRound = false;
+                        Server.ExecuteCommand("mp_unpause_match 1");
+                        StartMatchAfterKnife();
                     }
                     else
                     {
                         Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 隨 機 決 定：{ChatColors.Orange}交 換 陣 營");
-                        OnTeamSwitch(null, null); 
+                        
+                        // 直接執行交換陣營邏輯並解除暫停開賽
+                        SwapTeams();
+                        isKnifeRound = false;
+                        Server.ExecuteCommand("mp_unpause_match 1");
+                        StartMatchAfterKnife();
                     }
                 }
             }, TimerFlags.REPEAT);
