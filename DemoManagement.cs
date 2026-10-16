@@ -1,16 +1,25 @@
+using System;
+using System.IO;
+using System.IO.Compression;
+using System.Net.Http.Json;
+using System.Text;
+using System.Threading.Tasks;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Cvars;
-using System.IO.Compression;
-using System.Net.Http.Json;
-using System.Text;
 
 namespace MatchZy
 {
     public partial class MatchZy
     {
+        // 【0-GC 快取區】：快取 GOTV 相關原生 ConVar 指標，免除重複跨 C++/C# 查找
+        private ConVar? _cachedTvEnableCvar;
+        private ConVar? _cachedTvEnable1Cvar;
+        private ConVar? _cachedTvDelayCvar;
+        private ConVar? _cachedTvDelay1Cvar;
+
         public string demoPath = "MatchZy/";
         public string demoNameFormat = "{TIME}_{MATCH_ID}_{MAP}_{TEAM1}_vs_{TEAM2}";
         public string demoUploadURL = "";
@@ -37,7 +46,8 @@ namespace MatchZy
             string demoFileName = FormatCvarValue(demoNameFormat.Replace(" ", "_")) + ".dem";
             try
             {
-                string? directoryPath = Path.GetDirectoryName(Path.Join(Server.GameDirectory + "/csgo/", demoPath));
+                // 【0-GC 優化】：直接使用多參數 Path.Join，消除 Server.GameDirectory + "/csgo/" 產生的中間暫存字串
+                string? directoryPath = Path.GetDirectoryName(Path.Join(Server.GameDirectory, "csgo", demoPath));
                 
                 // 合併檢查，屬性模式匹配確保資料夾路徑不為空
                 if (directoryPath is not null && !Directory.Exists(directoryPath))
@@ -65,7 +75,8 @@ namespace MatchZy
         public void StopDemoRecording(float delay, string activeDemoFile, long liveMatchId, int currentMapNumber)
         {
             Log($"[StopDemoRecording] Going to stop demorecording in {delay}s");
-            string demoPath = Path.Join(Server.GameDirectory + "/csgo/", activeDemoFile);
+            // 【0-GC 優化】：消除多餘的 + "/csgo/" 中間字串配置
+            string fullDemoPath = Path.Join(Server.GameDirectory, "csgo", activeDemoFile);
             (int t1score, int t2score) = GetTeamsScore();
             int roundNumber = t1score + t2score;
             
@@ -79,9 +90,13 @@ namespace MatchZy
                 
                 AddTimer(15, () =>
                 {
+                    string uploadUrl = demoUploadURL;
+                    string headerKey = demoUploadHeaderKey;
+                    string headerVal = demoUploadHeaderValue;
+
                     Task.Run(async () =>
                     {
-                        await UploadFileAsync(demoPath, demoUploadURL, demoUploadHeaderKey, demoUploadHeaderValue, liveMatchId, currentMapNumber, roundNumber);
+                        await UploadFileAsync(fullDemoPath, uploadUrl, headerKey, headerVal, liveMatchId, currentMapNumber, roundNumber);
                     });
                 });
             });
@@ -89,20 +104,20 @@ namespace MatchZy
 
         public int GetTvDelay()
         {
-            // 徹底拆除強制轉換驚嘆號 (!)，嚴格檢查 CVar 是否存在，杜絕 CS8602 潛在空參考例外
-            var tvEnableCvar = ConVar.Find("tv_enable");
-            if (tvEnableCvar is null || !tvEnableCvar.GetPrimitiveValue<bool>()) return 0;
+            // 【0-GC 優化】：快取 ConVar 指標，徹底拆除強制轉換驚嘆號 (!)，杜絕 CS8602 潛在空參考例外與重複查找
+            _cachedTvEnableCvar ??= ConVar.Find("tv_enable");
+            if (_cachedTvEnableCvar is null || !_cachedTvEnableCvar.GetPrimitiveValue<bool>()) return 0;
 
-            var tvEnable1Cvar = ConVar.Find("tv_enable1");
-            bool tvEnable1 = tvEnable1Cvar is not null && tvEnable1Cvar.GetPrimitiveValue<bool>();
+            _cachedTvEnable1Cvar ??= ConVar.Find("tv_enable1");
+            bool tvEnable1 = _cachedTvEnable1Cvar is not null && _cachedTvEnable1Cvar.GetPrimitiveValue<bool>();
 
-            var tvDelayCvar = ConVar.Find("tv_delay");
-            int tvDelay = tvDelayCvar is not null ? tvDelayCvar.GetPrimitiveValue<int>() : 0;
+            _cachedTvDelayCvar ??= ConVar.Find("tv_delay");
+            int tvDelay = _cachedTvDelayCvar is not null ? _cachedTvDelayCvar.GetPrimitiveValue<int>() : 0;
 
             if (!tvEnable1) return tvDelay;
 
-            var tvDelay1Cvar = ConVar.Find("tv_delay1");
-            int tvDelay1 = tvDelay1Cvar is not null ? tvDelay1Cvar.GetPrimitiveValue<int>() : 0;
+            _cachedTvDelay1Cvar ??= ConVar.Find("tv_delay1");
+            int tvDelay1 = _cachedTvDelay1Cvar is not null ? _cachedTvDelay1Cvar.GetPrimitiveValue<int>() : 0;
 
             return tvDelay < tvDelay1 ? tvDelay1 : tvDelay;
         }
