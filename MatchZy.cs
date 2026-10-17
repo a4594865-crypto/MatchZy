@@ -1457,12 +1457,11 @@ namespace MatchZy
                     }
                 }
                // ==========================================
-                // 3. 超時邏輯：時間歸零，隨機執行保留或交換陣營
+                // 3. 超時邏輯：時間歸零，隨機執行保留或交換陣營並開賽
                 // ==========================================
                 if (sideSelectionRemainingSeconds <= 0)
                 {
                     CancelSideSelectionTimer();
-                    isSideSelectionPhase = false; // 關閉選邊階段鎖定
                     
                     // 產生 0 或 1 的隨機亂數 (0-GC Random.Shared)
                     int randomChoice = Random.Shared.Next(0, 2); 
@@ -1470,26 +1469,37 @@ namespace MatchZy
                     if (randomChoice == 0)
                     {
                         Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 隨 機 決 定：{ChatColors.Lime}保 留 原 陣 營");
-                        
-                        // 直接執行保留陣營邏輯並解除暫停開賽
-                        isKnifeRound = false;
-                        Server.ExecuteCommand("mp_unpause_match 1");
-                        StartMatchAfterKnife();
+                        foreach (var p in Utilities.GetPlayers())
+                        {
+                            if (p is { IsValid: true, IsBot: false })
+                            {
+                                p.PrintToCenter("選 邊 逾 時，系 統 隨 機 決 定：保 留 原 陣 營");
+                            }
+                        }
+
+                        // 直接呼叫 MatchZy 底層開賽方法，繞過 OnTeamStay 的 player == null 攔截
+                        StartLive();
+                        isSideSelectionPhase = false;
                     }
                     else
                     {
                         Server.PrintToChatAll($"{chatPrefix} 選 邊 逾 時，系 統 隨 機 決 定：{ChatColors.Orange}交 換 陣 營");
-                        
-                        // 直接執行交換陣營邏輯並解除暫停開賽
+                        foreach (var p in Utilities.GetPlayers())
+                        {
+                            if (p is { IsValid: true, IsBot: false })
+                            {
+                                p.PrintToCenter("選 邊 逾 時，系 統 隨 機 決 定：交 換 陣 營");
+                            }
+                        }
+
+                        // 直接呼叫 MatchZy 底層換邊與開賽方法，繞過 OnTeamSwitch 的 player == null 攔截
                         SwapTeams();
-                        isKnifeRound = false;
-                        Server.ExecuteCommand("mp_unpause_match 1");
-                        StartMatchAfterKnife();
+                        StartLive();
+                        isSideSelectionPhase = false;
                     }
                 }
             }, TimerFlags.REPEAT);
         }
-
         public void CancelSideSelectionTimer()
         {
             if (sideSelectionTimer != null)
