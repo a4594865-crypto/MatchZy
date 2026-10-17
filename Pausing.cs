@@ -747,8 +747,6 @@ public partial class MatchZy
         StopAutoPauseCheck();
         StartAutoPauseCheck();
 
-        AddTimer(1.0f, EvaluateAutoPauseCondition);
-
         return HookResult.Continue;
     }
 
@@ -863,7 +861,7 @@ public partial class MatchZy
     {
         StopAutoPauseCheck();
         // 僅在回合凍結時間內每 1.0 秒檢查一次，凍結結束後由 EvaluateAutoPauseCondition 自動關閉
-        autoPauseMainTimer = AddTimer(1.0f, EvaluateAutoPauseCondition, TimerFlags.REPEAT);
+        autoPauseMainTimer = AddTimer(2.0f, EvaluateAutoPauseCondition, TimerFlags.REPEAT);
     }
 
     private void AutoTriggerTacPause(CsTeam team)
@@ -919,7 +917,7 @@ public partial class MatchZy
         unpData["ct"] = false;
 
         string phasePrefix = isOvertime ? " 加時賽 " : "";
-        PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} {ChatColors.Orange}隊員離線{ChatColors.Default} 觸發 {phasePrefix}暫停 剩餘：{ChatColors.Green}{remainingCount}{ChatColors.Default}次");
+        PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 因 {ChatColors.Orange}隊員離線{ChatColors.Default} 觸發 {phasePrefix}暫停 剩餘：{ChatColors.Green}{remainingCount}{ChatColors.Default}次");
         PrintToAllChat($" 暫 停 在 \u0004{durationLimit}秒\u0001 自 動 解 除，或 雙 方 輸 入 {ChatColors.Orange}.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
