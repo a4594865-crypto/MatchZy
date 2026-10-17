@@ -148,10 +148,13 @@ public partial class MatchZy
         return null;
     }
 
-    private bool IsOvertimePlayingSafe(CCSGameRules? gameRules)
+   private bool IsOvertimePlayingSafe(CCSGameRules? gameRules)
     {
         if (gameRules == null) return false;
-        if (gameRules.OvertimePlaying) return true;
+        
+        // 安全防護：將 OvertimePlaying 轉為字串或用 Convert 判斷，徹底避開 int 轉 bool 報錯
+        string otVal = gameRules.OvertimePlaying.ToString() ?? "";
+        if (otVal == "True" || otVal == "1") return true;
 
         // 加入底層局數推算，防止 CS2 引擎在換邊瞬間標籤延遲
         int totalRounds = gameRules.TotalRoundsPlayed;
