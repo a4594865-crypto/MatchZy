@@ -174,6 +174,19 @@ namespace MatchZy
                 return false;
             }
         }
+
+        // 【底層修正】：統一解析 EventPlayerChat 的發言玩家（優先使用原生 Slot+1 轉 UserId，並保留舊方法保底）
+        private static CCSPlayerController? GetChatPlayerFromEventUserId(int eventUserId)
+        {
+            int resolvedUid = NativeAPI.GetUseridFromIndex(eventUserId + 1);
+            var player = Utilities.GetPlayerFromUserid(resolvedUid);
+            if (player is { IsValid: true }) return player;
+
+            player = Utilities.GetPlayerFromSlot(eventUserId);
+            if (player is { IsValid: true }) return player;
+
+            return Utilities.GetPlayerFromUserid(eventUserId);
+        }
         // ▲▲▲ ▲▲▲ ▲▲▲
 
         public override void Load(bool hotReload) {
@@ -502,6 +515,13 @@ namespace MatchZy
                     @event.Silent = true; 
                     return HookResult.Changed;
                 }
+
+                // ▼ 若在熱身階段且計時器因先前比賽而處於休眠狀態，立刻喚醒並同步標籤
+                if (isWarmup && readyAvailable && !matchStarted && clanTagTimer == null)
+                {
+                    UpdateReadyClanTags();
+                }
+
                 return HookResult.Continue;
             }, HookMode.Pre);
             
@@ -621,6 +641,7 @@ namespace MatchZy
 
                 // 2. 保留原本熱身階段發錢的邏輯
                 if (!isWarmup) return HookResult.Continue;
+                if (clanTagTimer == null && readyAvailable && !matchStarted) UpdateReadyClanTags();
                 if (!IsPlayerValid(victim)) return HookResult.Continue;
                 if (victim!.InGameMoneyServices != null) victim.InGameMoneyServices.Account = 16000;
                 return HookResult.Continue;
@@ -678,7 +699,7 @@ namespace MatchZy
                     // 完美防禦：加入 isKnifeRound 與 matchStarted，徹底禁止正賽呼叫投票面板！
                     if (isMatchSetup || isCountdownActive || isSideSelectionPhase || isKnifeRound || matchStarted) {
                         
-                        var chatPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
+                        var chatPlayer = GetChatPlayerFromEventUserId(currentEventUserId);
                         if (chatPlayer != null && chatPlayer.IsValid) {
                             if (isMatchSetup) {
                                 chatPlayer.PrintToChat($"{chatPrefix} 正 式 比 賽 (BO1/BO3) 期 間，禁 止 發 起 任 有 投 票");
@@ -708,8 +729,8 @@ namespace MatchZy
 
                     if (!matchStarted && readyAvailable) {
                         
-                        // 取出發言的玩家
-                        var chatPlayer = Utilities.GetPlayerFromUserid(currentEventUserId);
+                        // 取出發言的玩家（雙重保險解析）
+                        var chatPlayer = GetChatPlayerFromEventUserId(currentEventUserId);
                         if (chatPlayer is { IsValid: true }) {
                             
                             // ▼ 防呆（.NET 10 零 GC 配置）：若為教練身分，直接攔截 .r 並回傳 Handled，不觸發洗牌也不往下傳遞
@@ -796,21 +817,25 @@ namespace MatchZy
                     playerData.TryGetValue(playerUserId, out player);
                 }
 
-                string message = originalMessageSpan.ToString().ToLower();
+                // 【0-GC 優化】：commandActions 已為 OrdinalIgnoreCase，直接以無空白時重用 messageCommand 免除 .ToLower() 垃圾
+                string rawMessage = spaceIndex == -1 ? messageCommand : originalMessageSpan.ToString();
 
                 // Handling player commands
-                if (commandActions != null && commandActions.TryGetValue(message, out var action)) {
+                if (commandActions != null && commandActions.TryGetValue(rawMessage, out var action)) {
                     action(player, null);
 
-                    // ▼▼▼ 當玩家輸入準備或取消準備時，瞬間同步記分板標籤 ▼▼▼
-                    if (message is ".r" or ".ready" or ".unready" or ".notready" or ".ur")
+                    // ▼▼▼ 當玩家輸入準備、取消準備、或執行重置回熱身指令時，瞬間同步並喚醒記分板標籤 ▼▼▼
+                    if (isReadyCmd ||
+                        originalMessageSpan.Equals(".unready", StringComparison.OrdinalIgnoreCase) ||
+                        originalMessageSpan.Equals(".notready", StringComparison.OrdinalIgnoreCase) ||
+                        originalMessageSpan.Equals(".ur", StringComparison.OrdinalIgnoreCase) ||
+                        (isWarmup && clanTagTimer == null))
                     {
                         UpdateReadyClanTags();
                     }
                     // ▲▲▲ ▲▲▲ ▲▲▲
                 }
-
-                if (message.StartsWith(".map"))
+                else if (originalMessageSpan.StartsWith(".map", StringComparison.OrdinalIgnoreCase))
                 {
                     // 把 isSideSelectionPhase 一併加入鎖定條件
                     if (isMatchSetup || isSideSelectionPhase)
@@ -820,57 +845,55 @@ namespace MatchZy
                     }
                     HandleMapChangeCommand(player, messageCommandArg);
                 }
-
-                if (message.StartsWith(".restore"))
+                else if (originalMessageSpan.StartsWith(".restore", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleRestoreCommand(player, messageCommandArg);
                 }
-
-                if (message.StartsWith(".savenade") || message.StartsWith(".sn"))
+                else if (originalMessageSpan.StartsWith(".savenade", StringComparison.OrdinalIgnoreCase) || originalMessageSpan.StartsWith(".sn", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleSaveNadeCommand(player, messageCommandArg);
                 }
-                if (message.StartsWith(".delnade") || message.StartsWith(".dn"))
+                else if (originalMessageSpan.StartsWith(".delnade", StringComparison.OrdinalIgnoreCase) || originalMessageSpan.StartsWith(".dn", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleDeleteNadeCommand(player, messageCommandArg);
                 }
-                if (message.StartsWith(".deletenade"))
+                else if (originalMessageSpan.StartsWith(".deletenade", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleDeleteNadeCommand(player, messageCommandArg);
                 }
-                if (message.StartsWith(".importnade") || message.StartsWith(".in"))
+                else if (originalMessageSpan.StartsWith(".importnade", StringComparison.OrdinalIgnoreCase) || originalMessageSpan.StartsWith(".in", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleImportNadeCommand(player, messageCommandArg);
                 }
-                if (message.StartsWith(".listnades") || message.StartsWith(".lin"))
+                else if (originalMessageSpan.StartsWith(".listnades", StringComparison.OrdinalIgnoreCase) || originalMessageSpan.StartsWith(".lin", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleListNadesCommand(player, messageCommandArg);
                 }
-                if (message.StartsWith(".loadnade") || message.StartsWith(".ln"))
+                else if (originalMessageSpan.StartsWith(".loadnade", StringComparison.OrdinalIgnoreCase) || originalMessageSpan.StartsWith(".ln", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleLoadNadeCommand(player, messageCommandArg);
                 }
-                if (message.StartsWith(".spawn"))
+                else if (originalMessageSpan.StartsWith(".spawn", StringComparison.OrdinalIgnoreCase))
                 {
                     if (player != null) HandleSpawnCommand(player, messageCommandArg, player.TeamNum, "spawn");
                 }
-                if (message.StartsWith(".ctspawn") || message.StartsWith(".cts"))
+                else if (originalMessageSpan.StartsWith(".ctspawn", StringComparison.OrdinalIgnoreCase) || originalMessageSpan.StartsWith(".cts", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleSpawnCommand(player, messageCommandArg, (byte)CsTeam.CounterTerrorist, "ctspawn");
                 }
-                if (message.StartsWith(".tspawn") || message.StartsWith(".ts"))
+                else if (originalMessageSpan.StartsWith(".tspawn", StringComparison.OrdinalIgnoreCase) || originalMessageSpan.StartsWith(".ts", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleSpawnCommand(player, messageCommandArg, (byte)CsTeam.Terrorist, "tspawn");
                 }
-                if (message.StartsWith(".team1"))
+                else if (originalMessageSpan.StartsWith(".team1", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleTeamNameChangeCommand(player, messageCommandArg, 1);
                 }
-                if (message.StartsWith(".team2"))
+                else if (originalMessageSpan.StartsWith(".team2", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleTeamNameChangeCommand(player, messageCommandArg, 2);
                 }
-                if (message.StartsWith(".rcon"))
+                else if (originalMessageSpan.StartsWith(".rcon", StringComparison.OrdinalIgnoreCase))
                 {
                     if (IsPlayerAdmin(player, "css_rcon", "@css/rcon"))
                     {
@@ -886,34 +909,34 @@ namespace MatchZy
                         SendPlayerNotAdminMessage(player);
                     }
                 }
-                if (message.StartsWith(".coach"))
+                else if (originalMessageSpan.StartsWith(".coach", StringComparison.OrdinalIgnoreCase))
                 {
                     HandleCoachCommand(player, messageCommandArg);
                 }
-           if (message.StartsWith(".ban"))
-    {
-        if (player != null) HandeMapBanCommand(player, messageCommandArg);
-    }
-    if (message.StartsWith(".pick"))
-    {
-        if (player != null) HandeMapPickCommand(player, messageCommandArg);
-    }
-    if (message.StartsWith(".back"))
-    {
-        if (player != null) HandleBackCommand(player, messageCommandArg);
-    }
-    if (message.StartsWith(".delay"))
-    {
-        if (player != null) HandleDelayCommand(player, messageCommandArg);
-    }
-    if (message.StartsWith(".throwindex"))
-    {
-        if (player != null) HandleThrowIndexCommand(player, messageCommandArg);
-    }
-    if (message.StartsWith(".throwidx"))
-    {
-        if (player != null) HandleThrowIndexCommand(player, messageCommandArg);
-    }
+                else if (originalMessageSpan.StartsWith(".ban", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (player != null) HandeMapBanCommand(player, messageCommandArg);
+                }
+                else if (originalMessageSpan.StartsWith(".pick", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (player != null) HandeMapPickCommand(player, messageCommandArg);
+                }
+                else if (originalMessageSpan.StartsWith(".back", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (player != null) HandleBackCommand(player, messageCommandArg);
+                }
+                else if (originalMessageSpan.StartsWith(".delay", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (player != null) HandleDelayCommand(player, messageCommandArg);
+                }
+                else if (originalMessageSpan.StartsWith(".throwindex", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (player != null) HandleThrowIndexCommand(player, messageCommandArg);
+                }
+                else if (originalMessageSpan.StartsWith(".throwidx", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (player != null) HandleThrowIndexCommand(player, messageCommandArg);
+                }
 
                 return HookResult.Continue;
             }, HookMode.Pre); // <--- 加入 HookMode.Pre 確保 HookResult.Handled 生效！
@@ -1044,24 +1067,41 @@ namespace MatchZy
         }
 
         private void UpdateReadyClanTags()
-{
-    // ▼ 嚴格限制：只要有一項不符合熱身準備條件，立刻銷毀計時器，徹底停止背景空轉！
-    if (!isWarmup || !readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
-    {
-        clanTagTimer?.Kill();
-        clanTagTimer = null;
-
-        if (!_readyClanTagsCleared)
         {
-            _readyClanTagsCleared = true;
-            ClearReadyClanTags();
-        }
-        return;
-    }
+            // 1. 只要進入「倒數、刀局、選邊、正賽、練習模式」，立刻銷毀計時器，徹底停止背景空轉！
+            if (matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
+            {
+                clanTagTimer?.Kill();
+                clanTagTimer = null;
 
-    _readyClanTagsCleared = false;
-    Server.NextFrame(_updateClanTagsNextFrameAction ??= ExecuteUpdateReadyClanTagsOnNextFrame);
-}
+                if (!_readyClanTagsCleared)
+                {
+                    _readyClanTagsCleared = true;
+                    ClearReadyClanTags();
+                }
+                return;
+            }
+
+            // 2. 如果還沒進入比賽，但處於非熱身狀態（例如剛換圖的第 1 秒或勝利結算畫面），只清空標籤，不銷毀計時器！
+            if (!isWarmup || !readyAvailable)
+            {
+                if (!_readyClanTagsCleared)
+                {
+                    _readyClanTagsCleared = true;
+                    ClearReadyClanTags();
+                }
+                return;
+            }
+
+            // 3. 確定處於熱身準備階段：如果計時器之前被殺掉了（例如打完 .rr 或退回熱身），自動復活計時器！
+            if (clanTagTimer == null)
+            {
+                clanTagTimer = AddTimer(1.0f, UpdateReadyClanTags, TimerFlags.REPEAT);
+            }
+
+            _readyClanTagsCleared = false;
+            Server.NextFrame(_updateClanTagsNextFrameAction ??= ExecuteUpdateReadyClanTagsOnNextFrame);
+        }
 
         private void ExecuteUpdateReadyClanTagsOnNextFrame()
         {
@@ -1124,21 +1164,25 @@ namespace MatchZy
             }
         }
 
-        // ▼▼▼ 新增：沒收 CS2 引擎修改標籤的權限 ▼▼▼
+        // ▼▼▼ 新增：沒收 CS2 引擎修改標籤的權限（0-GC 短路順序優化版） ▼▼▼
         private HookResult OnSetClan(DynamicHook hook)
         {
-            // 1. 如果這名玩家是教練，永遠阻擋 CS2 引擎用他的 Steam 群組標籤蓋掉 [反恐教練] / [恐怖教練]
-            var player = hook.GetParam<CCSPlayerController>(0);
-            if (player is { IsValid: true } && (matchzyTeam1.coach.Contains(player) || matchzyTeam2.coach.Contains(player)))
-            {
-                return HookResult.Handled;
-            }
-
-            // 2. 純熱身階段攔截引擎，保護 ✔ 與 ✖
+            // 1. 純熱身階段直接攔截引擎（不需跨 C++ 封裝指標），保護 ✔ 與 ✖
             if (isWarmup && readyAvailable && !matchStarted && !isCountdownActive && !isKnifeRound && !isSideSelectionPhase && !isMatchLive && !isPractice)
             {
                 return HookResult.Handled;
             }
+
+            // 2. 非熱身階段：僅在場上有教練時才跨 C++ 取得玩家指標，阻擋引擎蓋掉教練標籤
+            if (matchzyTeam1.coach.Count > 0 || matchzyTeam2.coach.Count > 0)
+            {
+                var player = hook.GetParam<CCSPlayerController>(0);
+                if (player is { IsValid: true } && (matchzyTeam1.coach.Contains(player) || matchzyTeam2.coach.Contains(player)))
+                {
+                    return HookResult.Handled;
+                }
+            }
+
             return HookResult.Continue; 
         }
 
@@ -1401,18 +1445,20 @@ namespace MatchZy
             
             sideSelectionRemainingSeconds = sideSelectionTimeLimit;
 
-            // ▼▼▼ 【精緻化修正 1】：在計時器啟動的「第 0 秒」立刻精準渲染滿秒數，徹底解決 120 變 119 的誤差 ▼▼▼
+            // ▼▼▼ 【精緻化修正 1】：在計時器啟動的「第 0 秒」立刻精準渲染滿秒數，並將字串提取至迴圈外 ▼▼▼
+            string initWinnerMsg = $"勝 者 輸 入 .CT 或 .T 選 邊 : {sideSelectionRemainingSeconds} 秒";
+            string initWaitMsg = $"等 待 對 方 選 邊...倒 數 : {sideSelectionRemainingSeconds} 秒";
             foreach (var p in Utilities.GetPlayers())
             {
                 if (p is { IsValid: true, IsBot: false })
                 {
                     if (p.TeamNum == knifeWinner)
                     {
-                        p.PrintToCenter($"勝 者 輸 入 .CT 或 .T 選 邊 : {sideSelectionRemainingSeconds} 秒");
+                        p.PrintToCenter(initWinnerMsg);
                     }
                     else if (p.TeamNum == 2 || p.TeamNum == 3)
                     {
-                        p.PrintToCenter($"等 待 對 方 選 邊...倒 數 : {sideSelectionRemainingSeconds} 秒");
+                        p.PrintToCenter(initWaitMsg);
                     }
                 }
             }
@@ -1440,21 +1486,23 @@ namespace MatchZy
                 }
 
                 // ==========================================
-                // 2. HUD 畫面正中央提示
+                // 2. HUD 畫面正中央提示（字串提取至迴圈外，免除重複配置）
                 // ==========================================
                 if (sideSelectionRemainingSeconds > 0)
                 {
+                    string tickWinnerMsg = $"勝 者 輸 入 .CT 或 .T 選 邊 : {sideSelectionRemainingSeconds} 秒";
+                    string tickWaitMsg = $"等 待 對 方 選 邊...倒 數 : {sideSelectionRemainingSeconds} 秒";
                     foreach (var p in Utilities.GetPlayers())
                     {
                         if (p is { IsValid: true, IsBot: false })
                         {
                             if (p.TeamNum == knifeWinner)
                             {
-                                p.PrintToCenter($"勝 者 輸 入 .CT 或 .T 選 邊 : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter(tickWinnerMsg);
                             }
                             else if (p.TeamNum == 2 || p.TeamNum == 3)
                             {
-                                p.PrintToCenter($"等 待 對 方 選 邊...倒 數 : {sideSelectionRemainingSeconds} 秒");
+                                p.PrintToCenter(tickWaitMsg);
                             }
                         }
                     }
