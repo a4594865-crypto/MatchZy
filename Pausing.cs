@@ -14,7 +14,7 @@ namespace MatchZy;
 public partial class MatchZy
 {
     // ==========================================
-    // ▼ 0-GC 快取區 (消除每秒硬碟 I/O 與全圖實體掃描) ▼
+    // ▼ 0-GC 快取區 (消除每秒硬碟 I/O、C++ ConVar.Find 失敗開銷與全圖實體掃描) ▼
     // ==========================================
     private CCSGameRulesProxy? _cachedPauseGameRulesProxy;
     private ConVar? _cachedMpMaxRoundsCvar;
@@ -23,19 +23,25 @@ public partial class MatchZy
     private string? _cachedPauseCfgPath;
     private DateTime _lastPauseCfgWriteTime = DateTime.MinValue;
     private long _lastPauseCfgCheckTick = 0;
-    private readonly Dictionary<string, int> _pauseCfgValueCache = new(8);
+    private readonly Dictionary<string, int> _pauseCfgValueCache = new(8, StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ConVar?> _pauseConVarLookupCache = new(8, StringComparer.OrdinalIgnoreCase);
 
     // ==========================================
-    // ▼ 動態設定檔讀取區 (完美連動 config.cfg + 0-GC 快取) ▼
+    // ▼ 動態設定檔讀取區 (完美連動 config.cfg + 真正 0-GC 快取) ▼
     // ==========================================
     private int GetPauseConfig(string cvarName, int defaultValue)
     {
         try 
         {
-            var cvar = ConVar.Find(cvarName);
+            // 【修復 1】：先檢查是否為已知的原生 ConVar（只查一次 C++，避免每秒對自訂參數呼叫 ConVar.Find 失敗造成卡頓）
+            if (!_pauseConVarLookupCache.TryGetValue(cvarName, out ConVar? cvar))
+            {
+                cvar = ConVar.Find(cvarName);
+                _pauseConVarLookupCache[cvarName] = cvar;
+            }
             if (cvar is not null) return cvar.GetPrimitiveValue<int>();
 
-            _cachedPauseCfgPath ??= Path.Join(Server.GameDirectory + "/csgo/cfg/MatchZy/config.cfg");
+            _cachedPauseCfgPath ??= Path.Join(Server.GameDirectory, "csgo/cfg/MatchZy/config.cfg");
 
             // 每 3 秒最多檢查一次檔案修改時間，若 config.cfg 被管理員修改則自動刷新快取，平時每秒巡邏 0 硬碟讀取！
             long nowTick = Environment.TickCount64;
@@ -122,7 +128,7 @@ public partial class MatchZy
     public Dictionary<string, bool> unpData = new() { { "ct", false }, { "t", false } };
 
     // ==========================================
-    // ▼ 跨版本安全屬性檢查器 (已加入局數推算終極防護 + 實體快取) ▼
+    // ▼ 跨版本安全屬性檢查器 (0-GC 原生布林讀取 + 實體快取) ▼
     // ==========================================
     private CCSGameRules? GetPauseGameRulesSafe()
     {
@@ -145,8 +151,7 @@ public partial class MatchZy
     private bool IsOvertimePlayingSafe(CCSGameRules? gameRules)
     {
         if (gameRules == null) return false;
-        string val = gameRules.OvertimePlaying.ToString() ?? "";
-        if (val == "True" || val == "1") return true;
+        if (gameRules.OvertimePlaying) return true;
 
         // 加入底層局數推算，防止 CS2 引擎在換邊瞬間標籤延遲
         int totalRounds = gameRules.TotalRoundsPlayed;
@@ -159,19 +164,30 @@ public partial class MatchZy
         return totalRounds >= maxRounds;
     }
 
-    private bool IsOfficialTacActiveSafe(CCSGameRules? gameRules)
+    private static bool IsOfficialTacActiveSafe(CCSGameRules? gameRules)
     {
         if (gameRules == null) return false;
-        string tVal = gameRules.TerroristTimeOutActive.ToString() ?? "";
-        string ctVal = gameRules.CTTimeOutActive.ToString() ?? "";
-        return tVal == "True" || tVal == "1" || ctVal == "True" || ctVal == "1";
+        return gameRules.TerroristTimeOutActive || gameRules.CTTimeOutActive;
     }
 
-    private bool IsFreezePeriodSafe(CCSGameRules? gameRules)
+    private static bool IsFreezePeriodSafe(CCSGameRules? gameRules)
     {
         if (gameRules == null) return false;
-        string val = gameRules.FreezePeriod.ToString() ?? "";
-        return val == "True" || val == "1";
+        return gameRules.FreezePeriod;
+    }
+
+    // 【修復 2】：統一清理所有原生暫停狀態計時器與解除暫停狀態，防止背景計時器殘留拖慢 FPS
+    private void CleanUpUnpauseState()
+    {
+        Server.ExecuteCommand("mp_unpause_match;");
+        isPaused = false;
+        unpauseData["ct"] = false;
+        unpauseData["t"] = false;
+        if (pausedStateTimer != null)
+        {
+            pausedStateTimer.Kill();
+            pausedStateTimer = null;
+        }
     }
 
     // 取得目前 CT 或 T 對應的是 matchzyTeam1 還是 matchzyTeam2
@@ -201,9 +217,6 @@ public partial class MatchZy
         if (peak < 2 && peak < minP) return 0;
 
         // 基準門檻：取「該隊曾達到的最高人數」與「設定的 minplayers」兩者較小值
-        // 例如設定 minplayers 5：
-        // - 4v5 開賽：4人隊伍基準為 4（4人不暫停，掉到3人立刻暫停）；5人隊伍基準為 5
-        // - 6v4 開賽：6人隊伍基準上限為 5（掉到4人才暫停）；4人隊伍基準為 4（掉到3人才暫停）
         int baseTarget = Math.Min(peak, minP);
 
         if (teamAcceptedCount.TryGetValue(key, out int accepted) && accepted != -1)
@@ -264,7 +277,6 @@ public partial class MatchZy
 
         Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         
-        // 修正：從記憶體指標比較，改為字串比較，免疫 OT 物件複製 BUG
         string teamKey = "";
         if (matchzyTeam1 != null && playerMatchTeam.teamName == matchzyTeam1.teamName) teamKey = "matchzyTeam1";
         else if (matchzyTeam2 != null && playerMatchTeam.teamName == matchzyTeam2.teamName) teamKey = "matchzyTeam2";
@@ -289,6 +301,9 @@ public partial class MatchZy
         int currentPauseUsed = ++techPausesUsed[teamKey];
         int remainingCount = maxLimit - currentPauseUsed;
 
+        // 進入暫停時立刻停止自動暫停巡邏計時器，避免雙重計時器重疊運作
+        StopAutoPauseCheck();
+
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
         
@@ -312,8 +327,7 @@ public partial class MatchZy
 
             if (techPauseElapsedTime >= durationLimit)
             {
-                Server.ExecuteCommand("mp_unpause_match;");
-                isPaused = false;
+                CleanUpUnpauseState();
                 untData["ct"] = false;
                 untData["t"] = false;
                 
@@ -404,7 +418,6 @@ public partial class MatchZy
 
         Team playerMatchTeam = (player.Team == CsTeam.CounterTerrorist) ? reverseTeamSides["CT"] : reverseTeamSides["TERRORIST"];
         
-        // 修正：從記憶體指標比較，改為字串比較，免疫 OT 物件複製 BUG
         string teamKey = "";
         if (matchzyTeam1 != null && playerMatchTeam.teamName == matchzyTeam1.teamName) teamKey = "matchzyTeam1";
         else if (matchzyTeam2 != null && playerMatchTeam.teamName == matchzyTeam2.teamName) teamKey = "matchzyTeam2";
@@ -434,6 +447,9 @@ public partial class MatchZy
         int currentPauseUsed = ++targetPauseUsedDict[teamKey];
         int remainingCount = maxLimit - currentPauseUsed;
 
+        // 進入暫停時立刻停止自動暫停巡邏計時器，避免雙重計時器重疊運作
+        StopAutoPauseCheck();
+
         Server.ExecuteCommand("mp_pause_match;");
         isPaused = true;
         
@@ -459,8 +475,7 @@ public partial class MatchZy
 
             if (tacPauseElapsedTime >= durationLimit)
             {
-                Server.ExecuteCommand("mp_unpause_match;");
-                isPaused = false;
+                CleanUpUnpauseState();
                 unpData["ct"] = false;
                 unpData["t"] = false;
                 
@@ -547,8 +562,7 @@ public partial class MatchZy
             
             if (untData["t"] && untData["ct"])
             {
-                Server.ExecuteCommand("mp_unpause_match;");
-                isPaused = false;
+                CleanUpUnpauseState();
                 
                 CheckAndAcceptShortHanded(); 
 
@@ -582,8 +596,7 @@ public partial class MatchZy
             
             if (unpData["t"] && unpData["ct"])
             {
-                Server.ExecuteCommand("mp_unpause_match;");
-                isPaused = false;
+                CleanUpUnpauseState();
                 
                 CheckAndAcceptShortHanded(); 
 
@@ -731,10 +744,7 @@ public partial class MatchZy
         StopAutoPauseCheck();
         StartAutoPauseCheck();
 
-        AddTimer(1.0f, () => 
-        {
-            EvaluateAutoPauseCondition();
-        });
+        AddTimer(1.0f, EvaluateAutoPauseCondition);
 
         return HookResult.Continue;
     }
@@ -793,13 +803,28 @@ public partial class MatchZy
 
     private void EvaluateAutoPauseCondition()
     {
-        if (!isMatchLive || !AutoPauseEnabled) return;
-        if (IsHalfTimePhase() || IsPostGamePhase()) return;
+        if (!isMatchLive || !AutoPauseEnabled)
+        {
+            StopAutoPauseCheck();
+            return;
+        }
+        if (IsHalfTimePhase() || IsPostGamePhase())
+        {
+            StopAutoPauseCheck();
+            return;
+        }
 
         CCSGameRules? gameRules = GetPauseGameRulesSafe();
 
         // ★ 核心：一旦買槍凍結時間結束（回合正式開打），立刻關掉計時器下班，交戰期間 0 負載！
         if (gameRules != null && !IsFreezePeriodSafe(gameRules))
+        {
+            StopAutoPauseCheck();
+            return;
+        }
+
+        // 若已經處於暫停狀態，直接停止外層巡邏計時器（交由暫停內部計時器接手），防止雙計時器並發
+        if (isPaused || IsOfficialTacActiveSafe(gameRules))
         {
             StopAutoPauseCheck();
             return;
@@ -818,9 +843,6 @@ public partial class MatchZy
             return;
         }
 
-        if (isPaused) return;
-        if (IsOfficialTacActiveSafe(gameRules)) return;
-
         if (targetCt > 0 && ctCount < targetCt) AutoTriggerTacPause(CsTeam.CounterTerrorist);
         else if (targetT > 0 && tCount < targetT) AutoTriggerTacPause(CsTeam.Terrorist);
     }
@@ -838,10 +860,7 @@ public partial class MatchZy
     {
         StopAutoPauseCheck();
         // 僅在回合凍結時間內每 1.0 秒檢查一次，凍結結束後由 EvaluateAutoPauseCondition 自動關閉
-        autoPauseMainTimer = AddTimer(1.0f, () =>
-        {
-            EvaluateAutoPauseCondition();
-        }, TimerFlags.REPEAT);
+        autoPauseMainTimer = AddTimer(1.0f, EvaluateAutoPauseCondition, TimerFlags.REPEAT);
     }
 
     private void AutoTriggerTacPause(CsTeam team)
@@ -874,11 +893,15 @@ public partial class MatchZy
             if (!autoPauseLimitAnnounced)
             {
                 string phaseStr = isOvertime ? " 加時賽 " : "";
-                PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 因 {ChatColors.Orange}人員離線{ChatColors.Default} 戰術暫停已用完 ({phaseStr})");
+                PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} 因 {ChatColors.Orange}隊員離線{ChatColors.Default} 戰術暫停已用完");
                 autoPauseLimitAnnounced = true;
             }
+            StopAutoPauseCheck();
             return;
         }
+
+        // ★ 關鍵修復：進入自動暫停時，立刻關閉外層 autoPauseMainTimer，消除雙計時器重疊掃描
+        StopAutoPauseCheck();
 
         autoPauseLimitAnnounced = false; 
         string sideName = (team == CsTeam.CounterTerrorist) ? "反恐小組" : "恐怖份子";
@@ -893,7 +916,7 @@ public partial class MatchZy
         unpData["ct"] = false;
 
         string phasePrefix = isOvertime ? " 加時賽 " : "";
-        PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} {ChatColors.Orange}人員離線{ChatColors.Default} 觸發 {phasePrefix}暫停 剩餘：{ChatColors.Green}{remainingCount}{ChatColors.Default}次");
+        PrintToAllChat($" {ChatColors.Green}{currentTeamName}{ChatColors.Default} {ChatColors.Orange}隊員離線{ChatColors.Default} 觸發 {phasePrefix}暫停 剩餘：{ChatColors.Green}{remainingCount}{ChatColors.Default}次");
         PrintToAllChat($" 暫 停 在 \u0004{durationLimit}秒\u0001 自 動 解 除，或 雙 方 輸 入 {ChatColors.Orange}.unp\u0001 解 除");
 
         tacPauseElapsedTime = 0;
@@ -933,12 +956,11 @@ public partial class MatchZy
                 }
                 else
                 {
-                    Server.ExecuteCommand("mp_unpause_match;");
-                    isPaused = false;
+                    CleanUpUnpauseState();
                     unpData["ct"] = false;
                     unpData["t"] = false;
                     isAutoTriggeredTacPause = false;
-                    PrintToAllChat($" {ChatColors.Green}玩 家 已 連 回，自 動 解 除 暫 停");
+                    PrintToAllChat($" {ChatColors.Orange}玩 家 已 連 回，自 動 解 除 暫 停");
                     
                     foreach (var p in Utilities.GetPlayers())
                     {
@@ -958,8 +980,7 @@ public partial class MatchZy
 
             if (tacPauseElapsedTime >= durationLimit)
             {
-                Server.ExecuteCommand("mp_unpause_match;");
-                isPaused = false;
+                CleanUpUnpauseState();
                 unpData["ct"] = false;
                 unpData["t"] = false;
                 
@@ -1001,7 +1022,6 @@ public partial class MatchZy
 
     private bool IsPlayerCoachForAutoPause(CCSPlayerController p)
     {
-        // 【0-GC 優化】：若兩隊皆無教練，直接回傳 false，免除每次檢查時的雜湊查找與 try-catch 開銷
         if ((matchzyTeam1 == null || matchzyTeam1.coach.Count == 0) &&
             (matchzyTeam2 == null || matchzyTeam2.coach.Count == 0))
         {
@@ -1011,7 +1031,6 @@ public partial class MatchZy
                (matchzyTeam2 != null && matchzyTeam2.coach.Contains(p));
     }
 
-    // 【0-GC 優化】：單趟迴圈同時統計 CT 與 T 的選手人數，砍掉 75% 的重複 Utilities.GetPlayers() 呼叫
     private void GetBothTeamsPlayerCount(out int ctCount, out int tCount)
     {
         ctCount = 0;
