@@ -1044,21 +1044,24 @@ namespace MatchZy
         }
 
         private void UpdateReadyClanTags()
-        {
-            // ▼ 核心修正：加入 !isWarmup，只要不是熱身階段（包含勝利結算畫面），絕對不顯示準備標籤並立刻清空
-            if (!isWarmup || !readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
-            {
-                if (!_readyClanTagsCleared)
-                {
-                    _readyClanTagsCleared = true;
-                    ClearReadyClanTags();
-                }
-                return;
-            }
+{
+    // ▼ 嚴格限制：只要有一項不符合熱身準備條件，立刻銷毀計時器，徹底停止背景空轉！
+    if (!isWarmup || !readyAvailable || matchStarted || isCountdownActive || isKnifeRound || isSideSelectionPhase || isMatchLive || isPractice)
+    {
+        clanTagTimer?.Kill();
+        clanTagTimer = null;
 
-            _readyClanTagsCleared = false;
-            Server.NextFrame(_updateClanTagsNextFrameAction ??= ExecuteUpdateReadyClanTagsOnNextFrame);
+        if (!_readyClanTagsCleared)
+        {
+            _readyClanTagsCleared = true;
+            ClearReadyClanTags();
         }
+        return;
+    }
+
+    _readyClanTagsCleared = false;
+    Server.NextFrame(_updateClanTagsNextFrameAction ??= ExecuteUpdateReadyClanTagsOnNextFrame);
+}
 
         private void ExecuteUpdateReadyClanTagsOnNextFrame()
         {
