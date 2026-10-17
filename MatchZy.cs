@@ -1457,11 +1457,36 @@ namespace MatchZy
                     }
                 }
                // ==========================================
-                // 3. 超時邏輯：時間歸零，隨機執行保留或交換陣營並開賽
+                // 3. 超時邏輯：時間歸零，抓出勝方代表自動執行 .stay 或 .switch
                 // ==========================================
                 if (sideSelectionRemainingSeconds <= 0)
                 {
                     CancelSideSelectionTimer();
+
+                    // 找出刀局獲勝方 (knifeWinner) 的任一位場上選手作為代表，避免傳入 null 被 OnTeamStay/OnTeamSwitch 擋掉
+                    CCSPlayerController? winnerPlayer = null;
+                    foreach (var p in Utilities.GetPlayers())
+                    {
+                        if (p is { IsValid: true, IsBot: false } && p.TeamNum == knifeWinner &&
+                            !matchzyTeam1.coach.Contains(p) && !matchzyTeam2.coach.Contains(p))
+                        {
+                            winnerPlayer = p;
+                            break;
+                        }
+                    }
+
+                    // 備援：若勝方剛好只有 Bot，則抓取任一勝方有效實體
+                    if (winnerPlayer == null)
+                    {
+                        foreach (var p in Utilities.GetPlayers())
+                        {
+                            if (p is { IsValid: true } && p.TeamNum == knifeWinner)
+                            {
+                                winnerPlayer = p;
+                                break;
+                            }
+                        }
+                    }
                     
                     // 產生 0 或 1 的隨機亂數 (0-GC Random.Shared)
                     int randomChoice = Random.Shared.Next(0, 2); 
@@ -1477,9 +1502,14 @@ namespace MatchZy
                             }
                         }
 
-                        // 直接呼叫 MatchZy 底層開賽方法，繞過 OnTeamStay 的 player == null 攔截
-                        StartLive();
-                        isSideSelectionPhase = false;
+                        OnTeamStay(winnerPlayer, null);
+
+                        // 終極防呆：若場上完全沒有勝方玩家導致未開賽，強制啟動正賽
+                        if (isSideSelectionPhase)
+                        {
+                            isSideSelectionPhase = false;
+                            StartLive();
+                        }
                     }
                     else
                     {
@@ -1492,10 +1522,14 @@ namespace MatchZy
                             }
                         }
 
-                        // 直接呼叫 MatchZy 底層換邊與開賽方法，繞過 OnTeamSwitch 的 player == null 攔截
-                        SwapTeams();
-                        StartLive();
-                        isSideSelectionPhase = false;
+                        OnTeamSwitch(winnerPlayer, null);
+
+                        // 終極防呆：若場上完全沒有勝方玩家導致未開賽，強制啟動正賽
+                        if (isSideSelectionPhase)
+                        {
+                            isSideSelectionPhase = false;
+                            StartLive();
+                        }
                     }
                 }
             }, TimerFlags.REPEAT);
